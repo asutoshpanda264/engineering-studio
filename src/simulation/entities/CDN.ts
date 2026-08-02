@@ -100,8 +100,8 @@ export interface CDNConfig {
 
 const DEFAULTS: Required<CDNConfig> = {
   edgeCount: 5,
-  minEdgeLatencyMs: 5,
-  maxEdgeLatencyMs: 80,
+  minEdgeLatencyMs: 1,
+  maxEdgeLatencyMs: 6,
   capacity: 20,
   evictionPolicy: "lru",
   ttlMs: 0,
@@ -203,6 +203,18 @@ export class CDN implements Entity {
     return this.beginProcessing(event.requestId, meta, ctx);
   }
 
+  /** Deterministic key -> edge routing (FNV-1a hash mod edge count), so
+   * the same key always lands on the same edge — mirrors how anycast/geo
+   * routing keeps a given user's requests hitting the same nearby edge. */
+  private hashKeyToEdge(key: string): number {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < key.length; i++) {
+      hash ^= key.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return Math.abs(hash) % this.edges.length;
+  }
+
   private beginProcessing(
     requestId: RequestId,
     meta: CDNResponseMetadata,
@@ -210,10 +222,12 @@ export class CDN implements Entity {
   ): SimulationEvent[] {
     const isRequestLeg = meta.direction === "request";
     // A response leg carries the edge it originally missed on; a request
-    // leg picks a fresh one — a uniformly random stand-in for "this
-    // request came from somewhere, and some edge is nearest to it."
+    // leg routes by key, not randomly — real CDNs route a given piece of
+    // content to the same nearby edge consistently (anycast/geo-DNS), so
+    // a key cached at one edge keeps hitting there instead of fragmenting
+    // across edges on every request.
     const edgeIndex = isRequestLeg
-      ? ctx.rng.nextInt(0, this.edges.length)
+      ? this.hashKeyToEdge(meta.key)
       : (meta.cdnEdgeIndex ?? 0);
     const edge = this.edges[edgeIndex];
 

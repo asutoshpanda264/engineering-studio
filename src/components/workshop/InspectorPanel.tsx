@@ -331,8 +331,8 @@ function CDNEdgeSection({
 }) {
   const config = node.data.config;
   const edgeCount = typeof config.edgeCount === "number" ? config.edgeCount : 5;
-  const minLatency = typeof config.minEdgeLatencyMs === "number" ? config.minEdgeLatencyMs : 5;
-  const maxLatency = typeof config.maxEdgeLatencyMs === "number" ? config.maxEdgeLatencyMs : 80;
+  const minLatency = typeof config.minEdgeLatencyMs === "number" ? config.minEdgeLatencyMs : 1;
+  const maxLatency = typeof config.maxEdgeLatencyMs === "number" ? config.maxEdgeLatencyMs : 6;
   const edgeLatencyMs = computeEdgeLatencies(edgeCount, minLatency, maxLatency);
 
   return (

@@ -59,6 +59,33 @@ Key decisions:
 | Icons | Lucide React |
 | Testing | Vitest + Testing Library |
 
+## What's Built So Far
+
+**Landing page** — hero diagram, entity/scenario catalogue, links into the Workshop.
+
+**Workshop** — freeform canvas (drag, connect, configure, delete), Component Library sidebar (Core vs. Modules), Inspector panel with per-entity config knobs and live metrics, Scenarios tab.
+
+**Simulation engine** (`src/simulation/`, zero React imports) — deterministic discrete-event core: virtual `Clock`, min-heap `EventQueue`, seeded RNG, immutable event log, `MetricsCollector` deriving every metric from the event timeline (never tracked incrementally by entities). Cycle and unreachable-node detection before a run starts (`graphValidation.ts`), with warnings/errors surfaced in the UI instead of a silent no-op.
+
+**Entities implemented** (6 of 7 — Message Queue still outstanding):
+- **Client** — request generator, configurable rate and key pool size
+- **API Server**, **Database** — bounded concurrency + queueing (admit → queue → reject), configurable processing time
+- **Load Balancer** — round-robin distribution, response pass-through
+- **Cache** — LRU / LFU / FIFO / MRU eviction, cache-aside, playable capacity/TTL knobs
+- **CDN** — N independent geographic edges, each with its own cache and distance-to-user latency, deterministic key→edge routing (same content always lands on the same nearby edge, mirroring real anycast/geo-routing), per-edge hit-rate metrics
+
+**Playback system** — instant simulation, separate controlled replay: play/pause, seek/scrub, 0.5x–4x speed, animated packet flow that follows each edge's actual bezier path (not a straight-line approximation).
+
+**Results & metrics** — live results bar (requests, success rate, avg/p95 latency, throughput with sparklines), per-entity metrics in the Inspector, colored node-health dots (idle/healthy/near-capacity/dropping-requests/crashed) with a **Status Legend** explaining what each color means.
+
+**Suggestions engine** (`src/lib/suggestionEngine.ts`) — analyzes the last run and proposes concrete fixes (add a Load Balancer, add a Cache, raise capacity, …), ranked by severity (critical/warning/info).
+
+**CDN latency comparison ("Why This Helps")** — re-runs the same architecture with a selected CDN spliced out (`compareArchitectures.ts`, same seed, same traffic) and shows real, measured "with vs. without" latency bars in the Inspector, plus a schematic Edge Map (distance from center = latency, color = hit rate) so the CDN's benefit is *demonstrated*, not asserted — including an honest "this CDN isn't helping, try X" message when the numbers don't favor it.
+
+**Scenarios** — URL Shortener, Movie Ticket Booking, Flash Sale, each with constraints and a validator (`src/scenarios/`).
+
+**Tests** — 121 passing (`npx vitest run`), concentrated on the simulation engine and entity behavior.
+
 ## Development
 
 ```bash
@@ -79,18 +106,14 @@ npm run lint
 | Milestone | Status |
 |---|---|
 | 0. Project scaffold | ✅ Done |
-| 1. Design system primitives | 🚧 In progress |
-| 2. Simulation engine core | ⬜ |
-| 3. Core entities (Client, API, Database) | ⬜ |
-| 4. Workshop shell | ⬜ |
-| 5. End-to-end Movie Booking | ⬜ |
-| 6. Playback system | ⬜ |
-| 7. Metrics panel | ⬜ |
-| 8. Landing page | ⬜ |
-| 9. Phase 2 entities | ⬜ |
-| 10. Additional scenarios | ⬜ |
-| 11. Final polish | ⬜ |
-# engineering-studio
-# engineering-studio
-# engineering-studio
-# engineering-studio
+| 1. Design system primitives | ✅ Done |
+| 2. Simulation engine core | ✅ Done |
+| 3. Core entities (Client, API, Database) | ✅ Done |
+| 4. Workshop shell | ✅ Done |
+| 5. End-to-end Movie Booking | ✅ Done |
+| 6. Playback system | ✅ Done |
+| 7. Metrics panel | ✅ Done |
+| 8. Landing page | ✅ Done |
+| 9. Phase 2 entities (Load Balancer, Cache, CDN, Message Queue) | 🚧 In progress — 3 of 4 done, Message Queue outstanding |
+| 10. Additional scenarios (URL Shortener, Flash Sale, …) | ✅ Done |
+| 11. Final polish | 🚧 In progress |
