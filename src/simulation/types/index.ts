@@ -46,6 +46,8 @@ export interface SimulationResult {
   warnings: string[];
   errors: string[];
   metadata: SimulationMetadata;
+  /** Ids of Client entities in this run — see MetricsCollector's clientIds param. */
+  clientIds: EntityId[];
 }
 
 /**
@@ -81,6 +83,13 @@ export interface EntityMetrics {
   cacheHitRate?: number; // 0.0 - 1.0
   /** Only present for entities whose CACHE_HIT/CACHE_MISS events carry an edgeIndex (CDN). */
   cdnEdges?: CDNEdgeMetrics[];
+  /** Only present for load balancers — how many requests each downstream target received. */
+  routingDistribution?: RoutingTargetMetrics[];
+}
+
+export interface RoutingTargetMetrics {
+  targetId: EntityId;
+  requests: number;
 }
 
 export interface CDNEdgeMetrics {

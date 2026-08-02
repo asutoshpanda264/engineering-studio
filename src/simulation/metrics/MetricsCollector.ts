@@ -15,13 +15,35 @@ import type {
   EntityId,
   EntityMetrics,
   MetricsSnapshot,
+  RoutingTargetMetrics,
 } from "../types";
 
 export function collectMetrics(
   events: SimulationEvent[],
   entityIds: EntityId[],
-  totalDurationMs: number
+  totalDurationMs: number,
+  /**
+   * Ids of entities whose completions/failures represent an actual
+   * client-originated request finishing (see Client.ts — "the lifecycle
+   * simply ends at the client"). Optional and, when omitted, every
+   * REQUEST_COMPLETED/REQUEST_FAILED is counted — the original behavior,
+   * which callers that don't yet know their client ids (existing tests)
+   * can keep relying on.
+   *
+   * Needed because MessageQueue acknowledges the client immediately, then
+   * separately dispatches to its own downstream consumer under the same
+   * requestId. That dispatch is a real, independently-simulated request —
+   * it ends the same way any other does, with a REQUEST_COMPLETED/FAILED —
+   * except addressed back to the queue, not a client. Without this filter
+   * that second completion would double-count against totals that were
+   * sized to one event per client-issued request.
+   */
+  clientIds?: EntityId[]
 ): MetricsSnapshot {
+  const clientIdSet = clientIds ? new Set(clientIds) : null;
+  const countsTowardClientOutcome = (destination: EntityId | null): boolean =>
+    !clientIdSet || (destination !== null && clientIdSet.has(destination));
+
   let totalRequests = 0;
   let successfulRequests = 0;
   let failedRequests = 0;
@@ -41,6 +63,7 @@ export function collectMetrics(
   const queueActivityByEntity = new Map<EntityId, { time: number; delta: 1 | -1 }[]>();
   const cacheAccessByEntity = new Map<EntityId, { hits: number; misses: number }>();
   const edgeAccessByEntity = new Map<EntityId, Map<number, { hits: number; misses: number }>>();
+  const routingByEntity = new Map<EntityId, Map<EntityId, number>>();
 
   for (const event of events) {
     switch (event.type) {
@@ -48,16 +71,20 @@ export function collectMetrics(
         totalRequests++;
         break;
       case "REQUEST_COMPLETED":
-        successfulRequests++;
-        if (typeof event.metadata.duration === "number") {
-          latencies.push(event.metadata.duration);
+        if (countsTowardClientOutcome(event.destination)) {
+          successfulRequests++;
+          if (typeof event.metadata.duration === "number") {
+            latencies.push(event.metadata.duration);
+          }
         }
         break;
       case "REQUEST_FAILED":
       case "QUEUE_FULL":
       case "DATABASE_BUSY":
       case "CONNECTION_REJECTED":
-        if (event.type === "REQUEST_FAILED") failedRequests++;
+        if (event.type === "REQUEST_FAILED" && countsTowardClientOutcome(event.destination)) {
+          failedRequests++;
+        }
         if (event.source && entityMetrics[event.source]) {
           entityMetrics[event.source].errorCount++;
         }
@@ -70,6 +97,13 @@ export function collectMetrics(
         break;
       case "PROCESSING_COMPLETED":
         recordActivity(activityByEntity, event.source, event.timestamp, -1);
+        break;
+      case "REQUEST_ROUTED":
+        if (event.source && event.destination && event.metadata.direction === "request") {
+          const targets = routingByEntity.get(event.source) ?? new Map<EntityId, number>();
+          targets.set(event.destination, (targets.get(event.destination) ?? 0) + 1);
+          routingByEntity.set(event.source, targets);
+        }
         break;
       case "REQUEST_QUEUED":
         recordActivity(queueActivityByEntity, event.source, event.timestamp, 1);
@@ -127,6 +161,15 @@ export function collectMetrics(
         };
       });
     metrics.cdnEdges = cdnEdges;
+  }
+
+  for (const [entityId, targets] of routingByEntity) {
+    const metrics = entityMetrics[entityId];
+    if (!metrics) continue;
+    const routingDistribution: RoutingTargetMetrics[] = [...targets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([targetId, requests]) => ({ targetId, requests }));
+    metrics.routingDistribution = routingDistribution;
   }
 
   for (const [entityId, intervals] of queueActivityByEntity) {

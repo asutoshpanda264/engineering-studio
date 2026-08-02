@@ -37,7 +37,12 @@ export function SimulationResultsPanel() {
 
   const series = useMemo(() => {
     if (!simulationResult) return null;
-    return computeMetricsTimeSeries(simulationResult.events, simulationResult.duration);
+    return computeMetricsTimeSeries(
+      simulationResult.events,
+      simulationResult.duration,
+      undefined,
+      simulationResult.clientIds
+    );
   }, [simulationResult]);
 
   if (error) {

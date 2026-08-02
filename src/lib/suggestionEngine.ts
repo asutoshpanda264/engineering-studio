@@ -21,6 +21,7 @@ export interface Suggestion {
 const CAPACITY_FIELD_BY_TYPE: Partial<Record<string, string>> = {
   api: "Max Concurrent",
   database: "Max Connections",
+  message_queue: "Consumer Count",
 };
 
 export function getSuggestions(

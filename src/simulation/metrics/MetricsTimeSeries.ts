@@ -22,7 +22,7 @@
 
 import { average, percentile } from "./MetricsCollector";
 import type { SimulationEvent } from "../events/types";
-import type { Timestamp } from "../types";
+import type { EntityId, Timestamp } from "../types";
 
 export interface MetricsTimeSeriesPoint {
   /** Start of this bucket's window, ms. */
@@ -39,10 +39,15 @@ const DEFAULT_BUCKET_COUNT = 40;
 export function computeMetricsTimeSeries(
   events: SimulationEvent[],
   durationMs: number,
-  bucketCount: number = DEFAULT_BUCKET_COUNT
+  bucketCount: number = DEFAULT_BUCKET_COUNT,
+  /** Same filter as collectMetrics' clientIds — see its comment. */
+  clientIds?: EntityId[]
 ): MetricsTimeSeriesPoint[] {
   if (durationMs <= 0 || bucketCount <= 0) return [];
   const bucketMs = durationMs / bucketCount;
+  const clientIdSet = clientIds ? new Set(clientIds) : null;
+  const countsTowardClientOutcome = (destination: EntityId | null): boolean =>
+    !clientIdSet || (destination !== null && clientIdSet.has(destination));
 
   const buckets: { success: number; failed: number; latencies: number[] }[] =
     Array.from({ length: bucketCount }, () => ({
@@ -56,12 +61,14 @@ export function computeMetricsTimeSeries(
 
   for (const event of events) {
     if (event.type === "REQUEST_COMPLETED") {
+      if (!countsTowardClientOutcome(event.destination)) continue;
       const bucket = buckets[bucketIndexFor(event.timestamp)];
       bucket.success++;
       if (typeof event.metadata.duration === "number") {
         bucket.latencies.push(event.metadata.duration);
       }
     } else if (event.type === "REQUEST_FAILED") {
+      if (!countsTowardClientOutcome(event.destination)) continue;
       buckets[bucketIndexFor(event.timestamp)].failed++;
     }
   }

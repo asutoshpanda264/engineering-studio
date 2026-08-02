@@ -102,7 +102,8 @@ export class PlaybackController {
     return collectMetrics(
       this.getVisibleEvents(),
       this.entityIds,
-      this.currentTime
+      this.currentTime,
+      this.result.clientIds
     );
   }
 

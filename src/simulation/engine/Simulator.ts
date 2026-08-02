@@ -24,6 +24,7 @@ import { Database } from "../entities/Database";
 import { LoadBalancer } from "../entities/LoadBalancer";
 import { Cache } from "../entities/Cache";
 import { CDN } from "../entities/CDN";
+import { MessageQueue } from "../entities/MessageQueue";
 import { collectMetrics } from "../metrics/MetricsCollector";
 import type {
   EntityConfig,
@@ -45,11 +46,13 @@ function createEntity(config: EntityConfig): Entity | null {
     case "database":
       return new Database(config.id, config.config);
     case "load_balancer":
-      return new LoadBalancer(config.id);
+      return new LoadBalancer(config.id, config.config);
     case "cache":
       return new Cache(config.id, config.config);
     case "cdn":
       return new CDN(config.id, config.config);
+    case "message_queue":
+      return new MessageQueue(config.id, config.config);
     default:
       return null;
   }
@@ -160,10 +163,15 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
     createEvent("SIMULATION_FINISHED", clock.now(), null, null, null)
   );
 
+  const clientIds = config.entities
+    .filter((e) => e.type === "client")
+    .map((e) => e.id);
+
   const metrics = collectMetrics(
     allEvents,
     Array.from(entities.keys()),
-    config.scenario.durationMs
+    config.scenario.durationMs,
+    clientIds
   );
 
   return {
@@ -172,6 +180,7 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
     duration: clock.now(),
     warnings,
     errors,
+    clientIds,
     metadata: {
       seed: config.options.seed,
       version: "0.1.0",

@@ -53,10 +53,11 @@ function buildResult(): SimulationResult {
 
   return {
     events,
-    metrics: collectMetrics(events, ["client1", "api1"], 200),
+    metrics: collectMetrics(events, ["client1", "api1"], 200, ["client1"]),
     duration: 200,
     warnings: [],
     errors: [],
+    clientIds: ["client1"],
     metadata: { seed: 1, version: "0.1.0", generatedAt: new Date().toISOString() },
   };
 }

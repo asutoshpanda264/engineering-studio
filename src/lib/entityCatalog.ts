@@ -80,7 +80,7 @@ export const ENTITY_CATALOG: EntityCatalogItem[] = [
     description: "Decouples producers from consumers",
     icon: Inbox,
     phase: 2,
-    implemented: false,
+    implemented: true,
   },
 ];
 

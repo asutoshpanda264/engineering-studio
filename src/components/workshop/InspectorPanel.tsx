@@ -16,7 +16,7 @@ import type { ArchitectureNode } from "@/store/workshopStore";
 import { computeEdgeLatencies } from "@/simulation/entities/CDN";
 import { CDNEdgeMap } from "@/components/workshop/CDNEdgeMap";
 import { CDNImpactComparison } from "@/components/workshop/CDNImpactComparison";
-import type { CDNEdgeMetrics } from "@/simulation/types";
+import type { CDNEdgeMetrics, RoutingTargetMetrics } from "@/simulation/types";
 
 /**
  * The Inspector explains whatever's selected. With nothing selected,
@@ -265,6 +265,10 @@ function NodeInspector({ node }: { node: ArchitectureNode }) {
           <CDNEdgeSection node={node} edgeMetrics={entityMetrics?.cdnEdges} />
         )}
 
+        {node.data.entityType === "load_balancer" && entityMetrics?.routingDistribution && (
+          <LoadBalancerDistributionSection distribution={entityMetrics.routingDistribution} />
+        )}
+
         {node.data.entityType === "cdn" && cdnComparisons?.[node.id] && (
           <section className="flex flex-col gap-2">
             <h3 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
@@ -341,6 +345,54 @@ function CDNEdgeSection({
         Edge Map
       </h3>
       <CDNEdgeMap edgeLatencyMs={edgeLatencyMs} edgeMetrics={edgeMetrics} />
+    </section>
+  );
+}
+
+/**
+ * The visible evidence the algorithm choice needs (see feedback that
+ * shipped this: a load balancer with one hardcoded algorithm teaches
+ * nothing a student can observe). Round robin and least-connections
+ * behave identically here when every target is equally fast — the
+ * point is to make that sameness, and any later divergence once a
+ * target is slower, visible as a comparable bar per target rather than
+ * a single aggregate number.
+ */
+function LoadBalancerDistributionSection({
+  distribution,
+}: {
+  distribution: RoutingTargetMetrics[];
+}) {
+  const nodes = useWorkshopStore((s) => s.nodes);
+  const total = distribution.reduce((sum, d) => sum + d.requests, 0);
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
+        Request Distribution
+      </h3>
+      <div className="flex flex-col gap-1.5">
+        {distribution.map((entry) => {
+          const label = nodes.find((n) => n.id === entry.targetId)?.data.label ?? entry.targetId;
+          const fraction = total > 0 ? entry.requests / total : 0;
+          return (
+            <div key={entry.targetId} className="flex flex-col gap-0.5">
+              <div className="flex items-center justify-between text-[11px] text-text-muted">
+                <span className="truncate">{label}</span>
+                <span className="shrink-0 tabular-nums">
+                  {entry.requests} ({(fraction * 100).toFixed(0)}%)
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${fraction * 100}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

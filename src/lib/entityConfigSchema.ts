@@ -149,6 +149,21 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       description: "Chance a query fails independently of load.",
     },
   ],
+  load_balancer: [
+    {
+      key: "algorithm",
+      label: "Algorithm",
+      shortLabel: "algo",
+      type: "select",
+      default: "round_robin",
+      options: [
+        { value: "round_robin", label: "Round Robin" },
+        { value: "least_connections", label: "Least Connections" },
+      ],
+      description:
+        "Round robin cycles through targets in order, regardless of load. Least connections sends each request to whichever target currently has the fewest in-flight requests — they behave identically when targets are equally fast, and diverge once one is slower or overloaded.",
+    },
+  ],
   cache: [
     {
       key: "capacity",
@@ -265,6 +280,43 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 0,
       unit: "ms",
       description: "How long an entry stays valid at an edge. 0 = never expires on its own.",
+    },
+  ],
+  message_queue: [
+    {
+      key: "consumerCount",
+      label: "Consumer Count",
+      shortLabel: "consumers",
+      type: "number",
+      min: 1,
+      max: 50,
+      step: 1,
+      default: 3,
+      description: "Consumers pulling messages off the backlog at the same time.",
+    },
+    {
+      key: "maxQueueLength",
+      label: "Max Queue Length",
+      shortLabel: "backlog",
+      type: "number",
+      min: 0,
+      max: 5_000,
+      step: 10,
+      default: 500,
+      description:
+        "Messages the queue can buffer once every consumer is busy, before rejecting new ones.",
+    },
+    {
+      key: "dispatchTimeMs",
+      label: "Dispatch Time",
+      shortLabel: "dispatch",
+      type: "number",
+      min: 1,
+      max: 500,
+      step: 1,
+      default: 10,
+      unit: "ms",
+      description: "Time a consumer takes to pick up and hand off one message.",
     },
   ],
 };
