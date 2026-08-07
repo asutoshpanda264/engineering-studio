@@ -253,6 +253,67 @@ export function createDatabaseBusyEvent(
 }
 
 /**
+ * Creates a rate-limit-admitted event — a rate limiter let a request
+ * through. Paired with createRateLimitExceededEvent the same way
+ * CACHE_HIT/CACHE_MISS are paired: emitted on every decision (not just
+ * the reject side), so admitted/rejected counts don't depend on any
+ * entity-type awareness elsewhere — MetricsCollector can trust that only
+ * a RateLimiter ever emits either of these two event types.
+ */
+export function createRateLimitAdmittedEvent(
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  metadata: Record<string, unknown> = {}
+): SimulationEvent {
+  return createEvent(
+    "RATE_LIMIT_ADMITTED",
+    timestamp,
+    entityId,
+    entityId,
+    requestId,
+    metadata
+  );
+}
+
+/**
+ * Creates a rate-limit-exceeded event — a rate limiter rejected a request
+ * because it had no tokens/window capacity left to admit it.
+ */
+export function createRateLimitExceededEvent(
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  metadata: Record<string, unknown> = {}
+): SimulationEvent {
+  return createEvent(
+    "RATE_LIMIT_EXCEEDED",
+    timestamp,
+    entityId,
+    entityId,
+    requestId,
+    metadata
+  );
+}
+
+/**
+ * Creates a circuit-breaker state-transition event — self-addressed,
+ * same reasoning as QUEUE_FULL: a diagnostic marker, not something
+ * anything downstream reacts to. `CIRCUIT_OPENED` fires both the first
+ * time a breaker trips and any time a failed half-open probe reopens it —
+ * "circuit is now open" means the same thing either way.
+ */
+export function createCircuitStateEvent(
+  type: "CIRCUIT_OPENED" | "CIRCUIT_CLOSED" | "CIRCUIT_HALF_OPENED",
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  metadata: Record<string, unknown> = {}
+): SimulationEvent {
+  return createEvent(type, timestamp, entityId, entityId, requestId, metadata);
+}
+
+/**
  * Creates a cache hit or miss event.
  */
 export function createCacheAccessEvent(
@@ -271,5 +332,29 @@ export function createCacheAccessEvent(
     null,
     requestId,
     { key, hit, ...metadata }
+  );
+}
+
+/**
+ * Creates a partition-assignment marker — which partition a Kafka message
+ * hashed to, recorded at admission (a durable log write), independent of
+ * whether any consumer group is even connected yet. Destination null,
+ * same as CACHE_HIT/MISS: a diagnostic marker for the event log and
+ * metrics, never delivered to any entity's handleEvent.
+ */
+export function createPartitionAssignedEvent(
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  partitionIndex: number,
+  key: string
+): SimulationEvent {
+  return createEvent(
+    "PARTITION_ASSIGNED",
+    timestamp,
+    entityId,
+    null,
+    requestId,
+    { partitionIndex, key }
   );
 }

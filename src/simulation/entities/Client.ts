@@ -59,6 +59,8 @@ export class Client implements Entity {
 
     const latency = ctx.latencyTo(target);
     const key = typeof event.metadata.key === "string" ? event.metadata.key : "key_0";
+    const route = typeof event.metadata.route === "string" ? event.metadata.route : undefined;
+    const exists = typeof event.metadata.exists === "boolean" ? event.metadata.exists : true;
     return [
       createRequestRoutedEvent(
         ctx.now + latency,
@@ -70,6 +72,8 @@ export class Client implements Entity {
           direction: "request",
           path: [this.id],
           key,
+          exists,
+          ...(route !== undefined ? { route } : {}),
         }
       ),
     ];

@@ -4,6 +4,7 @@ import { useWorkshopStore } from "@/store/workshopStore";
 import { computeMetricsTimeSeries } from "@/simulation/metrics/MetricsTimeSeries";
 import { Sparkline } from "@/components/ui/Sparkline";
 import type { SparklinePoint } from "@/components/ui/Sparkline";
+import { estimateCost } from "@/lib/costEngine";
 
 // Stable reference for the no-warnings case — `?? []` inline would create
 // a new array every render, which breaks Zustand's reference-equality
@@ -31,6 +32,7 @@ const formatTime = (t: number) => `${(t / 1000).toFixed(1)}s`;
 export function SimulationResultsPanel() {
   const metrics = useWorkshopStore((s) => s.playbackMetrics);
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
+  const nodes = useWorkshopStore((s) => s.nodes);
   const playbackTime = useWorkshopStore((s) => s.playbackState?.currentTime ?? null);
   const error = useWorkshopStore((s) => s.simulationError);
   const warnings = useWorkshopStore((s) => s.simulationResult?.warnings ?? NO_WARNINGS);
@@ -44,6 +46,16 @@ export function SimulationResultsPanel() {
       simulationResult.clientIds
     );
   }, [simulationResult]);
+
+  // Unlike every other Stat below, this one deliberately reads
+  // simulationResult instead of playbackMetrics: a monthly cost
+  // projection is a property of the complete run, not a point in
+  // playback, so it shouldn't jitter as the user scrubs (same reasoning
+  // as ScenarioBriefing/EstimatedCostSection in InspectorPanel.tsx).
+  const cost = useMemo(() => {
+    if (!simulationResult) return null;
+    return estimateCost(simulationResult, nodes);
+  }, [simulationResult, nodes]);
 
   if (error) {
     return (
@@ -102,6 +114,12 @@ export function SimulationResultsPanel() {
         cursorTime={playbackTime}
         formatValue={(v) => `${v.toFixed(1)}/s`}
       />
+      {cost && (
+        <Stat
+          label="Est. monthly cost"
+          value={`$${cost.totalMonthlyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo`}
+        />
+      )}
       {warnings.length > 0 && (
         <div
           className="ml-auto flex shrink-0 items-center gap-1.5 text-warning"

@@ -174,3 +174,146 @@ describe("MessageQueue (through the full Simulator)", () => {
     expect(a.events).toEqual(b.events);
   });
 });
+
+describe("MessageQueue delivery modes (through the full Simulator)", () => {
+  function configWithTwoSubscribers(
+    deliveryMode: "queue" | "topic",
+    overrides: Partial<SimulationConfig> = {}
+  ): SimulationConfig {
+    return {
+      entities: [
+        { id: "client1", type: "client", position: { x: 0, y: 0 }, config: { requestRate: 30 } },
+        {
+          id: "mq1",
+          type: "message_queue",
+          position: { x: 0, y: 0 },
+          config: { consumerCount: 5, maxQueueLength: 500, dispatchTimeMs: 5, deliveryMode },
+        },
+        { id: "db1", type: "database", position: { x: 0, y: 0 }, config: {} },
+        { id: "db2", type: "database", position: { x: 0, y: 0 }, config: {} },
+      ],
+      connections: [
+        { source: "client1", target: "mq1", latencyMs: 2 },
+        { source: "mq1", target: "db1", latencyMs: 1 },
+        { source: "mq1", target: "db2", latencyMs: 1 },
+      ],
+      scenario: {
+        id: "mq-fanout-test",
+        title: "Message Queue Fan-out Test",
+        trafficPattern: { type: "constant", rate: 30 },
+        durationMs: 3000,
+      },
+      options: { seed: 42 },
+      ...overrides,
+    };
+  }
+
+  it("queue mode (point-to-point) only ever delivers to the first downstream connection", () => {
+    const result = runSimulation(configWithTwoSubscribers("queue"));
+    const db1Starts = result.events.filter(
+      (e) => e.type === "PROCESSING_STARTED" && e.source === "db1"
+    ).length;
+    const db2Starts = result.events.filter(
+      (e) => e.type === "PROCESSING_STARTED" && e.source === "db2"
+    ).length;
+
+    expect(db1Starts).toBeGreaterThan(0);
+    expect(db2Starts).toBe(0);
+  });
+
+  it("topic mode (fan-out) delivers every message to every subscriber independently", () => {
+    const result = runSimulation(configWithTwoSubscribers("topic"));
+    const db1Starts = result.events.filter(
+      (e) => e.type === "PROCESSING_STARTED" && e.source === "db1"
+    ).length;
+    const db2Starts = result.events.filter(
+      (e) => e.type === "PROCESSING_STARTED" && e.source === "db2"
+    ).length;
+
+    // Both subscribers see (roughly) every published message — not a
+    // split of one shared stream, the way two consumers in one pool would.
+    expect(db1Starts).toBeGreaterThan(0);
+    expect(db2Starts).toBeGreaterThan(0);
+    expect(Math.abs(db1Starts - db2Starts)).toBeLessThanOrEqual(2);
+
+    const distribution = result.metrics.entityMetrics.mq1.routingDistribution;
+    expect(distribution?.map((d) => d.targetId).sort()).toEqual(["db1", "db2"]);
+  });
+
+  it("acknowledges the producer immediately under topic mode too, regardless of subscriber count", () => {
+    const result = runSimulation(configWithTwoSubscribers("topic"));
+    expect(result.metrics.successRate).toBeGreaterThan(0.95);
+    expect(result.metrics.averageLatency).toBeLessThan(10);
+  });
+
+  it("each subscriber's dispatch pool overloads independently — one falling behind never steals from or blocks the other, and never fails the producer", () => {
+    // consumerCount/maxQueueLength/dispatchTimeMs are shared config
+    // applied per subscriber (see class doc: not independently
+    // configurable), so under identical overload conditions both
+    // subscribers get identically stressed — the property being tested
+    // is that they're stressed *independently*, not that one dominates.
+    // If this were a single shared pool instead of one per subscriber,
+    // rejections would come from one shared budget and dispatch counts
+    // wouldn't both stay this high simultaneously.
+    const result = runSimulation(
+      configWithTwoSubscribers("topic", {
+        entities: [
+          { id: "client1", type: "client", position: { x: 0, y: 0 }, config: { requestRate: 200 } },
+          {
+            id: "mq1",
+            type: "message_queue",
+            position: { x: 0, y: 0 },
+            config: {
+              consumerCount: 1,
+              maxQueueLength: 2,
+              dispatchTimeMs: 50,
+              deliveryMode: "topic",
+            },
+          },
+          { id: "db1", type: "database", position: { x: 0, y: 0 }, config: {} },
+          { id: "db2", type: "database", position: { x: 0, y: 0 }, config: {} },
+        ],
+        scenario: {
+          id: "topic-overload",
+          title: "Topic Overload",
+          trafficPattern: { type: "constant", rate: 200 },
+          durationMs: 2000,
+        },
+      })
+    );
+
+    // Both subscribers' own dispatch pools fall behind under this load...
+    const fullEventsFor = (subscriber: string) =>
+      result.events.filter(
+        (e) => e.type === "QUEUE_FULL" && e.source === "mq1" && e.metadata.subscriber === subscriber
+      ).length;
+    expect(fullEventsFor("db1")).toBeGreaterThan(0);
+    expect(fullEventsFor("db2")).toBeGreaterThan(0);
+
+    // ...yet each still independently gets through a comparable share of
+    // dispatches — one isn't crowding out the other's capacity.
+    const startsFor = (id: string) =>
+      result.events.filter((e) => e.type === "PROCESSING_STARTED" && e.source === id).length;
+    const db1Starts = startsFor("db1");
+    const db2Starts = startsFor("db2");
+    expect(db1Starts).toBeGreaterThan(0);
+    expect(db2Starts).toBeGreaterThan(0);
+    expect(Math.abs(db1Starts - db2Starts)).toBeLessThanOrEqual(3);
+
+    // And the producer was never at risk either way — it was acknowledged
+    // before any subscriber's capacity was even considered.
+    expect(result.metrics.successRate).toBeGreaterThan(0.95);
+  });
+
+  it("never lets fan-out deliveries double-count against client-facing totals", () => {
+    const result = runSimulation(configWithTwoSubscribers("topic"));
+    expect(result.metrics.successRate).toBeLessThanOrEqual(1);
+    expect(result.metrics.successfulRequests).toBeLessThanOrEqual(result.metrics.totalRequests);
+  });
+
+  it("is deterministic for a given seed under topic mode", () => {
+    const a = runSimulation(configWithTwoSubscribers("topic"));
+    const b = runSimulation(configWithTwoSubscribers("topic"));
+    expect(a.events).toEqual(b.events);
+  });
+});

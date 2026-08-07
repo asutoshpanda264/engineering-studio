@@ -16,7 +16,12 @@ export type EntityType =
   | "cache"
   | "load_balancer"
   | "cdn"
-  | "message_queue";
+  | "message_queue"
+  | "rate_limiter"
+  | "circuit_breaker"
+  | "replica_pool"
+  | "reverse_proxy"
+  | "kafka";
 
 /**
  * How the simulation clock reports time.
@@ -85,6 +90,18 @@ export interface EntityMetrics {
   cdnEdges?: CDNEdgeMetrics[];
   /** Only present for load balancers — how many requests each downstream target received. */
   routingDistribution?: RoutingTargetMetrics[];
+  /** Only present for rate limiters. */
+  rateLimiter?: RateLimiterMetrics;
+  /** Only present for circuit breakers. */
+  circuitBreaker?: CircuitBreakerMetrics;
+  /** Only present for caches that saw at least one miss — see Cache.ts's stampedeMode. */
+  cacheStampede?: CacheStampedeMetrics;
+  /** Only present for caches that saw at least one miss for a nonexistent key — see Cache.ts's negativeCaching. */
+  cachePenetration?: CachePenetrationMetrics;
+  /** Only present for caches that saw at least one TTL-expiry-driven miss — see Cache.ts's ttlJitterPercent. */
+  cacheAvalanche?: CacheAvalancheMetrics;
+  /** Only present for Kafka — how many messages hashed to each partition. Reuses RoutingTargetMetrics' shape (targetId holds a synthetic "Partition N" label, not a real entity id). */
+  kafkaPartitions?: RoutingTargetMetrics[];
 }
 
 export interface RoutingTargetMetrics {
@@ -92,10 +109,44 @@ export interface RoutingTargetMetrics {
   requests: number;
 }
 
+export interface RateLimiterMetrics {
+  admitted: number;
+  rejected: number;
+}
+
+export interface CacheStampedeMetrics {
+  /** Misses that found another fetch for the same key already in flight and waited on it instead of fetching independently — only possible under stampedeMode "coalesced". */
+  coalescedMisses: number;
+  /** Misses that each triggered their own independent downstream fetch. */
+  independentMisses: number;
+}
+
+export interface CachePenetrationMetrics {
+  /** Misses for a key confirmed nonexistent, answered directly from a negative-cache entry — no downstream trip. Only possible under negativeCaching "on". */
+  negativeHits: number;
+  /** Misses for a key confirmed nonexistent that still reached downstream — the naive default, or a negative-cache entry that hadn't been written yet. */
+  downstreamMisses: number;
+}
+
+export interface CacheAvalancheMetrics {
+  /** Misses caused by a previously-cached entry's own TTL expiring, as opposed to a key that was simply never cached (or was evicted for capacity). */
+  expiredMisses: number;
+  /** The largest number of expiry-driven misses that landed within a 100ms window of each other, anywhere in the run — the quantified size of an avalanche's "wave". */
+  peakExpiryBurst: number;
+}
+
+export type CircuitBreakerState = "closed" | "open" | "half_open";
+
+export interface CircuitBreakerMetrics {
+  state: CircuitBreakerState;
+  tripCount: number;
+}
+
 export interface CDNEdgeMetrics {
   edgeIndex: number;
   hitRate: number; // 0.0 - 1.0
   requests: number; // hits + misses seen at this edge
+  misses: number; // subset of requests that fell through to the origin
 }
 
 /**

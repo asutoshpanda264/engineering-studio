@@ -16,6 +16,7 @@ import { AnimatedEdge } from "@/components/workshop/edges/AnimatedEdge";
 import { ENTITY_DRAG_MIME_TYPE } from "@/components/workshop/ComponentSidebar";
 import { StatusLegend } from "@/components/workshop/StatusLegend";
 import { SuggestionsPanel } from "@/components/workshop/SuggestionsPanel";
+import { CostPanel } from "@/components/workshop/CostPanel";
 import type { EntityType } from "@/simulation/types";
 
 const nodeTypes = { component: ComponentNode };
@@ -90,7 +91,13 @@ function CanvasInner() {
           <StatusLegend />
         </FlowPanel>
         <FlowPanel position="bottom-right">
-          <SuggestionsPanel />
+          {/* XYFlow's Panel is position:absolute per corner — it won't
+              auto-stack two sibling FlowPanels, so both toggles share one
+              flex column inside a single FlowPanel instead. */}
+          <div className="flex flex-col items-end gap-2">
+            <SuggestionsPanel />
+            <CostPanel />
+          </div>
         </FlowPanel>
       </ReactFlow>
 
@@ -101,6 +108,15 @@ function CanvasInner() {
             <p className="mt-1 text-xs text-text-subtle">
               Drag a component from the sidebar, or click one to add it to
               the canvas.
+            </p>
+            {/* LEARNING-PARITY.md: "Below the Simulated Layer" — a
+                one-time, non-interactive acknowledgment that Lessons 1–7's
+                material (DNS, TCP/TLS handshakes, HTTP) lives below what
+                this simulator models, seen once before the first Client
+                event exists, not left to assume the tool covers everything. */}
+            <p className="mx-auto mt-3 max-w-[15rem] border-t border-border pt-3 text-[11px] text-text-subtle">
+              DNS, TCP/TLS, and HTTP happen before any of this — the
+              simulation starts once a request reaches your first component.
             </p>
           </div>
         </div>

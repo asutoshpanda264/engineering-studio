@@ -1,5 +1,5 @@
 import { forwardRef, useId } from "react";
-import type { SelectHTMLAttributes } from "react";
+import type { ReactNode, SelectHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
 
 export interface SelectOption {
@@ -9,7 +9,7 @@ export interface SelectOption {
 
 export interface SelectProps
   extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
-  label?: string;
+  label?: ReactNode;
   options: SelectOption[];
 }
 

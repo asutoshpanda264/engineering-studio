@@ -39,6 +39,15 @@ export type EventType =
   | "CACHE_MISS"
   | "DATABASE_BUSY"
   | "CONNECTION_REJECTED"
+  | "RATE_LIMIT_ADMITTED"
+  | "RATE_LIMIT_EXCEEDED"
+  | "CIRCUIT_OPENED"
+  | "CIRCUIT_CLOSED"
+  | "CIRCUIT_HALF_OPENED"
+  // Diagnostic marker, never delivered anywhere (destination null, same
+  // as CACHE_HIT/MISS) — records which partition a Kafka message was
+  // assigned to, independent of whether any consumer group exists yet.
+  | "PARTITION_ASSIGNED"
   // Processing lifecycle — any entity that does bounded-capacity work
   // (APIServer, Database, ...) emits these around that work, so utilization
   // metrics can be derived by pairing start/complete per entity.
@@ -132,4 +141,41 @@ export interface RequestLifecycleMetadata extends Record<string, unknown> {
    * Cache's hit rate meaningful: identical keys can hit, unique ones can't.
    */
   key: string;
+  /**
+   * Which named service this request is meant for — drawn uniformly from
+   * the Client's Route Pool Size over TrafficGenerator's fixed ROUTE_LABELS
+   * (see assignRequestRoute), unlike `key` which is skewed. Only Reverse
+   * Proxy reads this; every other entity ignores it. A request never
+   * generated with a Reverse Proxy anywhere downstream simply never has
+   * this value consulted — always present so a Reverse Proxy dropped in
+   * later still has something to route on, without needing to regenerate
+   * traffic.
+   */
+  route?: string;
+  /**
+   * Set on a response-direction hop that's carrying a failure back toward
+   * the client, rather than a successful result. Every entity that passes
+   * a response through unchanged (object-spreading `...meta`) propagates
+   * this for free; only the entity that terminates the response leg at
+   * the client needs to branch on it (REQUEST_FAILED vs REQUEST_COMPLETED),
+   * and only entities that store or act on returned data (Cache, CDN) need
+   * to check it before treating a returning response as real data.
+   */
+  failed?: boolean;
+  /** The failure reason to surface at the client — only meaningful when `failed` is true. */
+  failureReason?: string;
+  /**
+   * Whether the resource this request is for actually exists, decided once
+   * at the Client from the Client's Missing Key Rate config (see
+   * TrafficGenerator.assignRequestExistence) and carried forward like
+   * `key`. Absent or `true` means the normal case — every existing
+   * request/test that never sets this behaves exactly as before. Only
+   * `false` is meaningful: it marks a request for a key that will never be
+   * found no matter how far downstream it travels (a typo'd id, a deleted
+   * record, an attacker probing for valid ids) — cache penetration. Only
+   * Cache reads this (see Cache.ts's Negative Caching); every other entity
+   * ignores it and would otherwise "succeed" a phantom-key request, since
+   * none of them model per-key existence themselves.
+   */
+  exists?: boolean;
 }

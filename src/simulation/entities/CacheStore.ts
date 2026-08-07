@@ -19,22 +19,36 @@ interface CacheEntry {
   insertedAt: number;
   lastAccessedAt: number;
   accessCount: number;
+  /** This entry's own effective TTL, in ms — usually `config.ttlMs`, but
+   * `set`'s optional override lets a caller jitter an individual entry's
+   * TTL (see Cache.ts's ttlJitterPercent) without changing every other
+   * entry's. 0 = never expires. */
+  ttlMs: number;
 }
+
+/** `lookup`'s outcome: "hit" (present, valid), "cold" (never cached, or
+ * evicted for capacity), or "expired" (was cached, but its own TTL has
+ * since passed) — cold and expired are both misses, but only expired
+ * feeds Cache's Avalanche accounting (CacheStore has no capacity-eviction
+ * event of its own, so an evicted entry surfaces as "cold" here, same as
+ * a key that was simply never seen before). */
+export type CacheLookupResult = "hit" | "cold" | "expired";
 
 export class CacheStore {
   private readonly entries = new Map<string, CacheEntry>();
 
   constructor(private readonly config: CacheStoreConfig) {}
 
-  /** Whether `key` is present and not expired. Expired entries are evicted on lookup. */
-  lookup(key: string, now: number): boolean {
+  /** Whether `key` is present and not expired — see CacheLookupResult.
+   * Expired entries are evicted as a side effect of being looked up. */
+  lookup(key: string, now: number): CacheLookupResult {
     const entry = this.entries.get(key);
-    if (!entry) return false;
-    if (this.config.ttlMs > 0 && now - entry.insertedAt >= this.config.ttlMs) {
+    if (!entry) return "cold";
+    if (entry.ttlMs > 0 && now - entry.insertedAt >= entry.ttlMs) {
       this.entries.delete(key);
-      return false;
+      return "expired";
     }
-    return true;
+    return "hit";
   }
 
   /** Records an access to an already-present key (recency/frequency bookkeeping). */
@@ -45,12 +59,19 @@ export class CacheStore {
     entry.accessCount++;
   }
 
-  /** Stores `key`, evicting one entry first if at capacity. */
-  set(key: string, now: number): void {
+  /** Stores `key`, evicting one entry first if at capacity. `ttlMsOverride`
+   * lets this one entry's expiry diverge from `config.ttlMs` — used for
+   * TTL jitter; omit it to use the store's configured TTL as before. */
+  set(key: string, now: number, ttlMsOverride?: number): void {
     if (!this.entries.has(key) && this.entries.size >= this.config.capacity) {
       this.evictOne();
     }
-    this.entries.set(key, { insertedAt: now, lastAccessedAt: now, accessCount: 1 });
+    this.entries.set(key, {
+      insertedAt: now,
+      lastAccessedAt: now,
+      accessCount: 1,
+      ttlMs: ttlMsOverride ?? this.config.ttlMs,
+    });
   }
 
   private evictOne(): void {

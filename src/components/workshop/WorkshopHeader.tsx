@@ -1,4 +1,5 @@
-import { Download, LayoutTemplate, Play, RotateCcw, Settings } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Download, LayoutTemplate, Play, RotateCcw, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
@@ -31,6 +32,20 @@ export function WorkshopHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        <Link
+          href="/entities"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          aria-label="Learn — open the entity reference in a new tab"
+          title="Opens in a new tab — your canvas stays exactly as it is"
+        >
+          <BookOpen className="size-4" aria-hidden />
+          Learn
+        </Link>
+
+        <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+
         <Button
           variant="ghost"
           size="sm"

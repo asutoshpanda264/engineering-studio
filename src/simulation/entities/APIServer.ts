@@ -97,14 +97,7 @@ export class APIServer implements Entity {
     if (result === "rejected") {
       return [
         createQueueFullEvent(ctx.now, this.id, event.requestId),
-        createRequestFailedEvent(
-          ctx.now,
-          this.id,
-          meta.path[0],
-          event.requestId,
-          "capacity_exceeded",
-          { startedAt: meta.startedAt }
-        ),
+        ...this.fail(meta, ctx, event.requestId, "capacity_exceeded"),
       ];
     }
     if (result === "queued") {
@@ -158,16 +151,7 @@ export class APIServer implements Entity {
     if (meta.direction === "request") {
       const target = ctx.downstream[0];
       if (!target) {
-        events.push(
-          createRequestFailedEvent(
-            ctx.now,
-            this.id,
-            meta.path[0],
-            event.requestId,
-            "no_downstream_connection",
-            { startedAt: meta.startedAt }
-          )
-        );
+        events.push(...this.fail(meta, ctx, event.requestId, "no_downstream_connection"));
         return events;
       }
       const latency = ctx.latencyTo(target);
@@ -189,13 +173,22 @@ export class APIServer implements Entity {
       if (isClient) {
         const duration = ctx.now - meta.startedAt;
         events.push(
-          createRequestCompletedEvent(
-            ctx.now,
-            this.id,
-            target,
-            event.requestId,
-            duration
-          )
+          meta.failed
+            ? createRequestFailedEvent(
+                ctx.now,
+                this.id,
+                target,
+                event.requestId,
+                meta.failureReason ?? "unknown",
+                { startedAt: meta.startedAt }
+              )
+            : createRequestCompletedEvent(
+                ctx.now,
+                this.id,
+                target,
+                event.requestId,
+                duration
+              )
         );
       } else {
         const latency = ctx.latencyTo(target);
@@ -212,5 +205,32 @@ export class APIServer implements Entity {
     }
 
     return events;
+  }
+
+  /** See Database.ts's identical helper — routes a local failure via findResponseTarget instead of straight to the client. */
+  private fail(
+    meta: RequestLifecycleMetadata,
+    ctx: SimulationContext,
+    requestId: RequestId,
+    reason: string
+  ): SimulationEvent[] {
+    const { target, isClient } = findResponseTarget(this.id, meta.path);
+    if (isClient) {
+      return [
+        createRequestFailedEvent(ctx.now, this.id, target, requestId, reason, {
+          startedAt: meta.startedAt,
+        }),
+      ];
+    }
+    const latency = ctx.latencyTo(target);
+    return [
+      createRequestRoutedEvent(ctx.now + latency, this.id, target, requestId, {
+        ...meta,
+        direction: "response",
+        path: meta.path,
+        failed: true,
+        failureReason: reason,
+      }),
+    ];
   }
 }

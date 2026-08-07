@@ -39,6 +39,84 @@ export function assignRequestKey(rng: RNG, poolSize: number): string {
   return `key_${Math.min(index, poolSize - 1)}`;
 }
 
+/** Bounds on the phantom (permanently nonexistent) key pool derived from
+ * `phantomKeyPoolSize` — small enough that phantom keys repeat often (the
+ * shape a negative cache can actually protect against), but scaling a
+ * little with the real key pool so a much larger architecture still gets
+ * more than a couple of distinct "missing" ids. */
+const PHANTOM_KEY_POOL_MIN = 2;
+const PHANTOM_KEY_POOL_MAX = 20;
+const PHANTOM_KEY_POOL_FRACTION = 0.1;
+
+/** How many distinct nonexistent keys `assignPhantomKey` draws from, given
+ * the Client's normal Key Pool Size. Exported so Cache's tests and any UI
+ * that wants to explain the phantom pool's size can derive the same number
+ * instead of hardcoding a second copy of this formula. */
+export function phantomKeyPoolSize(keyPoolSize: number): number {
+  return Math.min(
+    PHANTOM_KEY_POOL_MAX,
+    Math.max(PHANTOM_KEY_POOL_MIN, Math.round(keyPoolSize * PHANTOM_KEY_POOL_FRACTION))
+  );
+}
+
+/**
+ * Decides, once per request, whether it targets a resource that will never
+ * exist — cache penetration traffic (see RequestLifecycleMetadata.exists).
+ * Deliberately skips drawing from `rng` at all when `missingKeyRate` is 0
+ * (the default): every existing scenario/test that never sets a Client's
+ * Missing Key Rate keeps drawing the exact same RNG sequence it always has
+ * for `assignRequestKey`/`assignRequestRoute`, so this is purely additive.
+ */
+export function assignRequestExistence(rng: RNG, missingKeyRate: number): boolean {
+  if (missingKeyRate <= 0) return true;
+  return rng.next() >= missingKeyRate;
+}
+
+/**
+ * Picks which of a small, fixed pool of permanently nonexistent keys a
+ * "missing" request targets — uniformly, not skewed like assignRequestKey:
+ * an attacker enumerating ids, or a client repeatedly hitting a typo'd or
+ * deleted one, has no reason to favor any one phantom id over another. The
+ * `missing_` prefix keeps this namespace disjoint from assignRequestKey's
+ * `key_` namespace by construction, so a phantom id can never accidentally
+ * collide with a real one.
+ */
+export function assignPhantomKey(rng: RNG, keyPoolSize: number): string {
+  const poolSize = phantomKeyPoolSize(keyPoolSize);
+  const index = Math.floor(rng.next() * poolSize);
+  return `missing_${Math.min(index, poolSize - 1)}`;
+}
+
+/**
+ * Fixed pool of realistic-looking service paths a Reverse Proxy can route
+ * between. Not free-text/configurable — a small closed set keeps the
+ * Reverse Proxy's routing rules a dropdown (no typo-prone string matching
+ * against a client's own config) and keeps this deterministic across runs.
+ */
+export const ROUTE_LABELS = [
+  "/orders",
+  "/users",
+  "/payments",
+  "/search",
+  "/checkout",
+  "/notifications",
+  "/inventory",
+  "/reviews",
+] as const;
+
+/**
+ * Picks which named service (of the first `poolSize` entries in
+ * ROUTE_LABELS) a request is addressed to. Uniform, unlike
+ * assignRequestKey's skew — routes aren't "hot vs. cold" the way cache
+ * keys are, they're just realistically distinct destinations a Reverse
+ * Proxy needs to be able to tell apart.
+ */
+export function assignRequestRoute(rng: RNG, poolSize: number): string {
+  const size = Math.max(1, Math.min(poolSize, ROUTE_LABELS.length));
+  const index = Math.floor(rng.next() * size);
+  return ROUTE_LABELS[Math.min(index, size - 1)];
+}
+
 /** Poisson arrivals: inter-arrival gaps drawn from an exponential distribution. */
 function generateConstant(
   ratePerSecond: number,

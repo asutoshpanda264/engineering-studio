@@ -11,7 +11,13 @@
 import { Clock } from "./Clock";
 import { EventQueue } from "./EventQueue";
 import { RNG } from "./RNG";
-import { assignRequestKey, generateArrivalTimestamps } from "./TrafficGenerator";
+import {
+  assignPhantomKey,
+  assignRequestExistence,
+  assignRequestKey,
+  assignRequestRoute,
+  generateArrivalTimestamps,
+} from "./TrafficGenerator";
 import {
   createEvent,
   createRequestStartedEvent,
@@ -25,6 +31,11 @@ import { LoadBalancer } from "../entities/LoadBalancer";
 import { Cache } from "../entities/Cache";
 import { CDN } from "../entities/CDN";
 import { MessageQueue } from "../entities/MessageQueue";
+import { RateLimiter } from "../entities/RateLimiter";
+import { CircuitBreaker } from "../entities/CircuitBreaker";
+import { ReplicaPool } from "../entities/ReplicaPool";
+import { ReverseProxy } from "../entities/ReverseProxy";
+import { Kafka } from "../entities/Kafka";
 import { collectMetrics } from "../metrics/MetricsCollector";
 import type {
   EntityConfig,
@@ -36,6 +47,8 @@ import type { SimulationEvent } from "../events/types";
 
 const DEFAULT_MAX_STEPS = 200_000;
 const DEFAULT_KEY_POOL_SIZE = 50;
+const DEFAULT_ROUTE_POOL_SIZE = 3;
+const DEFAULT_MISSING_KEY_RATE = 0;
 
 function createEntity(config: EntityConfig): Entity | null {
   switch (config.type) {
@@ -53,6 +66,16 @@ function createEntity(config: EntityConfig): Entity | null {
       return new CDN(config.id, config.config);
     case "message_queue":
       return new MessageQueue(config.id, config.config);
+    case "rate_limiter":
+      return new RateLimiter(config.id, config.config);
+    case "circuit_breaker":
+      return new CircuitBreaker(config.id, config.config);
+    case "replica_pool":
+      return new ReplicaPool(config.id, config.config);
+    case "reverse_proxy":
+      return new ReverseProxy(config.id, config.config);
+    case "kafka":
+      return new Kafka(config.id, config.config);
     default:
       return null;
   }
@@ -110,6 +133,14 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
       typeof clientEntity.config.keyPoolSize === "number"
         ? clientEntity.config.keyPoolSize
         : DEFAULT_KEY_POOL_SIZE;
+    const routePoolSize =
+      typeof clientEntity.config.routePoolSize === "number"
+        ? clientEntity.config.routePoolSize
+        : DEFAULT_ROUTE_POOL_SIZE;
+    const missingKeyRate =
+      typeof clientEntity.config.missingKeyRate === "number"
+        ? clientEntity.config.missingKeyRate
+        : DEFAULT_MISSING_KEY_RATE;
 
     const arrivals = generateArrivalTimestamps(
       config.scenario.trafficPattern,
@@ -117,12 +148,21 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
       rng
     );
     for (const timestamp of arrivals) {
+      // Existence is decided before the key itself: a "missing" request
+      // draws from assignPhantomKey's disjoint pool instead of the normal
+      // assignRequestKey — see Cache.ts's Negative Caching for what reads
+      // `exists`.
+      const exists = assignRequestExistence(rng, missingKeyRate);
       queue.enqueue(
         createRequestStartedEvent(
           timestamp,
           clientEntity.id,
           `req_${++requestIdCounter}`,
-          { key: assignRequestKey(rng, keyPoolSize) }
+          {
+            key: exists ? assignRequestKey(rng, keyPoolSize) : assignPhantomKey(rng, keyPoolSize),
+            route: assignRequestRoute(rng, routePoolSize),
+            exists,
+          }
         )
       );
     }

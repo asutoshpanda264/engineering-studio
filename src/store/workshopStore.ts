@@ -24,6 +24,7 @@ import { buildSimulationConfig } from "@/lib/workshopBridge";
 import { runSimulation as runSimulationEngine } from "@/simulation/engine/Simulator";
 import { removeEntityAndReroute } from "@/simulation/engine/compareArchitectures";
 import { computeEdgePacketSamples } from "@/lib/packetSampling";
+import { deriveNodeStatus } from "@/lib/nodeStatus";
 import { PlaybackController } from "@/simulation/playback/PlaybackController";
 import type { PlaybackState } from "@/simulation/playback/PlaybackController";
 import { getScenario } from "@/scenarios";
@@ -115,42 +116,6 @@ interface WorkshopState {
 
 export const DEFAULT_SCENARIO_DURATION_MS = 10_000;
 export const DEFAULT_CONNECTION_LATENCY_MS = 5;
-
-/**
- * A node's visual status reflects the last simulation run. The Client
- * doesn't get its own entity metrics (it does no bounded-capacity work —
- * see MetricsCollector), so its status is derived from the overall
- * success rate instead of a per-entity utilization/error count.
- *
- * "unavailable" (rendered as a pulsing red "Crashed") is distinct from
- * "error" (steady red) — it means the entity is rejecting nearly
- * everything, not just some fraction of traffic. See StatusLegend.tsx.
- */
-const CRASH_FAILURE_RATE = 0.9;
-
-function deriveNodeStatus(
-  node: ArchitectureNode,
-  result: SimulationResult
-): NodeStatus {
-  if (node.data.entityType === "client") {
-    if (result.metrics.totalRequests === 0) return "idle";
-    if (result.metrics.successRate === 0) return "unavailable";
-    if (result.metrics.successRate >= 0.95) return "running";
-    if (result.metrics.successRate >= 0.5) return "overloaded";
-    return "error";
-  }
-
-  const metrics = result.metrics.entityMetrics[node.id];
-  if (!metrics) return "idle";
-
-  const attempts = metrics.requestCount + metrics.errorCount;
-  const failureRate = attempts > 0 ? metrics.errorCount / attempts : 0;
-  if (attempts > 0 && failureRate >= CRASH_FAILURE_RATE) return "unavailable";
-  if (metrics.errorCount > 0) return "error";
-  if (metrics.utilization > 0.85) return "overloaded";
-  if (metrics.requestCount > 0) return "running";
-  return "idle";
-}
 
 let nodeIdCounter = 0;
 

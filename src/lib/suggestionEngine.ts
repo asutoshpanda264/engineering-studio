@@ -22,6 +22,7 @@ const CAPACITY_FIELD_BY_TYPE: Partial<Record<string, string>> = {
   api: "Max Concurrent",
   database: "Max Connections",
   message_queue: "Consumer Count",
+  rate_limiter: "Requests / Second",
 };
 
 export function getSuggestions(
@@ -40,18 +41,47 @@ export function getSuggestions(
     const metrics = result.metrics.entityMetrics[node.id];
     if (!metrics) continue;
 
-    const attempts = metrics.requestCount + metrics.errorCount;
-    const failureRate = attempts > 0 ? metrics.errorCount / attempts : 0;
+    // Circuit breaker state is discrete (closed/open/half-open), not a
+    // threshold on a percentage — the generic failureRate/utilization
+    // branches below don't apply (and would misfire: like rate_limiter,
+    // a breaker never emits PROCESSING_STARTED, so requestCount stays 0
+    // even while mostly closed and healthy).
+    if (node.data.entityType === "circuit_breaker" && metrics.circuitBreaker) {
+      if (metrics.circuitBreaker.state === "open") {
+        suggestions.push({
+          severity: "warning",
+          entityId: node.id,
+          title: `${node.data.label} is open`,
+          description: `${node.data.label} has tripped (${metrics.circuitBreaker.tripCount} time${metrics.circuitBreaker.tripCount === 1 ? "" : "s"} this run) and is failing every request instantly instead of forwarding to its target. That target is likely overwhelmed or failing on its own — look at what's behind ${node.data.label}, not at ${node.data.label} itself.`,
+        });
+      }
+      continue;
+    }
+
+    // Rate limiters (and anything else that's an instant gate rather than
+    // a queue) never emit PROCESSING_STARTED, so requestCount/utilization
+    // stay 0 even while happily admitting most traffic — rejecting some
+    // requests is rate_limiter's normal operating behavior, not a crash.
+    // Its own admitted/rejected counts are the real "attempts" here.
+    const attempts = metrics.rateLimiter
+      ? metrics.rateLimiter.admitted + metrics.rateLimiter.rejected
+      : metrics.requestCount + metrics.errorCount;
+    const failed = metrics.rateLimiter ? metrics.rateLimiter.rejected : metrics.errorCount;
+    const failureRate = attempts > 0 ? failed / attempts : 0;
     const capacityField = CAPACITY_FIELD_BY_TYPE[node.data.entityType];
     const name = getEntityCatalogItem(node.data.entityType).name;
 
     if (failureRate >= 0.9) {
+      const raiseHint =
+        node.data.entityType === "rate_limiter"
+          ? `Raise its ${capacityField}, or reduce the Client's Request Rate.`
+          : `Raise its ${capacityField} and Max Queue Length, or reduce the Client's Request Rate.`;
       suggestions.push({
         severity: "critical",
         entityId: node.id,
         title: `${node.data.label} has crashed`,
         description: capacityField
-          ? `Almost every request reaching ${name} (${node.data.label}) is being rejected — it's completely overwhelmed. Raise its ${capacityField} and Max Queue Length, or reduce the Client's Request Rate.`
+          ? `Almost every request reaching ${name} (${node.data.label}) is being rejected — it's completely overwhelmed. ${raiseHint}`
           : `Almost every request reaching ${node.data.label} is being rejected.`,
       });
     } else if (metrics.errorCount > 0) {

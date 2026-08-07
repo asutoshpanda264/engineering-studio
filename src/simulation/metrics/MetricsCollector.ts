@@ -11,10 +11,16 @@
 
 import type { SimulationEvent } from "../events/types";
 import type {
+  CacheAvalancheMetrics,
+  CachePenetrationMetrics,
+  CacheStampedeMetrics,
   CDNEdgeMetrics,
+  CircuitBreakerMetrics,
+  CircuitBreakerState,
   EntityId,
   EntityMetrics,
   MetricsSnapshot,
+  RateLimiterMetrics,
   RoutingTargetMetrics,
 } from "../types";
 
@@ -61,9 +67,28 @@ export function collectMetrics(
 
   const activityByEntity = new Map<EntityId, { time: number; delta: 1 | -1 }[]>();
   const queueActivityByEntity = new Map<EntityId, { time: number; delta: 1 | -1 }[]>();
-  const cacheAccessByEntity = new Map<EntityId, { hits: number; misses: number }>();
+  const cacheAccessByEntity = new Map<
+    EntityId,
+    {
+      hits: number;
+      misses: number;
+      coalescedMisses: number;
+      /** Misses answered straight from a negative-cache entry — see Cache.ts's negativeCaching. */
+      negativeHits: number;
+      /** Misses for a key confirmed nonexistent that still reached downstream (naive mode, or no negative-cache entry existed yet). */
+      downstreamNotFoundMisses: number;
+      /** Timestamps of misses caused by a previously-cached entry's TTL expiring — feeds cacheAvalanche's peak-burst calc. */
+      expiredMissTimestamps: number[];
+    }
+  >();
   const edgeAccessByEntity = new Map<EntityId, Map<number, { hits: number; misses: number }>>();
   const routingByEntity = new Map<EntityId, Map<EntityId, number>>();
+  const partitionByEntity = new Map<EntityId, Map<number, number>>();
+  const rateLimiterByEntity = new Map<EntityId, { admitted: number; rejected: number }>();
+  const circuitBreakerByEntity = new Map<
+    EntityId,
+    { state: CircuitBreakerState; tripCount: number }
+  >();
 
   for (const event of events) {
     switch (event.type) {
@@ -105,6 +130,43 @@ export function collectMetrics(
           routingByEntity.set(event.source, targets);
         }
         break;
+      case "RATE_LIMIT_ADMITTED":
+      case "RATE_LIMIT_EXCEEDED": {
+        // Doesn't also bump errorCount here: a rejection's companion
+        // REQUEST_FAILED (same source) already does that via the
+        // REQUEST_FAILED case above — bumping it here too would
+        // double-count every rejection.
+        if (!event.source) break;
+        const counts = rateLimiterByEntity.get(event.source) ?? { admitted: 0, rejected: 0 };
+        if (event.type === "RATE_LIMIT_ADMITTED") counts.admitted++;
+        else counts.rejected++;
+        rateLimiterByEntity.set(event.source, counts);
+        break;
+      }
+      case "CIRCUIT_OPENED":
+      case "CIRCUIT_CLOSED":
+      case "CIRCUIT_HALF_OPENED": {
+        if (!event.source) break;
+        // "Last one wins" rather than a sweep — state is point-in-time,
+        // not an interval, and `events` is already chronologically
+        // ordered (the discrete-event queue dequeues in timestamp order).
+        // Given the caller may have already scoped `events` to "everything
+        // up to now" (playback scrubbing), this naturally reflects the
+        // breaker's real state as of that instant.
+        const current = circuitBreakerByEntity.get(event.source) ?? {
+          state: "closed" as CircuitBreakerState,
+          tripCount: 0,
+        };
+        current.state =
+          event.type === "CIRCUIT_OPENED"
+            ? "open"
+            : event.type === "CIRCUIT_CLOSED"
+              ? "closed"
+              : "half_open";
+        if (event.type === "CIRCUIT_OPENED") current.tripCount++;
+        circuitBreakerByEntity.set(event.source, current);
+        break;
+      }
       case "REQUEST_QUEUED":
         recordActivity(queueActivityByEntity, event.source, event.timestamp, 1);
         break;
@@ -114,9 +176,30 @@ export function collectMetrics(
       case "CACHE_HIT":
       case "CACHE_MISS": {
         if (!event.source) break;
-        const counts = cacheAccessByEntity.get(event.source) ?? { hits: 0, misses: 0 };
+        const counts =
+          cacheAccessByEntity.get(event.source) ?? {
+            hits: 0,
+            misses: 0,
+            coalescedMisses: 0,
+            negativeHits: 0,
+            downstreamNotFoundMisses: 0,
+            expiredMissTimestamps: [],
+          };
         if (event.type === "CACHE_HIT") counts.hits++;
-        else counts.misses++;
+        else {
+          counts.misses++;
+          const coalesced = event.metadata.coalesced === true;
+          const negative = event.metadata.negative === true;
+          const notFound = event.metadata.notFound === true;
+          if (coalesced) counts.coalescedMisses++;
+          if (negative) counts.negativeHits++;
+          // "Downstream" here specifically means "this miss, on its own,
+          // triggered a real downstream round trip for a phantom key" — a
+          // coalesced follower shared someone else's trip, and a negative
+          // hit avoided one entirely, so both are excluded.
+          if (notFound && !coalesced && !negative) counts.downstreamNotFoundMisses++;
+          if (event.metadata.expired === true) counts.expiredMissTimestamps.push(event.timestamp);
+        }
         cacheAccessByEntity.set(event.source, counts);
 
         if (typeof event.metadata.edgeIndex === "number") {
@@ -127,6 +210,17 @@ export function collectMetrics(
           edgeMap.set(event.metadata.edgeIndex, edgeCounts);
           edgeAccessByEntity.set(event.source, edgeMap);
         }
+        break;
+      }
+      case "PARTITION_ASSIGNED": {
+        if (!event.source) break;
+        if (typeof event.metadata.partitionIndex !== "number") break;
+        const partitionMap = partitionByEntity.get(event.source) ?? new Map<number, number>();
+        partitionMap.set(
+          event.metadata.partitionIndex,
+          (partitionMap.get(event.metadata.partitionIndex) ?? 0) + 1
+        );
+        partitionByEntity.set(event.source, partitionMap);
         break;
       }
       default:
@@ -145,6 +239,30 @@ export function collectMetrics(
     if (!metrics) continue;
     const attempts = counts.hits + counts.misses;
     metrics.cacheHitRate = attempts > 0 ? counts.hits / attempts : 0;
+    if (counts.misses > 0) {
+      // "Independent" means "triggered its own downstream fetch" — a
+      // negative hit didn't, same reasoning a coalesced miss already
+      // didn't, so both are subtracted out here too.
+      const cacheStampede: CacheStampedeMetrics = {
+        coalescedMisses: counts.coalescedMisses,
+        independentMisses: counts.misses - counts.coalescedMisses - counts.negativeHits,
+      };
+      metrics.cacheStampede = cacheStampede;
+    }
+    if (counts.negativeHits > 0 || counts.downstreamNotFoundMisses > 0) {
+      const cachePenetration: CachePenetrationMetrics = {
+        negativeHits: counts.negativeHits,
+        downstreamMisses: counts.downstreamNotFoundMisses,
+      };
+      metrics.cachePenetration = cachePenetration;
+    }
+    if (counts.expiredMissTimestamps.length > 0) {
+      const cacheAvalanche: CacheAvalancheMetrics = {
+        expiredMisses: counts.expiredMissTimestamps.length,
+        peakExpiryBurst: computePeakBurst(counts.expiredMissTimestamps, AVALANCHE_WINDOW_MS),
+      };
+      metrics.cacheAvalanche = cacheAvalanche;
+    }
   }
 
   for (const [entityId, edgeMap] of edgeAccessByEntity) {
@@ -157,6 +275,7 @@ export function collectMetrics(
         return {
           edgeIndex,
           requests,
+          misses: counts.misses,
           hitRate: requests > 0 ? counts.hits / requests : 0,
         };
       });
@@ -170,6 +289,32 @@ export function collectMetrics(
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([targetId, requests]) => ({ targetId, requests }));
     metrics.routingDistribution = routingDistribution;
+  }
+
+  for (const [entityId, partitions] of partitionByEntity) {
+    const metrics = entityMetrics[entityId];
+    if (!metrics) continue;
+    const kafkaPartitions: RoutingTargetMetrics[] = [...partitions.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([partitionIndex, messages]) => ({
+        targetId: `Partition ${partitionIndex}`,
+        requests: messages,
+      }));
+    metrics.kafkaPartitions = kafkaPartitions;
+  }
+
+  for (const [entityId, counts] of rateLimiterByEntity) {
+    const metrics = entityMetrics[entityId];
+    if (!metrics) continue;
+    const rateLimiter: RateLimiterMetrics = { ...counts };
+    metrics.rateLimiter = rateLimiter;
+  }
+
+  for (const [entityId, counts] of circuitBreakerByEntity) {
+    const metrics = entityMetrics[entityId];
+    if (!metrics) continue;
+    const circuitBreaker: CircuitBreakerMetrics = { ...counts };
+    metrics.circuitBreaker = circuitBreaker;
   }
 
   for (const [entityId, intervals] of queueActivityByEntity) {
@@ -247,6 +392,28 @@ function computeCurrentCount(intervals: { time: number; delta: 1 | -1 }[]): numb
   let count = 0;
   for (const point of sorted) count += point.delta;
   return Math.max(0, count);
+}
+
+/** Window (ms) used to size a cache avalanche's "wave" — how many
+ * TTL-expiry misses land within this close together, at their most
+ * bunched, anywhere in the run. */
+const AVALANCHE_WINDOW_MS = 100;
+
+/**
+ * The largest number of timestamps that fall within any `windowMs` sliding
+ * window of each other — the quantified size of an avalanche's "wave" of
+ * synchronized re-fetches. A classic two-pointer sweep over sorted
+ * timestamps, O(n log n) for the sort plus O(n) for the sweep.
+ */
+function computePeakBurst(timestamps: number[], windowMs: number): number {
+  const sorted = [...timestamps].sort((a, b) => a - b);
+  let left = 0;
+  let peak = 0;
+  for (let right = 0; right < sorted.length; right++) {
+    while (sorted[right] - sorted[left] > windowMs) left++;
+    peak = Math.max(peak, right - left + 1);
+  }
+  return peak;
 }
 
 /** Exported for reuse by MetricsTimeSeries.ts — same definition, one source of truth. */

@@ -6,6 +6,7 @@ import { Reveal } from "@/components/landing/Reveal";
 import { HeroDiagram } from "@/components/landing/HeroDiagram";
 import { SCENARIOS } from "@/scenarios";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
+import { slugFromEntityType } from "@/lib/entityDeepDive";
 
 const GITHUB_URL = "https://github.com/asutoshpanda264/engineering-studio";
 
@@ -195,21 +196,33 @@ export default function Home() {
       <section className="mx-auto w-full max-w-4xl px-6 pb-24">
         <Reveal>
           <p className="mb-6 text-center text-sm text-text-muted">
-            Every one of these is a real, simulated component — not a static icon.
+            Every one of these is a real, simulated component — not a static icon.{" "}
+            <Link href="/entities" className="text-primary hover:underline">
+              Read what each one does →
+            </Link>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {ENTITY_CATALOG.map((item) => (
-              <span
-                key={item.type}
-                className={`inline-flex items-center gap-2 rounded-full border border-border bg-bg-panel px-3 py-1.5 text-xs text-text-muted ${
-                  item.implemented ? "" : "opacity-50"
-                }`}
-              >
-                <item.icon className="size-3.5" aria-hidden />
-                {item.name}
-                {!item.implemented && <Badge variant="neutral">Soon</Badge>}
-              </span>
-            ))}
+            {ENTITY_CATALOG.map((item) =>
+              item.implemented ? (
+                <Link
+                  key={item.type}
+                  href={`/entities/${slugFromEntityType(item.type)}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-panel px-3 py-1.5 text-xs text-text-muted transition-colors duration-fast ease-standard hover:border-border-hover hover:text-text"
+                >
+                  <item.icon className="size-3.5" aria-hidden />
+                  {item.name}
+                </Link>
+              ) : (
+                <span
+                  key={item.type}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-panel px-3 py-1.5 text-xs text-text-muted opacity-50"
+                >
+                  <item.icon className="size-3.5" aria-hidden />
+                  {item.name}
+                  <Badge variant="neutral">Soon</Badge>
+                </span>
+              )
+            )}
           </div>
         </Reveal>
       </section>
