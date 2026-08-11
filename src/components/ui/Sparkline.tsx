@@ -34,7 +34,7 @@ export function Sparkline({
   data,
   width = 120,
   height = 32,
-  color = "var(--color-primary)",
+  color = "var(--color-signal)",
   formatValue = (v) => v.toFixed(1),
   formatTime = (t) => `${(t / 1000).toFixed(1)}s`,
   cursorTime = null,

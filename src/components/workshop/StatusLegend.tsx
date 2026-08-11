@@ -17,10 +17,10 @@ import type { NodeStatus } from "@/store/workshopStore";
  */
 const LEGEND_ITEMS: { status: NodeStatus; label: string; dotClass: string }[] = [
   { status: "idle", label: "Idle — not reached yet", dotClass: "bg-text-subtle" },
-  { status: "running", label: "Healthy", dotClass: "bg-success" },
-  { status: "overloaded", label: "Near capacity", dotClass: "bg-warning" },
-  { status: "error", label: "Dropping some requests", dotClass: "bg-error" },
-  { status: "unavailable", label: "Crashed — rejecting almost everything", dotClass: "bg-error" },
+  { status: "running", label: "Healthy", dotClass: "bg-status-healthy" },
+  { status: "overloaded", label: "Near capacity", dotClass: "bg-status-degraded" },
+  { status: "error", label: "Dropping some requests", dotClass: "bg-status-critical" },
+  { status: "unavailable", label: "Crashed — rejecting almost everything", dotClass: "bg-status-critical" },
 ];
 
 export function StatusLegend() {
@@ -45,7 +45,7 @@ export function StatusLegend() {
               <div key={item.status} className="flex items-center gap-1.5">
                 <span
                   className={`size-2 shrink-0 rounded-full ${item.dotClass} ${
-                    item.status === "unavailable" ? "ring-2 ring-error/30" : ""
+                    item.status === "unavailable" ? "ring-2 ring-status-critical/30" : ""
                   }`}
                   aria-hidden
                 />

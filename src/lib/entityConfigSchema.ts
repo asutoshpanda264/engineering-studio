@@ -12,12 +12,44 @@
 
 import type { EntityType } from "@/simulation/types";
 
+/**
+ * Three reference points for a numeric/percent field, in the field's own
+ * native units (0-1 for percent, same as `default` — the Inspector's
+ * popover multiplies by 100 for percent fields the same way it already
+ * does for the editable value). Grounded in real-world figures where a
+ * genuine industry number exists (a library's own documented default, a
+ * public API's published rate limit, a widely-cited sizing formula) —
+ * each `*Note` says what that figure is anchored to. `avg` is not always
+ * this field's `default`: the field's own default is chosen for a legible
+ * simulation at this app's toy scale, while `avg` is the closest
+ * real-world figure that fits inside min..max, and the two sometimes
+ * diverge on purpose (e.g. Kafka's Partition Count defaults to 3 for a
+ * simple first run, but production guidance starts closer to 6–12).
+ */
+export interface FieldBenchmark {
+  low: number;
+  avg: number;
+  high: number;
+  lowNote: string;
+  avgNote: string;
+  highNote: string;
+}
+
 interface BaseFieldSchema {
   key: string;
   label: string;
   /** Abbreviated label for the compact summary shown directly on the node card. */
   shortLabel: string;
   description: string;
+  /**
+   * One or two sentences: what raising vs. lowering this actually changes.
+   * The compact version shown in the Inspector's "i" popover — deliberately
+   * short (feedback: the old inline reveal of `description` in full made
+   * Configuration "too overwhelming" and "too long" for the sidebar).
+   * `description` above stays the fuller, in-depth version — still used as
+   * the failure-demo Inspector's native title tooltip.
+   */
+  impact: string;
 }
 
 export interface NumericFieldSchema extends BaseFieldSchema {
@@ -28,6 +60,8 @@ export interface NumericFieldSchema extends BaseFieldSchema {
   step: number;
   default: number;
   unit?: string;
+  /** Omitted only where a low/avg/high framing doesn't apply (none currently — every numeric field has one). */
+  benchmark?: FieldBenchmark;
 }
 
 export interface SelectFieldSchema extends BaseFieldSchema {
@@ -37,6 +71,41 @@ export interface SelectFieldSchema extends BaseFieldSchema {
 }
 
 export type ConfigFieldSchema = NumericFieldSchema | SelectFieldSchema;
+
+/**
+ * Renders a raw config value the way a human should read it — a select's
+ * option label instead of its stored value, a percent field's 0-1 storage
+ * as "50%", a unit suffix where the field has one. Shared by anything that
+ * needs to *display* a config value rather than edit it (e.g. the "Try It"
+ * demos' remedy diffs) so that display logic doesn't get re-derived per
+ * caller — undefined falls back to the field's own default, same as an
+ * editable field would show.
+ */
+export function formatConfigFieldValue(field: ConfigFieldSchema, rawValue: unknown): string {
+  if (field.type === "select") {
+    const value = typeof rawValue === "string" ? rawValue : field.default;
+    return field.options.find((option) => option.value === value)?.label ?? value;
+  }
+  const value = typeof rawValue === "number" ? rawValue : field.default;
+  const display = field.type === "percent" ? value * 100 : value;
+  // Round away float noise (e.g. 0.30000000000000004 * 100) without
+  // truncating a deliberately fractional value like 2.5.
+  const trimmed = Math.round(display * 100) / 100;
+  const unit = field.type === "percent" ? "%" : field.unit ? ` ${field.unit}` : "";
+  return `${trimmed}${unit}`;
+}
+
+/**
+ * Formats one benchmark reference point the same way `formatConfigFieldValue`
+ * formats a live value — same percent/unit conversion — so the popover's
+ * Low/Avg/High chips read in the same units as the input right above them.
+ */
+export function formatBenchmarkValue(field: NumericFieldSchema, value: number): string {
+  const display = field.type === "percent" ? value * 100 : value;
+  const trimmed = Math.round(display * 100) / 100;
+  const unit = field.type === "percent" ? "%" : field.unit ? ` ${field.unit}` : "";
+  return `${trimmed}${unit}`;
+}
 
 export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[]>> = {
   client: [
@@ -52,6 +121,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "req/s",
       description:
         "How many requests per second this client generates. Raise it to stress-test downstream capacity — every entity in the chain has to keep up or it starts queueing and rejecting. Lower it to see the same architecture behave well under light load.",
+      impact:
+        "Raise it to stress-test downstream capacity — everything in the chain has to keep up or start queueing and rejecting. Lower it to see the same architecture handle light load easily.",
+      benchmark: {
+        low: 2,
+        avg: 20,
+        high: 900,
+        lowNote: "quiet, off-peak traffic",
+        avgNote: "typical small production service",
+        highNote: "flash-sale / thundering-herd surge (Black Friday, Big Billion Day) — real spikes commonly run 10–100x normal traffic",
+      },
     },
     {
       key: "keyPoolSize",
@@ -64,6 +143,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 50,
       description:
         "How many distinct resources exist. Small pool = requests repeat a lot (a Cache can help). Large pool = requests are mostly unique (a Cache can't).",
+      impact:
+        "Raise it toward unique-per-request territory and a Cache stops helping. Lower it to concentrate requests on a small hot set a Cache can actually absorb.",
+      benchmark: {
+        low: 5,
+        avg: 50,
+        high: 5000,
+        lowNote: "a small catalog — a cache can absorb almost all repeat lookups",
+        avgNote: "a moderate catalog, this simulation's default scale",
+        highNote: "a large catalog (e.g. a big product listing) — requests are mostly unique, so a cache barely helps",
+      },
     },
     {
       key: "routePoolSize",
@@ -76,6 +165,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 3,
       description:
         "How many distinct named services this client's requests are spread across (uniformly, not skewed like Key Pool Size) — /orders, /users, /payments, and so on. Only matters if a Reverse Proxy is downstream: it's what a Reverse Proxy's routing rules match against. Irrelevant to every other entity.",
+      impact:
+        "Only matters with a Reverse Proxy downstream — more routes means more distinct rules its routing has to match against.",
+      benchmark: {
+        low: 1,
+        avg: 3,
+        high: 8,
+        lowNote: "a single-service app — nothing to route between",
+        avgNote: "a handful of services (e.g. /orders, /users, /payments)",
+        highNote: "many distinct services sharing one entry point",
+      },
     },
     {
       key: "missingKeyRate",
@@ -89,6 +188,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "%",
       description:
         "Fraction of this client's requests that target a resource that will never exist — a typo'd id, a deleted record, an attacker probing for valid ids. These always land on the same small, fixed pool of permanently-missing keys, separate from the normal Key Pool. Only matters if a Cache is downstream: it's what a Cache's Negative Caching config protects against — cache penetration. 0 = off, the default: no phantom traffic.",
+      impact:
+        "Raise it to simulate cache-penetration traffic (probing for ids that don't exist) hitting a Cache's Negative Caching defense. 0 means no phantom traffic at all.",
+      benchmark: {
+        low: 0,
+        avg: 0.05,
+        high: 0.3,
+        lowNote: "no phantom lookups — realistic well-behaved traffic",
+        avgNote: "light probing / stale-link traffic typical of public APIs",
+        highNote: "sustained attacker probing for valid ids — a cache-penetration attack",
+      },
     },
   ],
   api: [
@@ -103,6 +212,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 10,
       description:
         "Requests this server can process at the same time. Raise it to admit more concurrent traffic before anything queues or gets rejected — the realistic ceiling is CPU/memory per instance, not a free lever. Lower it to see the same traffic start backing up and failing sooner.",
+      impact:
+        "Raise it to admit more concurrent requests before anything queues. The realistic ceiling is CPU/memory per instance, not a free lever.",
+      benchmark: {
+        low: 2,
+        avg: 10,
+        high: 40,
+        lowNote: "a small single-core instance",
+        avgNote: "a typical mid-sized instance or container",
+        highNote: "a large, highly concurrent instance (many cores, async I/O)",
+      },
     },
     {
       key: "maxQueueLength",
@@ -115,6 +234,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 50,
       description:
         "Requests allowed to wait once at capacity, before being rejected. Raise it to absorb short traffic bursts without dropping requests, at the cost of higher latency for whatever's waiting. Lower it (or set 0) to reject overflow immediately instead of making it wait.",
+      impact:
+        "Raise it to absorb bursts without rejecting requests, at the cost of higher latency for whatever's waiting.",
+      benchmark: {
+        low: 0,
+        avg: 50,
+        high: 150,
+        lowNote: "fail-fast — reject overflow immediately, nothing waits",
+        avgNote: "absorbs a short burst without dropping requests",
+        highNote: "deep buffering — rides out large bursts at the cost of high tail latency",
+      },
     },
     {
       key: "processingTimeMs",
@@ -128,6 +257,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "Time spent handling business logic per request. Raise it to simulate heavier per-request work — each server occupies its concurrency slots longer, so effective throughput drops even with Max Concurrent unchanged. Lower it to free up slots faster and raise effective throughput.",
+      impact:
+        "Raise it to model heavier per-request work — each request occupies a concurrency slot longer, so effective throughput drops even with Max Concurrent unchanged.",
+      benchmark: {
+        low: 1,
+        avg: 5,
+        high: 100,
+        lowNote: "a trivial handler — cache read, simple validation",
+        avgNote: "typical lightweight business logic",
+        highNote: "heavy per-request work — complex computation or chained calls",
+      },
     },
   ],
   database: [
@@ -143,6 +282,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "SQL (relational: Postgres, MySQL) enforces a fixed schema and supports joins and ACID transactions — strong consistency, but that query-planning and locking overhead caps how much concurrent write throughput a single instance handles, and joins make horizontal sharding hard. NoSQL (DynamoDB, MongoDB, Cassandra) trades that away for a flexible schema and data partitioned by key across many nodes — much higher concurrent write throughput and easier horizontal scaling, at the cost of joins and (usually) strong consistency. NoSQL isn't one thing, either: document stores (MongoDB), key-value stores (DynamoDB, Redis), column-family stores (Cassandra), and graph databases (Neo4j) each solve a different access pattern — this option collapses all four into one simulated profile, not four distinct shapes. Reach for SQL when correctness and relationships between records matter more than raw throughput (orders, payments, inventory); reach for NoSQL when the access pattern is simple lookups by key at high volume and slightly-stale reads are acceptable (event/analytics ingestion, session storage, catalogs). This changes simulated behavior here: NoSQL applies roughly 3x the effective connection ceiling and roughly half the query time on top of whatever Max Connections / Processing Time you set below, modeling partitioning and simpler key-based access — it does not simulate schemas, joins, or consistency guarantees, and it does not distinguish between NoSQL's four subtypes.",
+      impact:
+        "SQL trades throughput for consistency and joins; NoSQL trades that away for roughly 3x the connection ceiling and half the query time here. Most teams default to SQL for transactional data and NoSQL for high-volume key lookups.",
     },
     {
       key: "maxConnections",
@@ -155,6 +296,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 5,
       description:
         "Queries the connection pool can run at the same time. Raise it to let more queries execute concurrently before they queue — real databases cap this because each connection costs memory on the server, so it's not free to raise indefinitely. Lower it to see contention for the pool show up sooner.",
+      impact:
+        "Raise it to run more queries concurrently — real databases cap this because each connection reserves memory server-side, so it isn't free to raise indefinitely.",
+      benchmark: {
+        low: 2,
+        avg: 10,
+        high: 30,
+        lowNote: "a small single instance (HikariCP's own cores×2+1 rule of thumb, for ~2 cores)",
+        avgNote: "a typical single-instance pool size for a small-to-mid service",
+        highNote: "many app instances sharing one database, approaching its own max_connections ceiling",
+      },
     },
     {
       key: "maxQueueLength",
@@ -167,6 +318,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 100,
       description:
         "Queries allowed to wait once at capacity, before being rejected. Raise it to ride out a burst of queries without failing any of them, at the cost of every waiting query getting slower. Lower it (or set 0) to fail overflow queries immediately instead of queueing them.",
+      impact:
+        "Raise it to ride out a burst of queries without failing any, at the cost of every waiting query getting slower.",
+      benchmark: {
+        low: 0,
+        avg: 100,
+        high: 400,
+        lowNote: "fail fast on overflow — no query ever waits",
+        avgNote: "absorbs a normal burst of queries",
+        highNote: "deep buffering under sustained overload — expect high wait times",
+      },
     },
     {
       key: "processingTimeMs",
@@ -180,6 +341,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "Time spent executing a single query. Raise it to model heavier queries (missing indexes, large scans, complex joins) — each occupies a connection longer, lowering effective throughput at a given Max Connections. Lower it to model a faster, well-indexed query.",
+      impact:
+        "Raise it to model heavier queries (missing indexes, large scans, complex joins) — each occupies a connection longer, lowering effective throughput.",
+      benchmark: {
+        low: 1,
+        avg: 15,
+        high: 150,
+        lowNote: "a fast, well-indexed point lookup",
+        avgNote: "a typical indexed query with a join or two",
+        highNote: "a missing index, large table scan, or complex multi-join query",
+      },
     },
     {
       key: "failureProbability",
@@ -193,6 +364,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "%",
       description:
         "Chance a query fails independently of load — models flaky infrastructure, not overload. Raise it to see errors appear even when the database is nowhere near capacity, and to test whether a Circuit Breaker or retry logic upstream actually helps. 0 means failures only ever come from being over capacity.",
+      impact:
+        "Raise it to see errors appear even far under capacity, and to test whether a Circuit Breaker or retry logic upstream actually helps.",
+      benchmark: {
+        low: 0,
+        avg: 0.02,
+        high: 0.2,
+        lowNote: "healthy, reliable infrastructure",
+        avgNote: "occasional flaky infra — brief network blips, failovers",
+        highNote: "a database having a genuinely bad day — degraded instance, ongoing incident",
+      },
     },
   ],
   load_balancer: [
@@ -211,6 +392,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "Round robin cycles through targets in order, regardless of load. Least connections sends each request to whichever target currently has the fewest in-flight requests — they behave identically when targets are equally fast, and diverge once one is slower or overloaded: round robin keeps sending it an equal share anyway, least connections routes around it. Weighted round robin cycles through targets like plain round robin, but proportional to each target's configured weight below (a weight-3 target gets 3x a weight-1 target's share) — it diverges from plain round robin by design, not by load, useful when targets have known, fixed capacity differences (a bigger instance type, for example) rather than load that varies at runtime. IP Hash routes by hashing a per-request identifier so the same identifier always lands on the same target — session affinity, at the cost of not rebalancing around slow targets at all; this simulation has no modeled client IP, so it hashes the request's resource key instead (the closest available stand-in — a documented substitution, not a literal IP). Least Response Time is least connections' generalization from request count to actual observed latency — it routes to whichever target has the lowest recent average response time, so it reacts to a target that's technically available but just slow, not only one that's saturated.",
+      impact:
+        "Round Robin and Least Connections behave identically until one target is slower — then Least Connections routes around it while Round Robin keeps feeding it an equal share. Most real load balancers default to a load-aware algorithm once backends aren't perfectly uniform.",
     },
   ],
   cache: [
@@ -226,6 +409,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "keys",
       description:
         "How many distinct keys the cache can hold before it must evict one to make room. Raise it to hold more of the Client's key pool at once, improving hit rate (fewer evictions competing for the same slots) — real memory-backed caches size this against available RAM, so it isn't free to raise indefinitely. Lower it to evict more aggressively and see the hit rate drop.",
+      impact:
+        "Raise it to hold more of the working set at once and evict less often, improving hit rate — real memory-backed caches size this against available RAM.",
+      benchmark: {
+        low: 5,
+        avg: 20,
+        high: 300,
+        lowNote: "a tiny cache — heavy eviction pressure",
+        avgNote: "a modest cache relative to a typical key pool",
+        highNote: "a large in-memory cache (e.g. a dedicated Redis instance) sized to hold most of the working set",
+      },
     },
     {
       key: "evictionPolicy",
@@ -241,6 +434,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "Which entry to remove when a new key arrives at capacity. LRU (the common default) evicts whatever hasn't been touched in the longest time — good for most traffic shapes. LFU evicts whatever's been requested least often — better when a small set of keys is disproportionately hot. FIFO ignores access pattern entirely and evicts oldest-inserted first — simplest, worst hit rate under skewed traffic. MRU evicts the most recently used entry, which only makes sense for unusual cyclic-scan access patterns and generally performs worst here.",
+      impact:
+        "LRU is the default almost everywhere general-purpose caching is used; LFU only pays off when a small set of keys is disproportionately hot.",
     },
     {
       key: "ttlMs",
@@ -254,6 +449,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "How long an entry stays valid after being stored. 0 = never expires on its own (only eviction removes it). Raise it to keep entries valid longer and improve hit rate, at the cost of staler data being served. Lower it to force fresher re-fetches more often, trading hit rate for freshness.",
+      impact:
+        "Raise it to keep entries valid longer and improve hit rate, at the cost of staler data. 0 means entries never expire on their own.",
+      benchmark: {
+        low: 1000,
+        avg: 15_000,
+        high: 60_000,
+        lowNote: "near-real-time freshness — a live leaderboard or stock ticker",
+        avgNote: "a typical short-lived cache entry (session data, hot API responses)",
+        highNote: "the longest allowed here — semi-static content like config or reference data",
+      },
     },
     {
       key: "stampedeMode",
@@ -267,6 +472,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "What happens when several requests for the same key miss while a fetch for it is already in flight — a cache stampede, typically triggered by a hot key's TTL expiring under load. Naive: each one independently re-fetches from downstream, multiplying load right when it's least wanted. Coalesced: only the first miss fetches; the rest wait on it and share whatever it returns (request coalescing / single-flight, the standard production fix) — at the cost of holding their own slot in this cache's concurrency/queue the whole time they wait.",
+      impact:
+        "Coalesced (single-flight) is the standard production fix for a hot key's TTL expiring under load — most high-traffic caches implement some form of it.",
     },
     {
       key: "negativeCaching",
@@ -280,6 +487,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "What happens on a miss for a key that turns out not to exist downstream (see the Client's Missing Key Rate) — cache penetration. Off: every request for that permanently-missing key makes its own full downstream round trip, forever — exactly what an attacker probing for valid ids exploits. On: the first \"not found\" result is cached too, for Negative Cache TTL below, so repeat lookups for the same missing key are answered straight from this cache instead of hammering downstream again.",
+      impact:
+        "Negative caching is the standard defense against cache-penetration attacks (repeated lookups for ids that don't exist) — most production caches enable it once that pattern shows up.",
     },
     {
       key: "negativeCacheTtlMs",
@@ -293,6 +502,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "Negative Caching only — how long a cached \"not found\" stays valid before the next lookup re-checks downstream. Real systems usually keep this shorter than a normal positive TTL: too long risks masking a resource created later; too short reopens the door to penetration between expiries. 0 = never expires once cached.",
+      impact:
+        "Real systems keep this shorter than a normal positive TTL — long enough to blunt penetration, short enough that a newly created resource doesn't stay invisible for long.",
+      benchmark: {
+        low: 500,
+        avg: 2000,
+        high: 30_000,
+        lowNote: "very short — minimizes the risk of masking a resource created moments later",
+        avgNote: "a typical negative-cache TTL — shorter than a normal positive TTL",
+        highNote: "a long negative TTL — strong penetration protection, more risk of masking a new record",
+      },
     },
     {
       key: "ttlJitterPercent",
@@ -306,6 +525,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "%",
       description:
         "Randomizes each entry's own TTL by up to ± this fraction of the configured TTL above, so a batch of entries cached around the same time (a cold start, a deploy) don't all expire in the same instant — a cache avalanche. 0 = off, the default: every entry shares the exact same TTL, so a wave of near-simultaneous first-time cache fills expires as one synchronized wave of downstream re-fetches later. Has no effect when TTL is 0 (never-expiring entries have nothing to stagger).",
+      impact:
+        "Raise it to spread a batch of same-time expirations across a wider window, avoiding a synchronized cache-avalanche re-fetch storm.",
+      benchmark: {
+        low: 0,
+        avg: 0.1,
+        high: 0.3,
+        lowNote: "no jitter — a batch cached together expires as one synchronized wave",
+        avgNote: "light staggering — a common starting point for spreading expirations",
+        highNote: "aggressive staggering — strongly spreads out a cold-start or post-deploy cache-fill wave",
+      },
     },
   ],
   cdn: [
@@ -320,6 +549,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 5,
       description:
         "How many geographically distributed edges the CDN operates. Raise it for better geographic coverage (more users land near an edge, lower latency on average) — but the same traffic now splits across more independent, separately-warmed caches, so each edge sees fewer requests and its own hit rate drops. Lower it to concentrate traffic on fewer edges — higher per-edge hit rate, less geographic spread.",
+      impact:
+        "Raise it for better geographic coverage — but the same traffic now splits across more independently-warmed caches, so each edge's own hit rate drops.",
+      benchmark: {
+        low: 1,
+        avg: 5,
+        high: 20,
+        lowNote: "a single PoP — effectively no geographic distribution (a lean network like early Fastly)",
+        avgNote: "a modest regional edge network",
+        highNote: "broad global footprint — real large providers (CloudFront, Akamai) run into the hundreds or thousands; this simulation caps far lower",
+      },
     },
     {
       key: "minEdgeLatencyMs",
@@ -333,6 +572,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "One-way latency to the nearest edge — the best case, for a user who happens to land close to one. Raise it to model a sparser edge network with longer minimum reach; lower it to model edges placed very close to users.",
+      impact:
+        "Raise it to model a sparser edge network with longer minimum reach; lower it to model edges placed very close to users.",
+      benchmark: {
+        low: 0,
+        avg: 1,
+        high: 50,
+        lowNote: "user co-located with an edge, same metro area",
+        avgNote: "user near a well-placed edge",
+        highNote: "a sparse edge network — even the nearest edge is a real hop away",
+      },
     },
     {
       key: "maxEdgeLatencyMs",
@@ -346,6 +595,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "One-way latency to the farthest edge — the worst case, for a user furthest from any edge. Raise it to widen the gap between best- and worst-served users; lower it (closer to Min Edge Latency) to make which edge a user hits matter less.",
+      impact:
+        "Raise it to widen the gap between best- and worst-served users; lower it toward Min Edge Latency to make which edge a user hits matter less.",
+      benchmark: {
+        low: 1,
+        avg: 6,
+        high: 200,
+        lowNote: "edges packed tightly — worst case is barely worse than best case",
+        avgNote: "a typical spread between nearest and farthest edge",
+        highNote: "a sparse network — a user far from any edge pays a real latency penalty",
+      },
     },
     {
       key: "capacity",
@@ -359,6 +618,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "keys",
       description:
         "How many distinct keys each edge can hold before it must evict one. Raise it so each edge holds more of the working set and evicts less often, improving that edge's hit rate. Lower it to see edges thrash (evict-then-refetch) sooner under the same traffic.",
+      impact:
+        "Raise it so each edge holds more of the working set and evicts less often, improving that edge's own hit rate.",
+      benchmark: {
+        low: 5,
+        avg: 20,
+        high: 300,
+        lowNote: "a small edge cache — frequent eviction",
+        avgNote: "a modest per-edge cache",
+        highNote: "a large per-edge cache holding most of that edge's working set",
+      },
     },
     {
       key: "evictionPolicy",
@@ -374,6 +643,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "Which entry an edge removes when a new key arrives at its capacity. Same tradeoff as Cache's eviction policy, applied independently at every edge: LRU suits most traffic, LFU favors a small hot set, FIFO is simplest but least accurate, MRU is a special case that usually hurts hit rate here.",
+      impact:
+        "Same tradeoff as a Cache's eviction policy, applied independently at every edge — LRU suits most traffic.",
     },
     {
       key: "ttlMs",
@@ -387,6 +658,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "How long an entry stays valid at an edge. 0 = never expires on its own. Raise it to keep edge content valid longer and improve hit rate, at the cost of staler content being served from edges. Lower it to force more frequent re-fetches from origin, trading hit rate for freshness.",
+      impact:
+        "Raise it to keep edge content valid longer and improve hit rate, at the cost of staler content served from edges.",
+      benchmark: {
+        low: 1000,
+        avg: 15_000,
+        high: 60_000,
+        lowNote: "near-real-time edge freshness",
+        avgNote: "a typical short-lived edge cache entry",
+        highNote: "the longest allowed here — largely static assets like images or JS bundles",
+      },
     },
   ],
   message_queue: [
@@ -402,6 +683,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "Queue (point-to-point): a shared pool of consumers competes for each message, so exactly one consumer gets it — a classic task queue, connect one downstream target. Topic (fan-out/pub-sub): every downstream connection is treated as an independent subscriber with its own consumer pool, and gets its own copy of every message — connect several downstream targets to see fan-out. A slow subscriber under Topic only ever falls behind on its own copy; it never blocks the publish or any other subscriber, since there's no shared backlog to overflow. That also means fan-out multiplies dispatch load by subscriber count for the same producer rate — a topic backs up faster than a queue unless Consumer Count / Max Queue Length are sized for that.",
+      impact:
+        "Queue is the default for task distribution — one consumer per message. Topic is for fan-out, where several independent subscribers each need their own copy.",
     },
     {
       key: "consumerCount",
@@ -414,6 +697,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 3,
       description:
         "Consumers pulling messages off the backlog at the same time — per subscriber, under Topic mode. Raise it to drain the backlog faster and keep messages from piling up under sustained load. Lower it to see the backlog grow and messages wait longer before being picked up.",
+      impact:
+        "Raise it to drain the backlog faster under sustained load; lower it to see the backlog grow and messages wait longer.",
+      benchmark: {
+        low: 1,
+        avg: 3,
+        high: 30,
+        lowNote: "a single worker — simplest, no parallel drain",
+        avgNote: "a small worker pool, a typical starting point",
+        highNote: "a large autoscaled worker fleet draining a big backlog",
+      },
     },
     {
       key: "maxQueueLength",
@@ -426,6 +719,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 500,
       description:
         "Messages the backlog can buffer once every consumer is busy, before rejecting new ones — per subscriber, under Topic mode. Raise it to absorb a bigger burst of producer traffic without dropping messages, at the cost of longer wait times for whatever's backlogged. Lower it to reject overflow sooner instead of letting the backlog grow unbounded.",
+      impact:
+        "Raise it to absorb a bigger burst of producer traffic without dropping messages, at the cost of longer wait times for whatever's backlogged.",
+      benchmark: {
+        low: 50,
+        avg: 500,
+        high: 3000,
+        lowNote: "a small buffer — roughly a 0.1s-processing worker's 10-second backlog budget",
+        avgNote: "a typical backlog buffer",
+        highNote: "deep buffering for a bursty producer, common with SQS-style queues",
+      },
     },
     {
       key: "dispatchTimeMs",
@@ -439,6 +742,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "Time a consumer takes to pick up and hand off one message. Raise it to model slower consumers — each occupies a consumer slot longer, lowering effective drain rate even with Consumer Count unchanged. Lower it to model faster consumers and a quicker-draining backlog.",
+      impact:
+        "Raise it to model slower consumers — each occupies a consumer slot longer, lowering effective drain rate even with Consumer Count unchanged.",
+      benchmark: {
+        low: 1,
+        avg: 10,
+        high: 200,
+        lowNote: "a trivial handoff — just enqueue elsewhere",
+        avgNote: "typical lightweight message handling",
+        highNote: "heavy per-message work — a slow downstream call per message",
+      },
     },
   ],
   kafka: [
@@ -453,6 +766,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 3,
       description:
         "How many partitions the topic is split into. A message's partition is a deterministic hash of its key, so the same key always lands in the same partition — strict ordering within a partition, no ordering promise across partitions. Also caps how many consumers any one consumer group can usefully run at once (see Consumers per Group) — raising this is how you buy more real parallelism, not just adding more consumers.",
+      impact:
+        "Raise it to buy more real parallelism and finer ordering scope — but partitions can't be decreased later, so real deployments plan ahead for growth.",
+      benchmark: {
+        low: 1,
+        avg: 6,
+        high: 12,
+        lowNote: "no parallelism — a consumer group can usefully run only one consumer",
+        avgNote: "a common production starting point (start around 6–12 partitions, then scale with throughput)",
+        highNote: "this simulation's ceiling — real clusters scale into the hundreds or thousands across all topics, not just one",
+      },
     },
     {
       key: "consumerCountPerGroup",
@@ -465,6 +788,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 3,
       description:
         "Consumers each connected consumer group runs. A group's useful parallelism is capped at min(this, Partition Count) — a consumer beyond the partition count has no partition left to read and sits idle. Raise Partition Count, not this, once you've hit that ceiling.",
+      impact:
+        "A group's useful parallelism is capped at min(this, Partition Count) — raise Partition Count first if you've hit that ceiling, not this.",
+      benchmark: {
+        low: 1,
+        avg: 3,
+        high: 12,
+        lowNote: "a single consumer — no parallelism within the group",
+        avgNote: "a typical small consumer group, matched to a modest partition count",
+        highNote: "matched 1:1 with a fully-partitioned topic — the ceiling of useful parallelism",
+      },
     },
     {
       key: "maxQueueLength",
@@ -477,6 +810,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       default: 500,
       description:
         "Messages a consumer group's own backlog can buffer once every one of its consumers is busy, before that group starts falling behind (a bounded stand-in for consumer lag against a retention window). Independent per group — one group falling behind never affects another's backlog.",
+      impact:
+        "Raise it to tolerate more consumer lag before a group counts as falling behind. Independent per group.",
+      benchmark: {
+        low: 50,
+        avg: 500,
+        high: 3000,
+        lowNote: "a small lag budget before a group counts as falling behind",
+        avgNote: "a typical lag buffer per consumer group",
+        highNote: "a generous lag allowance for a bursty producer",
+      },
     },
     {
       key: "dispatchTimeMs",
@@ -490,6 +833,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "Time a consumer takes to pick up and hand off one message, per consumer group. Raise it to model slower consumers — lowers a group's effective drain rate even with its consumer count unchanged.",
+      impact:
+        "Raise it to model slower per-group consumers — lowers that group's effective drain rate even with its consumer count unchanged.",
+      benchmark: {
+        low: 1,
+        avg: 10,
+        high: 200,
+        lowNote: "a trivial per-message handoff",
+        avgNote: "typical lightweight message handling",
+        highNote: "heavy per-message work, slowing this group's drain rate",
+      },
     },
   ],
   rate_limiter: [
@@ -505,6 +858,8 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       ],
       description:
         "Token bucket accumulates idle capacity and lets a burst through in one go, up to Burst Capacity, before throttling to the steady rate. Sliding window is a hard, steady ceiling with no burst allowance — they admit the same under smooth traffic and diverge once traffic bursts: token bucket forgives the spike, sliding window rejects the overflow immediately.",
+      impact:
+        "Token bucket is the more common real-world choice (most API gateways) because it tolerates natural bursts; sliding window suits a hard, steady ceiling more than burst tolerance.",
     },
     {
       key: "requestsPerSecond",
@@ -518,6 +873,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "req/s",
       description:
         "The steady-state rate this limiter admits requests at. Raise it to let more traffic through to whatever's downstream (weaker protection, fewer rejections here). Lower it to protect downstream more aggressively, at the cost of rejecting more legitimate traffic once the ceiling is hit.",
+      impact:
+        "Raise it to let more traffic through downstream (weaker protection, fewer rejections). Lower it to protect downstream more aggressively, at the cost of rejecting more legitimate traffic.",
+      benchmark: {
+        low: 5,
+        avg: 100,
+        high: 600,
+        lowNote: "a tightly protective limit — close to Stripe's sandbox-mode limit (25 req/s) or a single-user quota",
+        avgNote: "in the range of Stripe's live-mode limit (100 req/s) — a reasonable steady-state ceiling for a protected API",
+        highNote: "a high-traffic public endpoint's aggregate limit, well above any single client's normal rate",
+      },
     },
     {
       key: "burstCapacity",
@@ -531,6 +896,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "tokens",
       description:
         "Token Bucket only — how many requests can burst through at once once idle capacity has accumulated. Raise it to tolerate bigger spikes without rejecting them. Lower it to clamp bursts down closer to the steady Requests/Second rate. Has no effect under Sliding Window.",
+      impact:
+        "Token Bucket only — raise it to tolerate bigger spikes without rejecting them. Has no effect under Sliding Window.",
+      benchmark: {
+        low: 10,
+        avg: 100,
+        high: 500,
+        lowNote: "minimal burst tolerance — close to the steady rate",
+        avgNote: "a typical burst allowance, roughly 2x the steady rate",
+        highNote: "generous burst tolerance for spiky legitimate traffic",
+      },
     },
   ],
   circuit_breaker: [
@@ -546,6 +921,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "failures",
       description:
         "Consecutive failures from the wrapped target before this breaker trips open. Raise it to tolerate more transient errors before cutting the target off (slower to protect, less prone to tripping on noise). Lower it to trip sooner (more protective, but more prone to a false trip on a brief blip).",
+      impact:
+        "Raise it to tolerate more transient errors before cutting the target off. Lower it to trip sooner, at the risk of a false trip on a brief blip.",
+      benchmark: {
+        low: 2,
+        avg: 5,
+        high: 20,
+        lowNote: "trips almost immediately — very protective, prone to false trips on noise",
+        avgNote: "a common conservative starting point for consecutive-failure trips",
+        highNote: "close to Resilience4j's own typical sliding-window size (~20 calls) evaluated against a failure-rate threshold — far more tolerant of noise",
+      },
     },
     {
       key: "tripDurationMs",
@@ -559,6 +944,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "ms",
       description:
         "How long the breaker stays open, failing fast, before letting a single probe request through to check if the target has recovered. Raise it to give a struggling target more uninterrupted time to recover, at the cost of a longer outage for callers. Lower it to retry recovery sooner, at the risk of probing a target that hasn't actually recovered yet.",
+      impact:
+        "Raise it to give a struggling target more uninterrupted recovery time, at the cost of a longer outage for callers. Lower it to retry sooner, at the risk of probing too early.",
+      benchmark: {
+        low: 1000,
+        avg: 10_000,
+        high: 60_000,
+        lowNote: "an aggressive, fast retry",
+        avgNote: "a common starting point cited in circuit-breaker guides (Resilience4j)",
+        highNote: "Resilience4j's own library default — gives a struggling target a full minute to recover",
+      },
     },
     {
       key: "halfOpenMaxProbes",
@@ -572,6 +967,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "probes",
       description:
         "Requests allowed through concurrently while checking if the target has recovered. One probe failing reopens the breaker immediately. Raise it to confirm recovery faster (more signal, sooner) but risk overwhelming a target that's only barely back. Lower it toward 1 for the safest, slowest recovery check.",
+      impact:
+        "Raise it to confirm recovery faster with more signal at once, but risk overwhelming a target that's only barely back. Lower it toward 1 for the safest check.",
+      benchmark: {
+        low: 1,
+        avg: 3,
+        high: 8,
+        lowNote: "the safest choice — a single probe must succeed before fully reopening",
+        avgNote: "Resilience4j's typical starting recommendation for permitted calls in half-open",
+        highNote: "confirms recovery fast with many probes at once — risks overwhelming a target that's only barely back",
+      },
     },
   ],
   replica_pool: [
@@ -587,6 +992,16 @@ export const ENTITY_CONFIG_SCHEMA: Partial<Record<EntityType, ConfigFieldSchema[
       unit: "%",
       description:
         "Fraction of requests treated as writes, routed to the leader (the first connection drawn from this pool). The rest are reads, spread round-robin across the remaining connections — the read replicas. Raise it to send more load to the single leader, which doesn't scale horizontally the way replicas do — that's the realistic bottleneck this models. Lower it to spread more load across replicas, which is where this pattern actually helps.",
+      impact:
+        "Raise it to send more load to the single leader, which doesn't scale horizontally the way replicas do — that's the realistic bottleneck this models.",
+      benchmark: {
+        low: 0.02,
+        avg: 0.1,
+        high: 0.4,
+        lowNote: "a heavily read-dominated system (e.g. a product catalog: reads outnumber writes 50:1+)",
+        avgNote: "a common read-heavy production ratio (~90% reads / 10% writes)",
+        highNote: "a write-heavy workload (e.g. logging/analytics ingestion) — approaching the point where a single-leader setup becomes the real bottleneck",
+      },
     },
   ],
 };

@@ -140,8 +140,8 @@ export function HeroDiagram() {
 
         {!prefersReducedMotion && (
           <>
-            <Packet path={HIT_PATH} color="var(--color-success)" duration={2.2} delay={0.3} />
-            <Packet path={MISS_PATH} color="var(--color-primary)" duration={3.6} delay={1.2} />
+            <Packet path={HIT_PATH} color="var(--color-status-healthy)" duration={2.2} delay={0.3} />
+            <Packet path={MISS_PATH} color="var(--color-signal)" duration={3.6} delay={1.2} />
           </>
         )}
 

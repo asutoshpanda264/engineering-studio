@@ -1,33 +1,91 @@
 @import "tailwindcss";
 
 /*
- * Engineering Studio — Design Tokens
+ * Engineering Studio — "Trace" Design Tokens
  *
- * Dark-mode-first. Reference: Linear, Vercel, Stripe, Figma.
- * Every spacing/color value should come from here, nowhere else.
+ * Philosophy: the interface is an instrument, not an app. Warm void/paper
+ * instead of cold SaaS navy-gray; one accent (signal copper) instead of the
+ * default blue, reserved for actions and focus; status colors reserved
+ * exclusively for real simulated state (canvas nodes, metrics) so they never
+ * stop meaning something. Two typefaces split strictly by role: serif for
+ * anything meant to be read, mono for anything that is data or interface.
+ * Radius is effectively zero throughout — hairline rules and corner-bracket
+ * markers replace shadowed rounded cards. Dark-mode-first (the default — no
+ * `data-theme` attribute needed), with a light theme layered on top under
+ * `[data-theme="light"]`. See ThemeProvider.tsx for how that attribute gets
+ * set. Every spacing/color/type value should come from here, nowhere else.
  */
 
 :root {
-  /* ---- Neutral palette ---- */
-  --color-bg: hsl(0 0% 07%);          /* #121212 */
-  --color-bg-elevated: hsl(0 0% 10%);  /* #181818 */
-  --color-bg-panel: hsl(0 0% 13%);     /* #212121 */
-  --color-border: hsl(0 0% 18% / 60%);
-  --color-border-hover: hsl(0 0% 22% / 70%);
+  color-scheme: dark;
 
-  --color-text: hsl(0 0% 92%);
-  --color-text-muted: hsl(0 0% 70%);
-  --color-text-subtle: hsl(0 0% 52%);
+  /* ---- Void / paper (warm, not cold navy-gray) ---- */
+  --color-bg: hsl(30 8% 6%);
+  --color-bg-elevated: hsl(30 7% 9%);
+  --color-bg-panel: hsl(28 6% 12%);
+  --color-border: hsl(30 10% 30% / 35%);
+  --color-border-hover: hsl(30 10% 45% / 50%);
 
-  /* ---- Semantic ---- */
-  --color-primary: hsl(220 70% 55%);
-  --color-primary-hover: hsl(220 70% 60%);
-  --color-primary-active: hsl(220 70% 65%);
+  --color-text: hsl(40 18% 92%);
+  --color-text-muted: hsl(35 10% 68%);
+  --color-text-subtle: hsl(30 7% 48%);
 
-  --color-success: hsl(150 60% 55%);
-  --color-warning: hsl(40 90% 55%);
-  --color-error: hsl(0 85% 60%);
+  /* ---- Signal (the one accent — copper, not blue) ---- */
+  --color-signal: hsl(28 85% 58%);
+  --color-signal-hover: hsl(28 90% 64%);
+  --color-signal-active: hsl(28 90% 70%);
 
+  /* ---- Status — reserved for real simulated state only, never decorative ---- */
+  --color-status-healthy: hsl(150 55% 48%);
+  --color-status-degraded: hsl(42 90% 55%);
+  --color-status-critical: hsl(355 75% 58%);
+
+  --shadow-panel: none;
+  --shadow-dropdown: 0 8px 20px -6px rgb(0 0 0 / 0.45);
+  --shadow-elevated: none;
+}
+
+/*
+ * Light theme — paper, not white. Same roles, inverted surface direction:
+ * `bg` is the lightest warm paper tone and each raised surface goes a shade
+ * *grayer* rather than lighter, since there's no headroom above paper.
+ *
+ * Tuned deliberately darker/higher-contrast than a first pass that read as
+ * "poking white": that version spaced bg/elevated/panel only ~3 points of
+ * lightness apart and ran hairline borders at 16–28% alpha, which is enough
+ * contrast against a near-black dark bg but nearly disappears against
+ * near-white paper (equal alpha reads as much fainter the lighter the
+ * surface gets). Every panel, input, and card boundary in the product
+ * leans on --color-border alone for definition, so this pair of tokens is
+ * what actually keeps the light theme from collapsing into one flat wash.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: hsl(38 30% 95%);
+  --color-bg-elevated: hsl(36 23% 89%);
+  --color-bg-panel: hsl(33 19% 83%);
+  --color-border: hsl(28 24% 22% / 32%);
+  --color-border-hover: hsl(28 24% 18% / 50%);
+
+  --color-text: hsl(28 24% 11%);
+  --color-text-muted: hsl(30 14% 30%);
+  --color-text-subtle: hsl(30 10% 41%);
+
+  --color-signal: hsl(22 85% 38%);
+  --color-signal-hover: hsl(22 87% 32%);
+  --color-signal-active: hsl(22 88% 27%);
+
+  --color-status-healthy: hsl(150 65% 26%);
+  --color-status-degraded: hsl(36 92% 34%);
+  --color-status-critical: hsl(355 75% 42%);
+
+  --shadow-panel: none;
+  --shadow-dropdown: 0 8px 20px -6px rgb(30 20% 10% / 0.18);
+  --shadow-elevated: none;
+}
+
+:root {
   /* ---- Surface roles ---- */
   --color-surface: var(--color-bg);
   --color-surface-elevated: var(--color-bg-elevated);
@@ -39,9 +97,16 @@
   --size-inspector: 320px;
   --size-bottom-panel: 224px;
 
-  /* ---- Typography ---- */
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-geist-mono);
+  /* ---- Typography — two voices, split strictly by role ---- */
+  /* Serif: anything meant to be READ — headlines, prose, article body. */
+  --font-serif: var(--font-source-serif);
+  /* Mono: anything that IS data or interface — nav, labels, buttons,
+     config fields, every number. Tabular figures always. */
+  --font-mono: var(--font-plex-mono);
+  /* Default body voice is serif — most surfaces (landing, entity pages)
+     are reading-oriented; UI-chrome contexts (Workshop shell, buttons,
+     nav, numbers) opt into --font-mono explicitly. */
+  --font-sans: var(--font-serif);
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -59,7 +124,7 @@
   --weight-medium: 500;
   --weight-semibold: 600;
 
-  /* ---- Spacing (8pt grid) ---- */
+  /* ---- Spacing (8pt grid — unchanged, it was never the problem) ---- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -71,23 +136,22 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* ---- Border radius ---- */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  /* ---- Border radius — zero throughout, no exceptions. A hairline
+     system with one rounded button is a system with an asterisk. ---- */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
 
-  /* ---- Shadows ---- */
-  --shadow-panel: 0 4px 6px 0 rgb(0 0 0 / 0.3);
-  --shadow-dropdown: 0 10px 15px -3px rgb(0 0 0 / 0.3);
-  --shadow-elevated: 0 2px 4px 0 rgb(0 0 0 / 0.2);
-
-  /* ---- Animation timing ---- */
+  /* ---- Motion ---- */
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+  /* For the canvas request-pulse (M4) — steady, mechanical, not eased. */
+  --duration-pulse: 900ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-mechanical: linear;
 }
 
 @theme inline {
@@ -102,14 +166,13 @@
   --color-text-muted: var(--color-text-muted);
   --color-text-subtle: var(--color-text-subtle);
 
-  /* ---- Semantic ---- */
-  --color-primary: var(--color-primary);
-  --color-primary-hover: var(--color-primary-hover);
-  --color-primary-active: var(--color-primary-active);
-
-  --color-success: var(--color-success);
-  --color-warning: var(--color-warning);
-  --color-error: var(--color-error);
+  /* ---- Signal & status ---- */
+  --color-signal: var(--color-signal);
+  --color-signal-hover: var(--color-signal-hover);
+  --color-signal-active: var(--color-signal-active);
+  --color-status-healthy: var(--color-status-healthy);
+  --color-status-degraded: var(--color-status-degraded);
+  --color-status-critical: var(--color-status-critical);
 
   /* ---- Layout ---- */
   --size-sidebar: var(--size-sidebar);
@@ -119,6 +182,7 @@
 
   /* ---- Typography ---- */
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
 
   --text-xs: var(--text-xs);
@@ -151,8 +215,10 @@
   --duration-fast: var(--duration-fast);
   --duration-normal: var(--duration-normal);
   --duration-slow: var(--duration-slow);
+  --duration-pulse: var(--duration-pulse);
   --ease-standard: var(--ease-standard);
   --ease-emphasized: var(--ease-emphasized);
+  --ease-mechanical: var(--ease-mechanical);
 }
 
 /* ---- Base ---- */
@@ -171,6 +237,13 @@
     line-height: var(--leading-normal);
     font-weight: var(--weight-regular);
   }
+
+  /* Every number in the product is load-bearing — metrics, config values,
+     costs. Tabular figures everywhere so they never visually jitter as
+     they update, whichever voice (serif or mono) happens to render them. */
+  body {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* ---- React Flow node focus ---- */
@@ -183,7 +256,24 @@
 .react-flow__node:focus-visible [data-node-card] {
   box-shadow:
     0 0 0 2px var(--color-bg),
-    0 0 0 4px var(--color-primary);
+    0 0 0 2px var(--color-signal);
+}
+
+/* ---- React Flow edges — a schematic wire, not the library's default gray ---- */
+/* React Flow ships its own base stylesheet (imported in ArchitectureCanvas);
+   these have to win over it deliberately, hence !important — this is a
+   one-time override of a vendor default, not a pattern to repeat elsewhere. */
+.react-flow__edge-path {
+  stroke: var(--color-border-hover) !important;
+  stroke-width: 1.5 !important;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-signal) !important;
+  stroke-width: 2 !important;
+}
+.react-flow__connection-path {
+  stroke: var(--color-signal) !important;
+  stroke-width: 1.5 !important;
 }
 
 /* ---- Reduced motion ---- */

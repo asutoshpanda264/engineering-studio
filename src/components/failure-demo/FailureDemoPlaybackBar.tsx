@@ -24,7 +24,7 @@ export function FailureDemoPlaybackBar() {
         type="button"
         onClick={() => (playing ? pause() : play())}
         aria-label={playing ? "Pause" : "Play"}
-        className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-panel text-text transition-colors duration-fast ease-standard hover:bg-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
+        className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-panel text-text transition-colors duration-fast ease-standard hover:bg-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
       >
         {playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
       </button>
@@ -33,7 +33,7 @@ export function FailureDemoPlaybackBar() {
         type="button"
         onClick={() => seek(0)}
         aria-label="Restart playback"
-        className="flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-panel hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
+        className="flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-panel hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
       >
         <RotateCcw className="size-4" aria-hidden />
       </button>
@@ -66,9 +66,9 @@ export function FailureDemoPlaybackBar() {
             type="button"
             onClick={() => setPlaybackSpeed(option)}
             aria-pressed={speed === option}
-            className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated ${
+            className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated ${
               speed === option
-                ? "bg-primary/15 text-primary"
+                ? "bg-signal/15 text-signal"
                 : "text-text-subtle hover:bg-bg-panel hover:text-text"
             }`}
           >

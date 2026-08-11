@@ -135,7 +135,7 @@ describe("estimateCost", () => {
     expect(cdn.monthlyRequestVolume).toBeCloseTo(expectedVolume, 0);
   });
 
-  it("prices Load Balancer off routed traffic, not requestCount (which is always 0 — it has no BoundedProcessor)", () => {
+  it("prices Load Balancer off routed traffic (routingDistribution), matching its now-derived requestCount", () => {
     const config = baseConfig({
       entities: [
         { id: "client1", type: "client", position: { x: 0, y: 0 }, config: { requestRate: 100 } },
@@ -156,7 +156,20 @@ describe("estimateCost", () => {
       },
     });
     const result = runSimulation(config);
-    expect(result.metrics.entityMetrics.lb1.requestCount).toBe(0); // sanity: confirms the bug this test guards against
+    // LoadBalancer never emits PROCESSING_STARTED (it "has no capacity of
+    // its own", per its own class doc) — MetricsCollector.ts falls back to
+    // summing routingDistribution for exactly this case, so requestCount
+    // now reflects real routed traffic instead of staying stuck at 0 (see
+    // MetricsCollector.ts's comment on that fallback). Confirm the two
+    // agree, then confirm costEngine's dedicated routingDistribution-based
+    // pricing (needed independent of this fallback — see its own comment)
+    // still produces a sane, nonzero cost.
+    const routedRequests = result.metrics.entityMetrics.lb1.routingDistribution!.reduce(
+      (sum, t) => sum + t.requests,
+      0
+    );
+    expect(result.metrics.entityMetrics.lb1.requestCount).toBe(routedRequests);
+    expect(routedRequests).toBeGreaterThan(0);
 
     const cost = estimateCost(result, toArchitectureNodes(config));
     const lb = cost.entities.find((e) => e.entityId === "lb1")!;

@@ -118,7 +118,7 @@ export function CDNEdgeMap({
               y1={pos.y}
               x2={origin.x}
               y2={origin.y}
-              className="stroke-warning"
+              className="stroke-status-degraded"
               strokeWidth={0.9}
               strokeOpacity={opacity}
             />
@@ -131,7 +131,7 @@ export function CDNEdgeMap({
             y1={activeEdgePos.y}
             x2={origin.x}
             y2={origin.y}
-            className="stroke-error animate-pulse"
+            className="stroke-status-critical animate-pulse"
             strokeWidth={1.4}
           />
         )}
@@ -148,7 +148,7 @@ export function CDNEdgeMap({
                   cx={pos.x}
                   cy={pos.y}
                   r={4}
-                  className={`animate-ping ${activeEdge.hit ? "fill-success" : "fill-error"}`}
+                  className={`animate-ping ${activeEdge.hit ? "fill-status-healthy" : "fill-status-critical"}`}
                 />
               )}
               <circle
@@ -204,7 +204,7 @@ export function CDNEdgeMap({
             width={9}
             height={9}
             rx={1.5}
-            className={draggingPin === "origin" ? "fill-warning" : "fill-bg-panel stroke-warning"}
+            className={draggingPin === "origin" ? "fill-status-degraded" : "fill-bg-panel stroke-status-degraded"}
             strokeWidth={1}
           />
           <text
@@ -238,7 +238,7 @@ export function CDNEdgeMap({
             cx={user.x}
             cy={user.y}
             r={4.5}
-            className={draggingPin === "user" ? "fill-primary" : "fill-bg-panel stroke-primary"}
+            className={draggingPin === "user" ? "fill-signal" : "fill-bg-panel stroke-signal"}
             strokeWidth={1}
           />
           <text x={user.x} y={user.y + 10.5} textAnchor="middle" className="fill-text-muted text-[6px] font-medium">
@@ -248,14 +248,14 @@ export function CDNEdgeMap({
       </svg>
 
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] text-text-subtle">
-        <LegendDot className="bg-success" label="Hot (≥70% hits)" />
-        <LegendDot className="bg-warning" label="Warm" />
-        <LegendDot className="bg-error" label="Cold (<30% hits)" />
+        <LegendDot className="bg-status-healthy" label="Hot (≥70% hits)" />
+        <LegendDot className="bg-status-degraded" label="Warm" />
+        <LegendDot className="bg-status-critical" label="Cold (<30% hits)" />
         <LegendDot className="bg-text-subtle" label="No data" />
       </div>
       <p className="text-center text-[10px] text-text-subtle">
-        Drag <span className="font-medium text-primary">User</span> to change which edge wins —
-        drag <span className="font-medium text-warning">Origin</span> to see where a miss round-trips
+        Drag <span className="font-medium text-signal">User</span> to change which edge wins —
+        drag <span className="font-medium text-status-degraded">Origin</span> to see where a miss round-trips
       </p>
 
       <PinCoordinateControls
@@ -299,14 +299,14 @@ function PinCoordinateControls({
       <div className="grid grid-cols-2 gap-2">
         <CoordinateField
           label="User X / Y"
-          dotClassName="bg-primary"
+          dotClassName="bg-signal"
           x={userX}
           y={userY}
           onChange={(x, y) => onMoveUser(x, y)}
         />
         <CoordinateField
           label="Origin X / Y"
-          dotClassName="bg-warning"
+          dotClassName="bg-status-degraded"
           x={originX}
           y={originY}
           onChange={(x, y) => onMoveOrigin(x, y)}
@@ -370,7 +370,7 @@ function CoordinateInput({
       }}
       className="h-7 w-full min-w-0 rounded-md border border-border bg-bg px-1.5 text-center text-xs text-text
         transition-colors duration-fast ease-standard
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
         hover:border-border-hover"
     />
   );
@@ -400,9 +400,9 @@ function clamp(value: number, min: number, max: number): number {
 
 function hitRateFillClass(metrics: CDNEdgeMetrics | undefined): string {
   if (!metrics || metrics.requests === 0) return "fill-text-subtle";
-  if (metrics.hitRate >= 0.7) return "fill-success";
-  if (metrics.hitRate >= 0.3) return "fill-warning";
-  return "fill-error";
+  if (metrics.hitRate >= 0.7) return "fill-status-healthy";
+  if (metrics.hitRate >= 0.3) return "fill-status-degraded";
+  return "fill-status-critical";
 }
 
 function LegendDot({ className, label }: { className: string; label: string }) {

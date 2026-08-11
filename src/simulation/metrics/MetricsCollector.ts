@@ -289,6 +289,28 @@ export function collectMetrics(
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([targetId, requests]) => ({ targetId, requests }));
     metrics.routingDistribution = routingDistribution;
+
+    // Zero-capacity routers (LoadBalancer, ReverseProxy — see their own
+    // class docs: "has no capacity of its own") never emit
+    // PROCESSING_STARTED, so requestCount above stays 0 for them no matter
+    // how much traffic they successfully route. Left alone, that makes
+    // attempts = requestCount + errorCount collapse to just errorCount —
+    // any single failure forwarded back through the router (which *does*
+    // count against it, since the response-forwarding hop's source is the
+    // router) reads as a 100% failure rate, misattributing a downstream
+    // target's crash to the router itself (see nodeStatus.ts's
+    // CRASH_FAILURE_RATE and RemediesPanel.tsx's worstEntityHealth, both
+    // of which read requestCount/errorCount this same way). A router that
+    // never processes still legitimately *routes* — use the requests it
+    // actually dispatched (already summed here) as its request count, but
+    // only as a fallback: a processing entity (APIServer forwarding
+    // downstream after finishing its own work, say) already has an
+    // accurate PROCESSING_STARTED-derived count and must not have this
+    // routed-count layered on top of it, which is exactly what the
+    // `=== 0` guard prevents.
+    if (metrics.requestCount === 0) {
+      metrics.requestCount = routingDistribution.reduce((sum, t) => sum + t.requests, 0);
+    }
   }
 
   for (const [entityId, partitions] of partitionByEntity) {

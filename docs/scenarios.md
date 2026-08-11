@@ -140,17 +140,39 @@ It is evaluated relative to its constraints.
 
 ## 3. Starting Point
 
-Every scenario provides an intentionally imperfect architecture.
+A scenario doesn't hand the student a pre-built, undersized architecture
+with one dial left to turn. Users should never begin with the ideal
+solution — but "inherit an imperfect system" turned out to mean, in
+practice, "edit one config field until a constraint passes," which taught
+dial-turning, not design (see docs/scenario-redesign.md for the full
+writeup of why this changed, and for the by-scenario tuning history).
 
-Users should never begin with the ideal solution.
+Instead, a scenario fixes only the **problem**: a Client whose demand
+(request rate, and occasionally other traffic shape) is locked and can't be
+edited or deleted away, plus — for the rarer scenario that needs one — a
+mandated fixed-spec component the student must integrate with but can't
+resize. Everything else starts as a blank canvas. The student designs the
+architecture, under a real monthly budget (see `TECHNICAL-SPECIFICATION.md`
+and `src/lib/scenarioScoring.ts`) that turns "just add more capacity" from
+a free move into an actual tradeoff — the same success rate is reachable at
+wildly different costs, and only the cheap one reflects real design
+thinking. A solution that clears every constraint but blows the budget
+hasn't solved the scenario.
 
-Instead,
+Once a solution clears every gate (success rate, latency, budget), it's
+scored 1-3 stars on how far under the bare minimum it got on cost, latency,
+and reliability — rewarding a student who keeps optimizing after the
+"pass" bar, not just whoever clears it first. A revealable reference
+solution, scored by the same function, adds a 5-star "legendary" tier for
+beating it.
 
-they inherit a system.
-
-Just like real engineers.
-
-Their responsibility is to improve it.
+All four implemented scenarios (Movie Ticket Booking, Flash Sale, URL
+Shortener, Parking Reservation Platform) use this model — see each
+scenario file's own header comment (`src/scenarios/*.ts`) for the exact
+numbers it was tuned against, and docs/scenario-redesign.md for the
+mechanism, the gotchas hit along the way, and — for Parking Reservation
+Platform specifically — a documented pivot away from its originally-planned
+fix once tuning found it couldn't survive a real budget gate.
 
 ---
 
@@ -439,6 +461,33 @@ Queues
 Challenge
 
 Keep the system available despite sudden demand.
+
+---
+
+## Parking Reservation Platform
+
+Difficulty
+
+★★★☆☆
+
+Problem
+
+Eight logically distinct services — accounts, search, checkout, reservation history, payments,
+notifications, live spot inventory, garage reviews — are all still served by one shared API
+server and one shared database. Under load, both look saturated at once.
+
+Concepts
+
+Backpressure
+
+Diagnosing vs. Guessing the Bottleneck
+
+Utilization as a Symptom, Not a Cause
+
+Challenge
+
+Two components can look equally overwhelmed without being two independent problems — find the
+one that's actually the ceiling before spending budget on the one that just looks worst.
 
 ---
 

@@ -1,12 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowRight, Hammer, Repeat, Search } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { Reveal } from "@/components/landing/Reveal";
+import { ArrowRight, BookOpen, Compass, Hammer, Repeat, Search } from "lucide-react";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { HeroDiagram } from "@/components/landing/HeroDiagram";
 import { SCENARIOS } from "@/scenarios";
-import { ENTITY_CATALOG } from "@/lib/entityCatalog";
-import { slugFromEntityType } from "@/lib/entityDeepDive";
 
 const GITHUB_URL = "https://github.com/asutoshpanda264/engineering-studio";
 
@@ -19,28 +17,32 @@ function GitHubIcon(props: { className?: string }) {
   );
 }
 
-const LINK_BUTTON_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
-const LINK_BUTTON_PRIMARY = "h-10 px-5 bg-primary text-white hover:bg-primary-hover active:bg-primary-active";
-const LINK_BUTTON_SECONDARY =
-  "h-10 px-5 bg-bg-elevated text-text border border-border hover:border-border-hover hover:bg-bg-panel";
+/*
+ * "Trace" component language for this page:
+ *  - Tag        — mono, uppercase, bracketed. Eyebrows, kickers, reference marks.
+ *  - Specimen   — hairline-bordered block with a corner reference tag, replaces
+ *                 the rounded/shadowed card everywhere on this page.
+ *  - LinkButton (components/ui/LinkButton.tsx) — the one primary-action
+ *    treatment in the product, shared by every page rather than each
+ *    hand-rolling its own CTA classes.
+ * No section on this page fades in on mount/scroll — content is visible the
+ * instant it paints; motion here is reserved for hover/press states only.
+ */
 
-function LinkButton({
-  href,
-  variant = "primary",
-  children,
-}: {
-  href: string;
-  variant?: "primary" | "secondary";
-  children: ReactNode;
-}) {
+function Tag({ children }: { children: ReactNode }) {
   return (
-    <Link
-      href={href}
-      className={`${LINK_BUTTON_BASE} ${variant === "primary" ? LINK_BUTTON_PRIMARY : LINK_BUTTON_SECONDARY}`}
-    >
+    <span className="inline-flex items-center gap-1.5 border border-border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
       {children}
-    </Link>
+    </span>
+  );
+}
+
+function Kicker({ index, children }: { index?: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-text-subtle">
+      {index && <span className="text-signal">{index}</span>}
+      <span>{children}</span>
+    </div>
   );
 }
 
@@ -62,23 +64,45 @@ const PROCESS_STEPS = [
   },
 ];
 
-const PRINCIPLES = [
-  "We build systems that help people think like engineers.",
-  "Instead of saying “use a cache,” it asks: what happens if you don’t?",
-  "Failure is expected here. An overloaded database is valuable — every failure teaches something.",
-];
+/** Bracket meter, not star glyphs — reads as an instrument readout rather
+    than a review-site rating widget. */
+function difficultyMeter(difficulty: number): string {
+  return "▮".repeat(difficulty) + "▯".repeat(5 - difficulty);
+}
 
-function difficultyStars(difficulty: number): string {
-  return "★".repeat(difficulty) + "☆".repeat(5 - difficulty);
+/** Difficulty is a real property of the scenario, not decoration — color it
+    with the same status vocabulary the simulation itself uses for real
+    node health, so low/medium/high reads as green/amber/red on sight. */
+function difficultyColorClass(difficulty: number): string {
+  if (difficulty <= 2) return "text-status-healthy";
+  if (difficulty === 3) return "text-status-degraded";
+  return "text-status-critical";
 }
 
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border/60 bg-bg/80 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <span className="text-sm font-semibold text-text">Engineering Studio</span>
+          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-text">
+            Engineering Studio
+          </span>
           <div className="flex items-center gap-3">
+            <Link
+              href="/tutorial"
+              className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+            >
+              <Compass className="size-4" aria-hidden />
+              Tutorial
+            </Link>
+            <Link
+              href="/learn"
+              className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+            >
+              <BookOpen className="size-4" aria-hidden />
+              Learn
+            </Link>
+            <ThemeToggle />
             <a
               href={GITHUB_URL}
               target="_blank"
@@ -97,14 +121,14 @@ export default function Home() {
 
       {/* Hero */}
       <section className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 px-6 pb-16 pt-20 text-center sm:pt-28">
-        <Badge variant="primary">An educational sandbox, not a production tool</Badge>
+        <Tag>An educational sandbox, not a production tool</Tag>
         <h1 className="text-4xl font-semibold tracking-tight text-text sm:text-5xl">
           Build. Simulate. Break. Learn.
         </h1>
         <p className="max-w-2xl text-balance text-lg text-text-muted">
           Design distributed systems visually, run a real discrete-event simulation against
-          them, and watch your architecture succeed or collapse under load — no lecture,
-          just consequences.
+          them, and watch your architecture succeed or collapse under load —{" "}
+          <span className="text-signal">no lecture, just consequences</span>.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <LinkButton href="/workshop">
@@ -118,130 +142,75 @@ export default function Home() {
       </section>
 
       <section className="mx-auto w-full max-w-4xl px-6 pb-24">
-        <div className="rounded-xl border border-border bg-bg-elevated p-6 shadow-elevated sm:p-8">
+        <div className="relative border border-border bg-bg-elevated p-6 sm:p-8">
+          <span className="absolute -top-px -left-px border border-signal/50 bg-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-signal">
+            Fig. 01 — Live Architecture
+          </span>
           <HeroDiagram />
         </div>
       </section>
 
-      {/* Process */}
-      <section className="mx-auto w-full max-w-5xl px-6 pb-24">
-        <Reveal>
-          <h2 className="text-center text-sm font-medium uppercase tracking-wide text-text-subtle">
-            How it works
-          </h2>
-        </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+      {/* Process — an indexed spec sheet, not three rounded cards */}
+      <section className="mx-auto w-full max-w-5xl px-6 pb-28">
+        <Kicker>How it works</Kicker>
+        <div className="mt-14 grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {PROCESS_STEPS.map((step, i) => (
-            <Reveal key={step.title} delay={i * 0.1}>
-              <div className="flex h-full flex-col gap-3 rounded-lg border border-border bg-bg-panel p-5">
-                <step.icon className="size-5 text-primary" aria-hidden />
-                <h3 className="text-sm font-semibold text-text">{step.title}</h3>
-                <p className="text-sm text-text-muted">{step.body}</p>
+            <div key={step.title} className="flex flex-col gap-4 py-8 sm:px-8 sm:py-0 sm:pt-8 first:sm:pl-0">
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-xs text-signal">{String(i + 1).padStart(2, "0")}</span>
+                <step.icon className="size-4 text-text-muted" aria-hidden />
               </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Principles */}
-      <section className="border-y border-border bg-bg-elevated py-20">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6">
-          {PRINCIPLES.map((line, i) => (
-            <Reveal key={line} delay={i * 0.08}>
-              <p className="text-balance text-center text-xl font-medium leading-snug text-text sm:text-2xl">
-                {line}
-              </p>
-            </Reveal>
+              <h3 className="text-lg font-semibold text-text">{step.title}</h3>
+              <p className="text-sm leading-relaxed text-text-muted">{step.body}</p>
+            </div>
           ))}
         </div>
       </section>
 
       {/* Scenarios */}
-      <section id="scenarios" className="mx-auto w-full max-w-5xl scroll-mt-14 px-6 py-24">
-        <Reveal>
-          <div className="mb-8 flex flex-col items-center gap-2 text-center">
-            <h2 className="text-2xl font-semibold text-text">Pick a problem to solve</h2>
-            <p className="max-w-xl text-sm text-text-muted">
-              Every scenario hands you an intentionally imperfect architecture and a business
-              problem, not a technical one. Your job is to figure out why it&apos;s failing.
-            </p>
-          </div>
-        </Reveal>
-        <div className="grid gap-4 sm:grid-cols-3">
+      <section
+        id="scenarios"
+        className="mx-auto w-full max-w-5xl scroll-mt-14 border-t border-border px-6 py-24"
+      >
+        <div className="mb-8 flex flex-col gap-2">
+          <Kicker>Pick a problem to solve</Kicker>
+          <p className="max-w-xl text-sm text-text-muted">
+            Every scenario hands you an intentionally imperfect architecture and a business
+            problem, not a technical one. Your job is to figure out why it&apos;s failing.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SCENARIOS.map((scenario, i) => (
-            <Reveal key={scenario.id} delay={i * 0.1}>
-              <Link
-                href={`/workshop?scenario=${scenario.id}`}
-                className="group flex h-full flex-col gap-2 rounded-lg border border-border bg-bg-panel p-5 transition-colors duration-fast ease-standard hover:border-border-hover hover:bg-bg-elevated"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-medium text-text">{scenario.title}</h3>
-                  <ArrowRight
-                    className="size-4 shrink-0 text-text-subtle transition-transform duration-fast ease-standard group-hover:translate-x-0.5 group-hover:text-text"
-                    aria-hidden
-                  />
-                </div>
-                <p className="text-[11px] text-text-subtle">{difficultyStars(scenario.difficulty)}</p>
-                <p className="line-clamp-3 text-sm text-text-muted">{scenario.story}</p>
-                <p className="mt-auto pt-2 text-[11px] text-text-subtle">
-                  {scenario.constraints.length} success criteria
-                </p>
-              </Link>
-            </Reveal>
+            <Link
+              key={scenario.id}
+              href={`/workshop?scenario=${scenario.id}`}
+              className="group relative flex h-full flex-col gap-3 border border-border bg-bg-panel p-5 transition-all duration-fast ease-standard hover:-translate-y-1 hover:border-border-hover hover:bg-bg-elevated hover:shadow-dropdown"
+            >
+              <span className="absolute right-3 top-3 font-mono text-[10px] text-text-subtle">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h3 className="pr-6 font-semibold text-text">{scenario.title}</h3>
+              <p className={`font-mono text-[11px] tracking-wide ${difficultyColorClass(scenario.difficulty)}`}>
+                {difficultyMeter(scenario.difficulty)}{" "}
+                <span className="text-text-subtle">
+                  {scenario.difficulty}/5
+                </span>
+              </p>
+              <p className="line-clamp-3 text-sm text-text-muted">{scenario.story}</p>
+              <p className="mt-auto flex items-center gap-1.5 pt-2 font-mono text-[11px] uppercase tracking-wide text-text-subtle">
+                {scenario.constraints.length} success criteria
+                <ArrowRight
+                  className="size-3.5 shrink-0 text-signal opacity-0 transition-all duration-fast ease-standard group-hover:translate-x-0.5 group-hover:opacity-100"
+                  aria-hidden
+                />
+              </p>
+            </Link>
           ))}
         </div>
       </section>
 
-      {/* Entities */}
-      <section className="mx-auto w-full max-w-4xl px-6 pb-24">
-        <Reveal>
-          <p className="mb-6 text-center text-sm text-text-muted">
-            Every one of these is a real, simulated component — not a static icon.{" "}
-            <Link href="/entities" className="text-primary hover:underline">
-              Read what each one does →
-            </Link>
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {ENTITY_CATALOG.map((item) =>
-              item.implemented ? (
-                <Link
-                  key={item.type}
-                  href={`/entities/${slugFromEntityType(item.type)}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-panel px-3 py-1.5 text-xs text-text-muted transition-colors duration-fast ease-standard hover:border-border-hover hover:text-text"
-                >
-                  <item.icon className="size-3.5" aria-hidden />
-                  {item.name}
-                </Link>
-              ) : (
-                <span
-                  key={item.type}
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-panel px-3 py-1.5 text-xs text-text-muted opacity-50"
-                >
-                  <item.icon className="size-3.5" aria-hidden />
-                  {item.name}
-                  <Badge variant="neutral">Soon</Badge>
-                </span>
-              )
-            )}
-          </div>
-        </Reveal>
-      </section>
-
-      {/* Final CTA */}
-      <section className="border-t border-border bg-bg-elevated py-20">
-        <Reveal className="mx-auto flex w-full max-w-2xl flex-col items-center gap-5 px-6 text-center">
-          <h2 className="text-2xl font-semibold text-text sm:text-3xl">
-            Ready to break something on purpose?
-          </h2>
-          <LinkButton href="/workshop">
-            Enter Workshop
-            <ArrowRight className="size-4" aria-hidden />
-          </LinkButton>
-        </Reveal>
-      </section>
-
       <footer className="border-t border-border px-6 py-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 text-xs text-text-subtle sm:flex-row">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-wide text-text-subtle sm:flex-row">
           <span>Engineering Studio — Build. Simulate. Break. Learn.</span>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-text-muted">
             View source on GitHub

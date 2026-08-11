@@ -21,11 +21,12 @@ import type { CacheStampedeMetrics, EntityType } from "@/simulation/types";
  *
  * Unlike the real Workshop's Inspector (which only ever shows whichever
  * one node is currently selected), this lists every node in the demo as
- * its own dropdown, all expanded by default — with only 2-3 nodes total,
- * requiring a click on the canvas just to see one component's config
- * added friction for no real benefit. Clicking a node on the canvas still
- * selects it (highlighted here too), it just isn't required to see
- * anything.
+ * its own dropdown rather than requiring a click on the canvas first to
+ * see anything. Sections start collapsed — with a Remedies panel and a
+ * canvas already competing for space, three fully-expanded sections at
+ * once was more scroll than signal. Selecting a node (on canvas or by
+ * clicking its own header) expands that one section automatically, so the
+ * component someone's actually looking at is never a click away.
  */
 export function FailureDemoInspector() {
   const nodes = useFailureDemoStore((s) => s.nodes);
@@ -66,12 +67,18 @@ export function FailureDemoInspector() {
   );
 }
 
-/** Same collapsed-by-default-elsewhere pattern InspectorPanel.tsx uses for its own sections — defaults open here since there are only ever 2-3 of these total. */
+/**
+ * Same collapse/expand mechanics InspectorPanel.tsx uses for its own
+ * sections. Starts closed; selecting this node (via `highlighted`) forces
+ * it open, since a selection is a clear signal someone wants to look at it
+ * — but the user can still collapse it again afterward without the next
+ * selection change fighting them back open.
+ */
 function CollapsibleSection({
   title,
   icon,
   highlighted,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
 }: {
   title: string;
@@ -82,17 +89,28 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
+  // Adjusting state during render (React's documented pattern for
+  // "reset/derive state when a prop changes") instead of an effect — a
+  // `setOpen` triggered from inside a `useEffect` here would cause an
+  // extra commit-then-immediately-re-render pass for every selection
+  // change, which is exactly what the effect is meant to avoid.
+  const [prevHighlighted, setPrevHighlighted] = useState(highlighted);
+  if (highlighted !== prevHighlighted) {
+    setPrevHighlighted(highlighted);
+    if (highlighted) setOpen(true);
+  }
+
   return (
     <div
       className={`rounded-md border transition-colors duration-fast ease-standard ${
-        highlighted ? "border-primary/40 bg-primary/5" : "border-border bg-bg-panel"
+        highlighted ? "border-signal/40 bg-signal/5" : "border-border bg-bg-panel"
       }`}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-md p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="flex w-full items-center gap-2 rounded-md p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
       >
         <ChevronRight
           className={`size-3.5 shrink-0 text-text-subtle transition-transform duration-fast ${open ? "rotate-90" : ""}`}
@@ -276,8 +294,8 @@ function StampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) {
   const total = stampede.coalescedMisses + stampede.independentMisses;
   if (total === 0) return null;
   const bars = [
-    { label: "Independent fetches", value: stampede.independentMisses, color: "bg-primary" },
-    { label: "Coalesced (avoided)", value: stampede.coalescedMisses, color: "bg-success" },
+    { label: "Independent fetches", value: stampede.independentMisses, color: "bg-signal" },
+    { label: "Coalesced (avoided)", value: stampede.coalescedMisses, color: "bg-status-healthy" },
   ];
 
   return (
@@ -313,7 +331,7 @@ function StampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) {
 function MetricStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-bg-elevated px-2 py-1.5">
-      <p className="text-[11px] text-text-subtle">{label}</p>
+      <p className="text-[11px] uppercase tracking-wide text-text-subtle">{label}</p>
       <p className="text-sm font-medium text-text">{value}</p>
     </div>
   );

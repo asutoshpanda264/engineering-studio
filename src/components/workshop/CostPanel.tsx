@@ -9,9 +9,9 @@ import { estimateCost } from "@/lib/costEngine";
 import type { EntityCostEstimate, CostSeverity } from "@/lib/costEngine";
 
 const SEVERITY_CLASSES: Record<CostSeverity, string> = {
-  normal: "border-success/40 text-success",
-  elevated: "border-warning/40 text-warning",
-  high: "border-error/40 text-error",
+  normal: "border-status-healthy/40 text-status-healthy",
+  elevated: "border-status-degraded/40 text-status-degraded",
+  high: "border-status-critical/40 text-status-critical",
 };
 
 const SEVERITY_LABELS: Record<CostSeverity, string> = {

@@ -13,8 +13,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary text-white hover:bg-primary-hover active:bg-primary-active",
+  // text-bg (not a hardcoded white) so the primary block keeps working
+  // ink-on-accent contrast in both themes — same flat, zero-radius
+  // solid-block treatment as every other primary action in the product
+  // (see LinkButton.tsx, its <Link> counterpart).
+  primary: "bg-signal text-bg hover:bg-signal-hover active:bg-signal-active",
   secondary:
     "bg-bg-elevated text-text border border-border hover:border-border-hover hover:bg-bg-panel",
   ghost: "text-text-muted hover:text-text hover:bg-bg-elevated",
@@ -44,8 +47,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={`inline-flex items-center justify-center rounded-md font-medium
+          uppercase tracking-wide
           transition-colors duration-fast ease-standard
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
           disabled:opacity-50 disabled:pointer-events-none
           ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
         {...props}

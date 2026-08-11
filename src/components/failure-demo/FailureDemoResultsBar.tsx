@@ -20,7 +20,7 @@ export function FailureDemoResultsBar() {
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center gap-2 px-4 text-error">
+      <div className="flex flex-1 items-center gap-2 px-4 text-status-critical">
         <AlertTriangle className="size-4 shrink-0" aria-hidden />
         <p className="text-sm">{error}</p>
       </div>
@@ -43,7 +43,7 @@ export function FailureDemoResultsBar() {
       <Stat label="p95 latency" value={`${metrics.p95Latency} ms`} />
       <Stat label="Throughput" value={`${metrics.throughput.toFixed(1)} req/s`} />
       {warnings.length > 0 && (
-        <div className="ml-auto flex shrink-0 items-center gap-1.5 text-warning" title={warnings.join(" ")}>
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 text-status-degraded" title={warnings.join(" ")}>
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
           <p className="max-w-40 truncate text-xs">{warnings.join(" · ")}</p>
         </div>
@@ -55,7 +55,7 @@ export function FailureDemoResultsBar() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs text-text-subtle">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-text-subtle">{label}</span>
       <span className="text-sm font-medium text-text">{value}</span>
     </div>
   );

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { CheckCircle2, ChevronRight, CircleDashed, Info, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronRight, CircleDashed, Info, Lock, RotateCcw } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -8,11 +9,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useWorkshopStore } from "@/store/workshopStore";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
-import { ENTITY_CONFIG_SCHEMA } from "@/lib/entityConfigSchema";
-import type { ConfigFieldSchema } from "@/lib/entityConfigSchema";
+import { ENTITY_CONFIG_SCHEMA, formatBenchmarkValue } from "@/lib/entityConfigSchema";
+import type { ConfigFieldSchema, NumericFieldSchema } from "@/lib/entityConfigSchema";
 import { getEntityEducation } from "@/lib/entityEducation";
-import { evaluateScenario, getScenario } from "@/scenarios";
-import type { ConstraintResult, Scenario, ScenarioConstraint } from "@/scenarios";
+import { slugFromEntityType } from "@/lib/entityDeepDive";
+import { evaluateScenario, getScenario, resolveReflection } from "@/scenarios";
+import type { CapacityEstimate, ConstraintResult, Scenario, ScenarioConstraint } from "@/scenarios";
 import type { ArchitectureNode } from "@/store/workshopStore";
 import {
   computeEdgeLatencies,
@@ -29,6 +31,7 @@ import type {
   CacheStampedeMetrics,
   CDNEdgeMetrics,
   CircuitBreakerMetrics,
+  EntityType,
   RateLimiterMetrics,
   RoutingTargetMetrics,
   SimulationResult,
@@ -36,6 +39,9 @@ import type {
 import type { SimulationEvent } from "@/simulation/events/types";
 import { estimateCost } from "@/lib/costEngine";
 import type { CostSeverity } from "@/lib/costEngine";
+import { scoreScenario } from "@/lib/scenarioScoring";
+import type { ScenarioScore } from "@/lib/scenarioScoring";
+import { isFieldLocked } from "@/lib/scenarioLocking";
 
 /**
  * The Inspector explains whatever's selected. With nothing selected,
@@ -86,7 +92,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="flex w-full items-center justify-between gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
       >
         <span className="flex min-w-0 items-center gap-1 text-xs font-medium uppercase tracking-wide text-text-subtle">
           <ChevronRight
@@ -102,41 +108,149 @@ function CollapsibleSection({
   );
 }
 
+const FIELD_INFO_POPOVER_WIDTH = 272;
+const FIELD_INFO_POPOVER_GAP = 6;
+
 /**
- * The "cloud" trigger — a small info glyph next to a field's label.
- * Deliberately just the icon: it marks up whatever `.group/tip` ancestor
- * ConfigField wraps the whole field in, so hovering/focusing it reveals
- * that field's FieldHint (see below) regardless of where the icon sits
- * inside the label. Pure CSS, no click state to manage.
+ * The compact "i" trigger + its floating popup — replaces the old
+ * always-in-DOM InfoIcon/FieldHint pair (an inline reveal that pushed the
+ * rest of Configuration down the page, which was itself a fix for an even
+ * longer always-visible paragraph per field — feedback both times was
+ * "overwhelming"/"too long"). Click-triggered, not hover — a hover popup
+ * that shows real, clickable content (the "Know more" link) is awkward to
+ * actually use (feedback: "don't do hover kinda on top of 'i'"), so this
+ * behaves like clicking a doc-comment glyph: click to open, click the
+ * trigger again / click anywhere outside / Escape to close. What shows up
+ * is deliberately small — three industry-benchmark reference points (see
+ * entityConfigSchema.ts's `FieldBenchmark`) plus a one-to-two-line "what
+ * raising/lowering this does", not the full paragraph. Anyone who wants
+ * the long version follows "Know more" to this entity's `/entities/[slug]`
+ * writeup instead.
+ *
+ * Positioned with `position: fixed`, computed from the trigger's own
+ * bounding rect — not an absolutely-positioned bubble in normal flow,
+ * which is what caused the sidebar's horizontal-scrollbar bug the old
+ * FieldHint's doc comment described. `fixed` is relative to the viewport
+ * regardless of the Inspector's `overflow-auto`, so it floats freely
+ * without pushing or clipping anything. A `useLayoutEffect` flips it
+ * above the trigger when the actual rendered popup would run past the
+ * bottom of the viewport — measured post-render (so it accounts for real
+ * content height, not a guess) but before paint, so there's no visible
+ * jump.
  */
-function InfoIcon() {
+function FieldInfoPopover({
+  field,
+  entityType,
+}: {
+  field: ConfigFieldSchema;
+  entityType: EntityType;
+}) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = Math.min(
+      Math.max(rect.left, 8),
+      window.innerWidth - FIELD_INFO_POPOVER_WIDTH - 8
+    );
+    setCoords({ top: rect.bottom + FIELD_INFO_POPOVER_GAP, left });
+    setOpen(true);
+  };
+
+  // Click-outside and Escape both close it — the two standard ways to
+  // dismiss a click-triggered popover, neither of which a hover-only
+  // version needed.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  // Flip above the trigger if the popup (now that it's actually rendered
+  // and measurable) would run past the bottom of the viewport.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !popoverRef.current) return;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const popoverRect = popoverRef.current.getBoundingClientRect();
+    if (popoverRect.bottom > window.innerHeight - 8) {
+      const flippedTop = Math.max(8, triggerRect.top - popoverRect.height - FIELD_INFO_POPOVER_GAP);
+      setCoords((prev) => (prev && prev.top !== flippedTop ? { ...prev, top: flippedTop } : prev));
+    }
+  }, [open]);
+
+  const benchmark = field.type !== "select" ? field.benchmark : undefined;
+
   return (
-    <span
-      tabIndex={0}
-      role="button"
-      aria-label="What does this do?"
-      className="inline-flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-full text-text-subtle transition-colors hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-    >
-      <Info className="size-3.5" aria-hidden />
+    <span className="inline-flex">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        aria-label={`What does ${field.label} do?`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full text-text-subtle transition-colors hover:text-signal focus-visible:text-signal focus-visible:outline-none"
+      >
+        <Info className="size-3.5" aria-hidden />
+      </button>
+      {open && coords && (
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label={field.label}
+          style={{ position: "fixed", top: coords.top, left: coords.left, width: FIELD_INFO_POPOVER_WIDTH }}
+          className="z-50 flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3 text-left shadow-elevated"
+        >
+          <p className="text-xs font-medium text-text">{field.label}</p>
+          {benchmark && (
+            <div className="flex flex-col gap-1 rounded-sm bg-bg-panel p-2">
+              <BenchmarkRow label="Low" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.low)} note={benchmark.lowNote} />
+              <BenchmarkRow label="Avg" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.avg)} note={benchmark.avgNote} />
+              <BenchmarkRow label="High" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.high)} note={benchmark.highNote} />
+            </div>
+          )}
+          <p className="text-[11px] leading-relaxed text-text-subtle">{field.impact}</p>
+          <Link
+            href={`/entities/${slugFromEntityType(entityType)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="self-start text-[11px] font-medium text-signal hover:underline"
+          >
+            Know more →
+          </Link>
+        </div>
+      )}
     </span>
   );
 }
 
-/**
- * What a knob does, revealed on hover/focus of its InfoIcon. Deliberately
- * an inline reveal in normal document flow (a 0fr→1fr grid-rows
- * transition), not a floating absolutely-positioned tooltip bubble — a
- * bubble anchored to the icon could run past the fixed-width Inspector
- * sidebar and force a horizontal scrollbar depending on how far right
- * the icon sits. This can only ever grow downward inside the column it's
- * already in, so it never overflows.
- */
-function FieldHint({ text }: { text: string }) {
+function BenchmarkRow({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-fast group-hover/tip:grid-rows-[1fr] group-hover/tip:opacity-100 group-focus-within/tip:grid-rows-[1fr] group-focus-within/tip:opacity-100">
-      <p className="overflow-hidden text-[11px] leading-relaxed text-text-subtle">
-        {text}
-      </p>
+    <div className="flex items-baseline gap-1.5 text-[11px] leading-snug">
+      <span className="w-6 shrink-0 font-medium uppercase tracking-wide text-text-subtle">{label}</span>
+      <span className="shrink-0 font-medium tabular-nums text-text">{value}</span>
+      <span className="text-text-subtle">— {note}</span>
     </div>
   );
 }
@@ -188,6 +302,8 @@ function ScenarioInspector() {
 
 function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
   const loadScenario = useWorkshopStore((s) => s.loadScenario);
+  const nodes = useWorkshopStore((s) => s.nodes);
+  const edges = useWorkshopStore((s) => s.edges);
   // playbackMetrics reflects wherever the playback cursor currently is —
   // pass/fail should judge the complete run, so this reads the final
   // tally from the immutable result instead (SIMULATION-ENGINE.md §11:
@@ -196,6 +312,10 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
   const evaluation = simulationResult
     ? evaluateScenario(scenario, simulationResult.metrics)
     : null;
+  const score: ScenarioScore | null = simulationResult
+    ? scoreScenario(scenario, simulationResult, nodes, edges)
+    : null;
+  const projectedCost = estimateCost(simulationResult, nodes).totalMonthlyCost;
 
   return (
     <div className="flex flex-col gap-4">
@@ -220,6 +340,10 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
 
       <p className="text-xs text-text-muted">{scenario.story}</p>
 
+      {scenario.capacityEstimate && !simulationResult && (
+        <CapacityEstimatePrompt estimate={scenario.capacityEstimate} />
+      )}
+
       <section className="flex flex-col gap-2">
         <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
           Success Criteria
@@ -231,11 +355,30 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
             result={evaluation?.results.find((r) => r.constraint.id === constraint.id) ?? null}
           />
         ))}
+        {scenario.budgetUsd !== undefined && (
+          <BudgetRow budgetUsd={scenario.budgetUsd} actualUsd={projectedCost} hasRun={simulationResult !== null} />
+        )}
+        {scenario.budgetUsd !== undefined && score && (
+          <ArchitectureGateRow architectureValid={score.architectureValid} />
+        )}
       </section>
 
+      {score?.gatesPassed && <ScoreCard score={score} />}
+
+      {evaluation && scenario.reflection && simulationResult && (
+        <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
+            What Happened
+          </h4>
+          <p className="text-xs text-text-muted">
+            {resolveReflection(scenario.reflection, simulationResult.metrics)}
+          </p>
+        </section>
+      )}
+
       {evaluation?.passed && (
-        <section className="flex flex-col gap-2 rounded-md border border-success/30 bg-success/10 p-3">
-          <p className="text-xs font-medium text-success">
+        <section className="flex flex-col gap-2 rounded-md border border-status-healthy/30 bg-status-healthy/10 p-3">
+          <p className="text-xs font-medium text-status-healthy">
             All success criteria met. Here&apos;s what made the difference:
           </p>
           <ul className="flex flex-col gap-1">
@@ -249,7 +392,164 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
       )}
 
       <HintList hints={scenario.hints} />
+
+      {scenario.optimalSolution && <ReferenceSolutionSection scenario={scenario} />}
     </div>
+  );
+}
+
+/**
+ * The end of the progressive-disclosure line hints already start (SCENARIOS.md
+ * — "Hints should encourage thinking, not provide solutions") — this goes
+ * one step further than that philosophy normally allows, by explicit
+ * request: a full, revealable reference build. `summary` alone (always
+ * visible) is the soft nudge; clicking through loads the exact
+ * architecture onto the canvas via `loadOptimalSolution`, since a graph is
+ * the thing worth inspecting directly here, not a paragraph describing one.
+ */
+function ReferenceSolutionSection({ scenario }: { scenario: Scenario }) {
+  const loadOptimalSolution = useWorkshopStore((s) => s.loadOptimalSolution);
+  const viewingOptimalSolution = useWorkshopStore((s) => s.viewingOptimalSolution);
+  const solution = scenario.optimalSolution;
+  if (!solution) return null;
+
+  return (
+    <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
+        Stuck?
+      </h4>
+      <p className="text-xs text-text-muted">{solution.summary}</p>
+      {viewingOptimalSolution ? (
+        <p className="text-[11px] text-signal">
+          You&apos;re viewing the reference solution — Restart to build your own.
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={loadOptimalSolution}
+          className="self-start text-xs font-medium text-signal hover:underline"
+        >
+          See a reference solution
+        </button>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Mirrors ConstraintRow's shape so the budget reads as one more gate in
+ * the same list, not a separate afterthought — same "not knowing how you
+ * got there" fix as the star score below: cost is enforced, not merely
+ * displayed. Pre-run this shows the architecture's current base cost
+ * (config alone, same "+" convention CostPanel/EstimatedCostSection use)
+ * against the limit; post-run it's the definitive base+usage figure.
+ */
+function BudgetRow({
+  budgetUsd,
+  actualUsd,
+  hasRun,
+}: {
+  budgetUsd: number;
+  actualUsd: number;
+  hasRun: boolean;
+}) {
+  const passed = actualUsd <= budgetUsd;
+  const Icon = hasRun ? (passed ? CheckCircle2 : CircleDashed) : CircleDashed;
+  const color = hasRun ? (passed ? "text-status-healthy" : "text-status-critical") : "text-text-subtle";
+
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className={`mt-0.5 size-3.5 shrink-0 ${color}`} aria-hidden />
+      <div className="flex-1">
+        <p className="text-xs text-text-muted">Stay within budget</p>
+        <p className={`text-[11px] ${color}`}>
+          Currently ${actualUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          {!hasRun && "+"} of ${budgetUsd.toLocaleString()}/mo
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A structural gate, not a metric — the given Client's traffic must pass
+ * through an actual API Server before it can reach a Database/Cache/
+ * Message Queue/Kafka/Replica Pool. Skipping the service layer entirely
+ * (wiring the Client straight to storage) is cheaper than any real design
+ * under this app's cost model, which would make it the "best" answer to
+ * every budget-gated scenario for the wrong reason — see
+ * architectureValidation.ts's own header comment. Purely structural (nodes
+ * + edges), so it's computable without a run, but only shown once one
+ * exists, same rhythm as the constraint rows above it.
+ */
+function ArchitectureGateRow({ architectureValid }: { architectureValid: boolean }) {
+  const Icon = architectureValid ? CheckCircle2 : CircleDashed;
+  const color = architectureValid ? "text-status-healthy" : "text-status-critical";
+
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className={`mt-0.5 size-3.5 shrink-0 ${color}`} aria-hidden />
+      <div className="flex-1">
+        <p className="text-xs text-text-muted">Route traffic through a real service layer</p>
+        {!architectureValid && (
+          <p className={`text-[11px] ${color}`}>
+            A Database, Cache, Message Queue, Kafka, or Replica Pool is reachable from the
+            Client without passing through an API Server first.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Only ever rendered once every hard gate has already passed (see
+ * `score?.gatesPassed` above) — this is strictly "how well," never "did it
+ * work," which the Success Criteria section above already answers on its
+ * own. Composite math lives in scenarioScoring.ts; this just renders it.
+ *
+ * `legendary` (5 stars) means a student's own build beat the revealable
+ * reference solution's own composite score — a real, verified number
+ * (scoreScenario.ts computes it from `scenario.optimalSolution` with the
+ * exact same function), not a hardcoded "you did amazing" — so it's
+ * visually its own tier, not just "3 stars but shinier."
+ */
+function ScoreCard({ score }: { score: ScenarioScore }) {
+  if (score.legendary) {
+    return (
+      <section className="flex flex-col gap-1 rounded-md border border-signal bg-signal/15 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-text">Solution quality</p>
+          <p className="text-sm text-signal" aria-label="Legendary — beat the reference solution">
+            ★★★★★ LEGENDARY
+          </p>
+        </div>
+        <p className="text-[11px] text-text-subtle">
+          Your build outscored the reference solution — a real number, not a guess: your
+          composite beat its {(score.optimalComposite! * 100).toFixed(0)}%. That&apos;s a
+          genuinely better idea, not just tighter numbers on the same one.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-1 rounded-md border border-signal/30 bg-signal/10 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-text">Solution quality</p>
+        <p className="text-sm" aria-label={`${score.stars} out of 3 stars`}>
+          {"★".repeat(score.stars)}
+          {"☆".repeat(3 - score.stars)}
+        </p>
+      </div>
+      <p className="text-[11px] text-text-subtle">
+        {score.stars === 3
+          ? "Meaningfully better than the bare minimum on cost, latency, and reliability all at once."
+          : score.stars === 2
+            ? "Solid — some real headroom left on cost, latency, or reliability."
+            : "It works, but there's real headroom left on cost, latency, or reliability. Try optimizing further, not just passing."}
+      </p>
+    </section>
   );
 }
 
@@ -261,7 +561,7 @@ function ConstraintRow({
   result: ConstraintResult | null;
 }) {
   const Icon = result ? (result.passed ? CheckCircle2 : CircleDashed) : CircleDashed;
-  const color = result ? (result.passed ? "text-success" : "text-error") : "text-text-subtle";
+  const color = result ? (result.passed ? "text-status-healthy" : "text-status-critical") : "text-text-subtle";
 
   return (
     <div className="flex items-start gap-2">
@@ -284,6 +584,37 @@ function formatConstraintActual(constraint: ScenarioConstraint, actual: number):
   return `Currently ${rounded}${constraint.unit ? ` ${constraint.unit}` : ""}`;
 }
 
+/**
+ * A prediction exercise, shown only before the first run of a scenario
+ * (PRIMER-GAP.md Part A) — once `simulationResult` exists, `ScenarioBriefing`
+ * stops rendering this entirely rather than leaving a stale prompt sitting
+ * above the real numbers. The worked answer reveals on request, same
+ * pattern as HintList: a guess is more useful made than skipped.
+ */
+function CapacityEstimatePrompt({ estimate }: { estimate: CapacityEstimate }) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
+        Before You Run
+      </h4>
+      <p className="text-xs text-text-muted">{estimate.prompt}</p>
+      {revealed ? (
+        <p className="text-xs text-text-muted">{estimate.worked}</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="self-start text-xs font-medium text-signal hover:underline"
+        >
+          Show the worked answer
+        </button>
+      )}
+    </section>
+  );
+}
+
 /** Hints reveal one at a time on request (SCENARIOS.md — "Hints should encourage thinking, not provide solutions"). */
 function HintList({ hints }: { hints: string[] }) {
   const [shown, setShown] = useState(0);
@@ -302,7 +633,7 @@ function HintList({ hints }: { hints: string[] }) {
         <button
           type="button"
           onClick={() => setShown(shown + 1)}
-          className="self-start text-xs font-medium text-primary hover:underline"
+          className="self-start text-xs font-medium text-signal hover:underline"
         >
           {shown === 0 ? "Need a hint?" : "Show another hint"}
         </button>
@@ -327,6 +658,8 @@ function NodeInspector({ node }: { node: ArchitectureNode }) {
   // monthly cost projection shouldn't jitter as the user scrubs playback.
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
   const cdnComparisons = useWorkshopStore((s) => s.cdnComparisons);
+  const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
+  const activeScenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
   const catalogItem = getEntityCatalogItem(node.data.entityType);
   const Icon = catalogItem.icon;
   const fields = ENTITY_CONFIG_SCHEMA[node.data.entityType] ?? [];
@@ -350,24 +683,28 @@ function NodeInspector({ node }: { node: ArchitectureNode }) {
           </div>
         </div>
 
-        <CollapsibleSection title="Configuration" defaultOpen>
-          {fields.length === 0 ? (
-            <p className="text-xs text-text-subtle">
-              This component has no configurable settings yet.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {fields.map((field) => (
-                <ConfigField
-                  key={field.key}
-                  field={field}
-                  value={node.data.config[field.key]}
-                  onChange={(value) => updateNodeConfig(node.id, { [field.key]: value })}
-                />
-              ))}
-            </div>
-          )}
-        </CollapsibleSection>
+        <div data-tour-id="inspector-config">
+          <CollapsibleSection title="Configuration" defaultOpen>
+            {fields.length === 0 ? (
+              <p className="text-xs text-text-subtle">
+                This component has no configurable settings yet.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {fields.map((field) => (
+                  <ConfigField
+                    key={field.key}
+                    field={field}
+                    entityType={node.data.entityType}
+                    value={node.data.config[field.key]}
+                    onChange={(value) => updateNodeConfig(node.id, { [field.key]: value })}
+                    locked={isFieldLocked(activeScenario, node.id, field.key)}
+                  />
+                ))}
+              </div>
+            )}
+          </CollapsibleSection>
+        </div>
 
         <CollapsibleSection title="Live Metrics" defaultOpen>
           {!playbackMetrics ? (
@@ -639,7 +976,7 @@ function LoadBalancerWeightsSection({ node }: { node: ArchitectureNode }) {
                   }}
                   className="h-7 w-16 rounded-md border border-border bg-bg-elevated px-2 text-right text-xs text-text
                     transition-colors duration-fast ease-standard
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
                     hover:border-border-hover"
                 />
               </div>
@@ -694,7 +1031,7 @@ function ReverseProxyRoutesSection({ node }: { node: ArchitectureNode }) {
                   }}
                   className="h-7 w-32 rounded-md border border-border bg-bg-elevated px-1.5 text-xs text-text
                     transition-colors duration-fast ease-standard
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
                     hover:border-border-hover"
                 >
                   <option value="">Unassigned</option>
@@ -756,7 +1093,7 @@ function LoadBalancerDistributionSection({
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
                 <div
-                  className="h-full rounded-full bg-primary"
+                  className="h-full rounded-full bg-signal"
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -787,7 +1124,7 @@ function RateLimiterSection({ rateLimiter }: { rateLimiter: RateLimiterMetrics }
       summary={
         <span className="text-[11px] tabular-nums text-text-subtle">
           {rateLimiter.rejected > 0 ? (
-            <span className="text-error">{rateLimiter.rejected} rejected</span>
+            <span className="text-status-critical">{rateLimiter.rejected} rejected</span>
           ) : (
             "all admitted"
           )}
@@ -807,7 +1144,7 @@ function RateLimiterSection({ rateLimiter }: { rateLimiter: RateLimiterMetrics }
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label === "Rejected" ? "bg-error" : "bg-primary"}`}
+                  className={`h-full rounded-full ${bar.label === "Rejected" ? "bg-status-critical" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -857,7 +1194,7 @@ function CacheStampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) 
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label.startsWith("Coalesced") ? "bg-success" : "bg-primary"}`}
+                  className={`h-full rounded-full ${bar.label.startsWith("Coalesced") ? "bg-status-healthy" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -906,7 +1243,7 @@ function CachePenetrationSection({ penetration }: { penetration: CachePenetratio
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label.startsWith("Negative") ? "bg-success" : "bg-primary"}`}
+                  className={`h-full rounded-full ${bar.label.startsWith("Negative") ? "bg-status-healthy" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -1115,7 +1452,7 @@ function EngineeringExplanation({ node }: { node: ArchitectureNode }) {
         </Badge>
       )}
 
-      <p className="border-l-2 border-primary/40 pl-3 text-sm italic text-text">
+      <p className="border-l-2 border-signal/40 pl-3 text-sm italic text-text">
         &ldquo;{education.truth}&rdquo;
       </p>
 
@@ -1135,43 +1472,55 @@ function EngineeringExplanation({ node }: { node: ArchitectureNode }) {
 
 function ConfigField({
   field,
+  entityType,
   value,
   onChange,
+  locked = false,
 }: {
   field: ConfigFieldSchema;
+  entityType: EntityType;
   value: unknown;
   onChange: (value: number | string) => void;
+  /** Fixed by the active scenario (Scenario.lockedFields) — rendered read-only with an explanation instead of the usual popover. */
+  locked?: boolean;
 }) {
-  // The label carries an inline info glyph rather than a permanent
-  // paragraph under the field — what the knob does and what
-  // raising/lowering it changes is one hover/focus away, not printed by
-  // default for every field (feedback: that made Configuration
-  // overwhelming). `group/tip` wraps the whole field (not just the icon)
-  // so FieldHint can render below the control in normal flow — an
-  // in-flow reveal can only push content down, never overflow the
-  // sidebar sideways the way an absolutely-positioned bubble anchored to
-  // the icon could (feedback: that caused a horizontal scrollbar).
+  // The label carries a small "i" trigger rather than a permanent
+  // paragraph under the field — what the knob does, real-world low/avg/high
+  // reference points, and a link to the full writeup are one hover/focus
+  // away, not printed by default for every field (feedback: that made
+  // Configuration overwhelming). See FieldInfoPopover's own doc comment
+  // for why it's a floating popup rather than another in-flow reveal.
   const labelText = `${field.label}${"unit" in field && field.unit ? ` (${field.unit})` : ""}`;
   const labelContent = (
     <span className="inline-flex items-center gap-1.5">
       <span>{labelText}</span>
-      <InfoIcon />
+      {locked ? (
+        <span
+          title="Fixed by this scenario — this is the problem you're designing for, not a lever to solve it with."
+          className="inline-flex"
+        >
+          <Lock
+            className="size-3 shrink-0 text-text-subtle"
+            aria-label="Fixed by this scenario"
+            role="img"
+          />
+        </span>
+      ) : (
+        <FieldInfoPopover field={field} entityType={entityType} />
+      )}
     </span>
   );
 
   if (field.type === "select") {
     const currentValue = typeof value === "string" ? value : field.default;
     return (
-      <div className="group/tip flex flex-col gap-1">
-        <Select
-          label={labelContent}
-          options={field.options}
-          value={currentValue}
-          title={field.description}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <FieldHint text={field.description} />
-      </div>
+      <Select
+        label={labelContent}
+        options={field.options}
+        value={currentValue}
+        disabled={locked}
+        onChange={(e) => onChange(e.target.value)}
+      />
     );
   }
 
@@ -1182,22 +1531,19 @@ function ConfigField({
   const displayStep = field.type === "percent" ? field.step * 100 : field.step;
 
   return (
-    <div className="group/tip flex flex-col gap-1">
-      <Input
-        label={labelContent}
-        type="number"
-        min={displayMin}
-        max={displayMax}
-        step={displayStep}
-        value={displayValue}
-        title={field.description}
-        onChange={(e) => {
-          const parsed = Number(e.target.value);
-          onChange(field.type === "percent" ? parsed / 100 : parsed);
-        }}
-      />
-      <FieldHint text={field.description} />
-    </div>
+    <Input
+      label={labelContent}
+      type="number"
+      min={displayMin}
+      max={displayMax}
+      step={displayStep}
+      value={displayValue}
+      disabled={locked}
+      onChange={(e) => {
+        const parsed = Number(e.target.value);
+        onChange(field.type === "percent" ? parsed / 100 : parsed);
+      }}
+    />
   );
 }
 

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { DragEvent } from "react";
 import {
   Background,
@@ -10,6 +10,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useWorkshopStore } from "@/store/workshopStore";
 import { ComponentNode } from "@/components/workshop/nodes/ComponentNode";
 import { AnimatedEdge } from "@/components/workshop/edges/AnimatedEdge";
@@ -31,8 +32,24 @@ function CanvasInner() {
   const onConnect = useWorkshopStore((s) => s.onConnect);
   const addNode = useWorkshopStore((s) => s.addNode);
   const setSelectedNode = useWorkshopStore((s) => s.setSelectedNode);
+  const { theme } = useTheme();
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
+  // React Flow's `fitView` prop below only fits once, on the canvas's
+  // initial mount — it never re-runs on its own. Every bulk change after
+  // that (loading a scenario, revealing the reference solution, adding
+  // components one at a time from the sidebar's 4-column grid layout, see
+  // ComponentSidebar.tsx's `nextClickPosition`) left the viewport wherever
+  // it was, so new content silently landed outside the visible area
+  // instead of coming into view. Re-fitting whenever the node *count*
+  // changes covers every one of those cases while leaving ordinary
+  // dragging alone (a drag changes positions, not count, so it never
+  // fires this).
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    fitView({ padding: 0.2, duration: 300 });
+  }, [nodes.length, fitView]);
 
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -58,7 +75,7 @@ function CanvasInner() {
 
   return (
     <div
-      className="relative flex-1"
+      className="relative min-h-0 min-w-0 flex-1"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -74,7 +91,8 @@ function CanvasInner() {
         onNodeClick={(_, node) => setSelectedNode(node.id)}
         onPaneClick={() => setSelectedNode(null)}
         deleteKeyCode={["Backspace", "Delete"]}
-        colorMode="dark"
+        colorMode={theme}
+        connectionRadius={32}
         fitView
       >
         <Background

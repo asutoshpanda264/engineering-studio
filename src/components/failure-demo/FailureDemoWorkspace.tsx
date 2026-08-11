@@ -38,13 +38,17 @@ export function FailureDemoWorkspace({
   }, [demo, loadDemo]);
 
   return (
-    <div className="flex h-screen w-full flex-col bg-bg">
+    // Same instrument voice as the real Workshop (see workshop/page.tsx) —
+    // this page is a scoped canvas + inspector + remedies tool, not an
+    // article, so it stays mono end to end rather than inheriting the
+    // ambient serif default the entity articles around it use.
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-bg font-mono">
       <FailureDemoHeader
         entityName={entityName}
         entitySlug={entitySlug}
         failureModeName={failureModeName}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <RemediesPanel />
         <FailureDemoCanvas />
         <FailureDemoInspector />

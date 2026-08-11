@@ -151,7 +151,18 @@ export class APIServer implements Entity {
     if (meta.direction === "request") {
       const target = ctx.downstream[0];
       if (!target) {
-        events.push(...this.fail(meta, ctx, event.requestId, "no_downstream_connection"));
+        // Nothing wired downstream (no Database) — this server has no
+        // further call to make, so processing this request WAS the whole
+        // job. Answer directly instead of failing: API Server is
+        // documented as safe to end a chain on (its own recipe is the
+        // bare `[client, api]` — see TUTORIAL-ENTITIES.md §1b), and every
+        // recipe that routes *through* an API Server on its way to a
+        // terminal node of its own (Load Balancer, CDN, Rate Limiter,
+        // Reverse Proxy all end their recipe on `api`) depends on that
+        // being true. Mirrors Cache.ts's "answered from local state" case
+        // — it never appends itself to `path` either, since there's
+        // nothing further to reach.
+        events.push(...this.respond(meta, ctx, event.requestId));
         return events;
       }
       const latency = ctx.latencyTo(target);
@@ -169,42 +180,56 @@ export class APIServer implements Entity {
         )
       );
     } else {
-      const { target, isClient } = findResponseTarget(this.id, meta.path);
-      if (isClient) {
-        const duration = ctx.now - meta.startedAt;
-        events.push(
-          meta.failed
-            ? createRequestFailedEvent(
-                ctx.now,
-                this.id,
-                target,
-                event.requestId,
-                meta.failureReason ?? "unknown",
-                { startedAt: meta.startedAt }
-              )
-            : createRequestCompletedEvent(
-                ctx.now,
-                this.id,
-                target,
-                event.requestId,
-                duration
-              )
-        );
-      } else {
-        const latency = ctx.latencyTo(target);
-        events.push(
-          createRequestRoutedEvent(
-            ctx.now + latency,
-            this.id,
-            target,
-            event.requestId,
-            { ...meta, direction: "response", path: meta.path }
-          )
-        );
-      }
+      events.push(...this.respond(meta, ctx, event.requestId));
     }
 
     return events;
+  }
+
+  /**
+   * Replies to whoever should hear about this request finishing — the
+   * Client directly, if this server is the last hop on the way back, or
+   * one hop further up the chain otherwise. Shared by the real response
+   * leg (a downstream Database answered) and the no-downstream terminal
+   * case above, since both amount to "this server is done, someone needs
+   * to hear about it" — see Database.ts/Cache.ts's identically-shaped
+   * helper.
+   */
+  private respond(
+    meta: RequestLifecycleMetadata,
+    ctx: SimulationContext,
+    requestId: RequestId
+  ): SimulationEvent[] {
+    const { target, isClient } = findResponseTarget(this.id, meta.path);
+    if (isClient) {
+      const duration = ctx.now - meta.startedAt;
+      return [
+        meta.failed
+          ? createRequestFailedEvent(
+              ctx.now,
+              this.id,
+              target,
+              requestId,
+              meta.failureReason ?? "unknown",
+              { startedAt: meta.startedAt }
+            )
+          : createRequestCompletedEvent(
+              ctx.now,
+              this.id,
+              target,
+              requestId,
+              duration
+            ),
+      ];
+    }
+    const latency = ctx.latencyTo(target);
+    return [
+      createRequestRoutedEvent(ctx.now + latency, this.id, target, requestId, {
+        ...meta,
+        direction: "response",
+        path: meta.path,
+      }),
+    ];
   }
 
   /** See Database.ts's identical helper — routes a local failure via findResponseTarget instead of straight to the client. */

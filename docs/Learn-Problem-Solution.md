@@ -11,12 +11,84 @@
 
 Cache Stampede is the first failure mode built this way, and the one this
 document's reference implementation (§4) walks through in detail. Load
-Balancer's Uneven Backend Divergence is the second, added by following §6's
-recipe unchanged — proof the pattern generalizes, not just a plan for how it
-might. This document records the plan well enough that the same pattern can
-be repeated for every other documented failure mode without re-deriving the
-design from scratch — and records the original request and the decisions
-made along the way, so the reasoning isn't lost.
+Balancer's Uneven Backend Divergence is the second, Database's Connection
+Pool Exhaustion the third, Rate Limiter's Burst Rejection Divergence the
+fourth — each added by following §6's config-toggle recipe unchanged, proof
+the pattern generalizes, not just a plan for how it might. API Server's
+Queue Saturation (Backpressure Collapse) is the fifth, and the first of a
+second kind — an *architecture-change* remedy (§5, §7) where the fix is
+dragging in a new node rather than flipping a config field. Cache's Cache
+Penetration is the sixth, back to a config-toggle remedy — its own tuning
+pass is worth reading once built (§8's table entry) since its "win" is
+protecting the database's load, not raising the client's own success rate,
+which stays capped by how much of the demo's traffic is deliberately
+unanswerable regardless of the fix. Cache's Cache Avalanche is the
+seventh, and the first demo that never reaches this app's usual 90%
+"Crashed" → healthy shape at all, on either side — its own §8 table
+entry and code comment record three real, structural reasons why, worth
+reading before tuning anything else that touches TTL-driven cache
+mechanics. Message Queue's Backlog Overflow is the eighth, back to a
+clean config-toggle fit and a full "Crashed → healthy" shape — its
+partial remedy (Raise Max Queue Length) is the same "bigger buffer isn't
+more throughput" lesson Database's Connection Pool Exhaustion demo
+already established, now shown for a second entity. Kafka's Wasted
+Consumers Past the Partition Ceiling is the ninth, and — like Cache
+Avalanche — never shows a client-facing "Crashed → healthy" flip: Kafka
+acknowledges a producer the instant a message is durably admitted,
+independent of any consumer group's readiness, so the Client's own
+success rate reads 100% in every run, broken and fixed alike. The
+failure is real but only visible on Kafka's own node status and its
+Consumer Group Distribution — its own worthwhile lesson (a durable write
+succeeding and a consumer group keeping up with it are separate claims).
+Its two remedies are also a first: one (Raise Consumers per Group) is
+built specifically to demonstrate *zero* measurable effect, bit-for-bit
+identical to the broken run — the sharpest way to prove "wasted" rather
+than merely naming it — and the other (Raise Partition Count) is the
+real, single-field fix. Load Balancer's Weighted Misconfiguration is the
+tenth, back to a clean, single-remedy config-toggle fit — its own tuning
+pass is worth reading before reusing this "two very different capacities
+behind a weighted algorithm" shape elsewhere: a naive "just swap the two
+broken weight values" remedy was tried and rejected, since the targets'
+real capacity ratio (1:25) didn't match the broken config's ratio (1:4)
+in either direction — only a weight set that actually tracks real
+capacity clears both targets. Reverse Proxy's No Matching Route is the
+eleventh, and another demo whose broken state structurally can't cross
+this app's 90% "Crashed" threshold — not from undertuning, but because
+Route Pool Size caps at 8 (`ROUTE_LABELS`' fixed length), so with exactly
+one legitimately-matching route the worst achievable miss rate is
+7/8 = 87.5%, independent of traffic volume (routing here has no
+capacity/queueing component to push higher under load). Confirmed
+against the real engine at 88.55%. Working through this entity's second
+failure mode (Route Misconfiguration / Silent Starvation) alongside it
+produced a real Skip decision, not a deferral — see §8's table entry.
+API Server's Latency Cliff from Processing Time is the twelfth, a clean
+config-toggle demo where only Processing Time changes between broken and
+remedy (Max Concurrent and Max Queue Length held fixed throughout) —
+isolating exactly the axis the failure mode's own name describes, and a
+demo where p95 latency (987ms → 42ms) tells as much of the story as the
+success rate does. Client's Defeating a Cache with Key Pool Size is the
+thirteenth, and its own tuning pass is worth reading before building
+anything else that pairs a Cache with a downstream bottleneck: the first
+tuning attempt (naive stampede protection) produced real Database
+failures even in the "remedy" run, for a reason that had nothing to do
+with Key Pool Size — concurrent requests for the same hot key each
+independently re-fetching, i.e. Cache Stampede's own already-built
+lesson leaking into this one. Switching to coalesced stampede protection
+isolated Key Pool Size cleanly as the sole variable.
+
+**§8 is a complete, per-entity audit of every remaining failure mode** —
+built (or not) as a "Try It" demo, with a status for each: a good candidate
+(config-toggle or architecture-change, with the likely remedy named),
+already covered, blocked, or a deliberate skip with the reasoning recorded.
+It exists so another Claude instance (or a future you) can pick up any
+unclaimed row and build it using §6 or §7's recipe without re-deriving this
+analysis or re-reading all 12 entities' `entityDeepDive.ts` content first —
+see §8's own "How to pick up a row" note for the coordination protocol
+(multiple sessions may be working this list at once, and `entityDeepDive.ts`
+is one shared file). This document records the plan well enough that the
+same pattern can be repeated for every other documented failure mode
+without re-deriving the design from scratch — and records the original
+request and the decisions made along the way, so the reasoning isn't lost.
 
 ---
 
@@ -140,6 +212,46 @@ The lesson generalized: **numbers must be verified against the real engine,
 tuned to be unambiguous, and displayed with visible before/after evidence**
 — not asserted, not estimated, not subtle. See §6, step 4.
 
+**Round 3 — feedback on the second demo (Load Balancer), fixed generically
+for every demo, not just that one:**
+
+> See we are getting: "Load Balancer / Crashed → Healthy" — but this is
+> hardly useful in case of load balancer. Let's add entity specific info,
+> for example each server utilization (slow and fast) etc. Also, when I
+> apply the solution I can directly see the comparison even before running
+> the simulation — please make sure comparison is only available after at
+> least one run, and the same data from that run is what gets compared.
+
+Two distinct problems came out of this, one a real bug and one a product
+decision:
+
+- **The "worst entity" label was outright wrong, not just unhelpful.**
+  `worstEntityHealth`'s heuristic (`errorCount / (requestCount + errorCount)`)
+  silently broke for zero-capacity routing entities (LoadBalancer,
+  ReverseProxy): they never emit `PROCESSING_STARTED` (no `BoundedProcessor`
+  — see their own class docs, "has no capacity of its own"), so
+  `requestCount` stayed `0` for them no matter how much traffic they
+  successfully routed, while every downstream failure forwarded back
+  through them still bumped their `errorCount`. That collapses their
+  computed failure rate to 100% — a Load Balancer that routed 1,876
+  requests fine and forwarded 910 failures from a crashed downstream target
+  read as *itself* 100% failed, outranking the actually-crashed target and
+  producing exactly the wrong headline. Fixed at the root, in
+  `MetricsCollector.ts`: a request source with `requestCount === 0` but a
+  populated `routingDistribution` now has `requestCount` backfilled from
+  that distribution's sum — the entity's real "how much did I handle"
+  number for a pass-through router. This also fixes the same entities'
+  status dot on the live canvas (`nodeStatus.ts` reads the identical
+  formula), not just this demo — a router that mostly works no longer
+  reads as "Crashed" the moment it forwards a single downstream failure.
+- **A single "worst entity" line can't show what a multi-node demo needs
+  shown.** Fixed generically, not per-demo: see §10 below.
+- **Compare's timing felt like magic / hardcoded.** It wasn't — it always
+  computed a real, fresh comparison — but it could be triggered before any
+  real `Run Simulation` had happened at all, which read as suspicious and
+  also meant the "comparison" and "what you'd see if you actually ran it"
+  could diverge for no visible reason. Fixed generically: see §10 below.
+
 ---
 
 ## 4. The reference implementation (Cache Stampede)
@@ -169,23 +281,33 @@ Cache's `stampedeMode`, Load Balancer's `algorithm`, Rate Limiter's
 `algorithm`, Kafka's `partitionCount` are all fields that already exist on
 already-placed nodes — no new component needed.
 
-**Architecture-change remedies** (not built) — the fix is adding a node that
+**Architecture-change remedies** (built) — the fix is adding a node that
 isn't in the starting graph at all (a Load Balancer for an overloaded single
 API Server, a Circuit Breaker in front of a flaky Database, a Cache in front
-of an overwhelmed Database). This needs a mechanism that doesn't exist yet:
+of an overwhelmed Database). `Remedy` is a discriminated union on `kind`:
+`ConfigRemedy` (everything above) and `ArchitectureRemedy`, the second kind:
 
-- The demo's canvas would need an optional, scoped component palette (not
-  the full Component Library — just the one or two component types relevant
-  to that fix), which `FailureDemoCanvas` deliberately doesn't have today.
-- A remedy of this kind isn't a `configOverride` on an existing node — it's
-  a second, alternate starting architecture (its own `startingEntities` /
-  `startingConnections`), or a guided "drag this node here and connect it"
-  interaction.
-- This is a real, separate future milestone — extending `Remedy`'s type
-  (likely a discriminated union: `{ kind: "config"; ... } | { kind:
-  "architecture"; ... }`) and building the palette-enabled canvas variant —
-  not a copy-paste of the Cache Stampede pattern. Don't attempt it as part
-  of adding a routine config-toggle demo.
+- **No auto-apply.** Clicking an architecture remedy's "Build it" button
+  doesn't merge a config override — there's nothing to merge. It resets the
+  canvas to the demo's baseline and reveals `instructions` (a numbered
+  "how to build it" guide) plus `ArchitectureRemedyPalette`, a small scoped
+  drag-and-drop palette (not the full Component Library — just the
+  `allowedComponentTypes` this specific fix needs). The student drags the
+  new node(s) in, wires them up (`FailureDemoCanvas` now supports
+  `onConnect` and edge deletion, both gated on an architecture remedy being
+  active — see `failureDemoStore.ts`'s `activeArchitectureRemedy`), and
+  runs it themselves. Nothing validates or grades what they built — same
+  as the real Workshop, they just run it and see what happens.
+- **Compare never touches the student's build.** `referenceEntities`/
+  `referenceConnections` is a second, fully wired, separately
+  tuning-verified architecture (same discipline as every other demo's
+  numbers — see step 4 of the config-toggle recipe, §6) — Compare always
+  measures *that*, fresh, regardless of what the student has or hasn't
+  built. This is deliberate, not a shortcut: auto-applying the fix would
+  defeat the point of an architecture-change remedy, and there's no
+  mechanism (or need) to validate a student's own in-progress graph.
+- See §7 for the step-by-step recipe — same shape as §6's, with the parts
+  that differ called out.
 
 ---
 
@@ -260,24 +382,166 @@ of an overwhelmed Database). This needs a mechanism that doesn't exist yet:
 
 ---
 
-## 7. Good next candidates
+## 7. Step-by-step: adding a new architecture-change demo
 
-Failure modes that already look like a clean config-toggle fit (a
-production remedy that's genuinely just flipping an existing field):
+Same shape as §6's recipe, with the parts that differ called out. The
+reference implementation is API Server's "Queue Saturation (Backpressure
+Collapse)", fixed by dragging in a Load Balancer + a second API Server —
+read alongside its `entityDeepDive.ts` entry for a concrete example of
+every step below.
 
-| Entity | Failure mode | Likely remedy |
-|---|---|---|
-| ~~Load Balancer~~ | ~~Uneven Backend Divergence~~ | **Built** — see below |
-| Load Balancer | Weighted Misconfiguration | Fix Target Weights to match real capacity |
-| Rate Limiter | Burst Rejection Divergence | Switch Algorithm (Token Bucket ↔ Sliding Window) |
-| Kafka | Wasted Consumers Past the Partition Ceiling | Raise Partition Count |
-| Kafka | One Consumer Group Falling Behind | Raise that group's Max Queue Length / Consumers per Group |
-| Message Queue | Backlog Overflow | Raise Consumer Count |
-| Message Queue | Fan-out Load Multiplication | Switch Delivery Mode back to Queue, or size capacity for the multiplier |
-| Client | Defeating a Cache with Key Pool Size | Lower Key Pool Size |
-| API Server | Latency Cliff from Processing Time | Lower Processing Time |
-| Database | Connection Pool Exhaustion | Raise Max Connections / Max Queue Length |
-| Reverse Proxy | Route Misconfiguration (Silent Starvation) | Fix Routes |
+1. Confirm the failure mode is `simulated: true` — same as §6 step 1.
+
+2. Identify the real production fix, and confirm it's genuinely an
+   *architecture* change, not a config toggle in disguise — the fix must
+   require a node that isn't in the starting graph at all. If a config
+   field would do it, it belongs in §6's recipe instead; don't reach for
+   this mechanism by default.
+
+3. Sketch the starting architecture (same as §6 step 3) — this becomes
+   `startingEntities`/`startingConnections`, exactly as before.
+
+4. Also sketch the **reference architecture**: the starting graph with the
+   fix fully, correctly wired in — new node(s), rewired connections. This
+   becomes the remedy's `referenceEntities`/`referenceConnections`. It is
+   never shown to the student directly (it only powers Compare) — but it
+   must be a graph a student really could build with the scoped palette
+   this remedy offers.
+
+5. Tune **both** configs via a scratch script, same discipline as §6 step
+   4 — the broken graph should cross (or, if queueing math makes that
+   genuinely unreachable without also breaking the fix — see the Queue
+   Saturation demo's own comment in `entityDeepDive.ts` for why that can
+   happen — get as close as honestly possible to) the 90% "Crashed"
+   threshold, and the reference graph should be unambiguously healthy at
+   the *same* traffic. Delete the script after, same as always.
+
+6. Write the verified `ArchitectureRemedy` into the failure mode's `demo`
+   field: `label`, `description` (say plainly that Compare measures the
+   reference fix, not the student's own build — every architecture
+   remedy's description should), `instructions` (numbered, concrete,
+   naming this project's actual field/button labels — "Select the
+   connection and press Delete," not "remove the old link"),
+   `allowedComponentTypes` (only what this specific fix needs — resist
+   offering the whole palette), and the tuning-verified
+   `referenceEntities`/`referenceConnections`.
+
+7. Re-verify through `getFailureModeDemo()`, same as §6 step 6 — both the
+   starting graph (`demo.startingEntities`) and the reference graph
+   (`remedy.referenceEntities`) independently, since they're two separate
+   authored graphs this time, not one graph plus a small config diff.
+
+8. No component code should need to change — `RemediesPanel.tsx`'s
+   `ArchitectureRemedyPalette`, `FailureDemoCanvas.tsx`'s drag/connect/
+   delete wiring, and `failureDemoStore.ts`'s `addNode`/`onConnect`/
+   `applyRemedy`/`compareRemedy` are all generic over any
+   `ArchitectureRemedy`, keyed off `allowedComponentTypes` and
+   `referenceEntities`/`referenceConnections`. If you find yourself
+   editing one of those files for demo-specific logic, stop and
+   reconsider — same principle as §6 step 8, extended to this mechanism.
+
+9. Run `npx tsc --noEmit`, `npm run lint`, and `npx vitest run` — same as
+   §6 step 9. Also worth a quick regression sanity check the first time
+   you touch `failureDemoBridge.ts` or `failureDemoStore.ts` directly (not
+   needed for a demo-only change like this recipe otherwise produces):
+   confirm an *existing* config-toggle demo's tuned numbers are still
+   bit-for-bit identical, since architecture mode changed how connections
+   get derived (`buildDemoSimulationConfig` now reads live edges instead
+   of always trusting `demo.startingConnections` directly — see that
+   function's own comment).
+
+10. Queue a `docs/BROWSER-CHECKS.md` entry — same as §6 step 10, plus:
+    dragging each allowed component type in (both by click and by drag),
+    deleting the old connection, wiring every new connection, Run
+    reflecting the student's own build (not the reference), Compare
+    staying available and correct regardless of build progress, and
+    switching to a different remedy (or back to "Broken") cleanly
+    resetting the canvas with no orphaned nodes/edges left behind.
+
+11. Same as §6 step 11 — nothing needs to change on
+    `/entities/[slug]/page.tsx`.
+
+**Why Queue Saturation over Database's Independent Failure, the other
+obvious first candidate:** Independent Failure's own `reproduce` steps
+already name Circuit Breaker as the fix, and it's a simpler build (1 node,
+2 edges, vs. this demo's 2 nodes and ~4 rewired edges). It was passed over
+anyway — its real benefit is failing fast on doomed queries instead of
+waiting out their full processing time, and `REQUEST_FAILED` events don't
+currently get a duration recorded anywhere in `MetricsCollector.ts` (only
+`REQUEST_COMPLETED` does), so that benefit has no metric to show yet. Worth
+building once that gap is closed (a legitimate, separate small feature —
+`averageFailedLatency` or similar), not worth building around.
+
+---
+
+## 8. Master roadmap — every entity's failure modes
+
+A complete audit of every `FailureMode` in `entityDeepDive.ts` (22 total,
+across all 12 entities), current as of this writing. This is the shared
+coordination surface for building out the rest of this feature — **read
+"How to pick up a row" before starting work on anything below.**
+
+### How to pick up a row
+
+1. Re-run the audit query before trusting this table — it can go stale the
+   moment another session ships a demo. From the repo root:
+   `grep -n 'name: "\|simulated:\|demo: {' src/lib/entityDeepDive.ts` and
+   check, for the failure mode you want, whether a `demo: {` line appears
+   between its `simulated:` line and the *next* `name:` line. If it does,
+   it's already built — don't duplicate it.
+2. Pick one **Todo** row (config-toggle or architecture-change). Don't
+   claim more than one at a time — `entityDeepDive.ts` is a single shared
+   file every demo edits, and multiple sessions building in it concurrently
+   multiplies merge risk. Small, sequential PRs beat parallel ones here.
+3. Follow §6 (config-toggle) or §7 (architecture-change) exactly. Don't
+   invent a third pattern.
+4. Update this row's status when done: strike through the entity/failure
+   mode and mark **Built**, one line, same style as the rows already
+   marked that way below. Leave everything else in this table untouched —
+   don't renumber or reorder.
+5. If a row turns out not to be a good fit once you dig in (same as the
+   three **Skip** rows below already found), don't force it — change its
+   status to **Skip** and record why, same level of honesty as the
+   existing skip reasoning. A recorded "this doesn't fit and here's why"
+   is more valuable than a forced demo that misrepresents the lesson.
+
+### Status legend
+
+**Built** — has a `demo`, shipped. **Todo (config)** — good config-toggle
+fit, not started. **Todo (architecture)** — good architecture-change fit,
+not started. **Blocked** — real candidate, but needs something else built
+first (named). **Skip** — deliberately not a good fit for this pattern,
+reasoning recorded so it isn't silently re-litigated. **Not simulated** —
+`simulated: false`, out of scope until the failure mode itself is
+simulated (separate, larger work — see `docs/LEARNING-PARITY.md`).
+
+### The list
+
+| Entity | Failure mode | Status | Likely remedy / reasoning |
+|---|---|---|---|
+| Cache | Cache Stampede | **Built** | Coalesced (fix) vs Raise TTL (honest partial) |
+| Load Balancer | Uneven Backend Divergence | **Built** | Least Connections |
+| Database | Connection Pool Exhaustion | **Built** | Raise Max Connections (fix) vs Raise Max Queue Length (honest partial) vs Switch to NoSQL (partial tradeoff) |
+| Rate Limiter | Burst Rejection Divergence | **Built** | Raise Requests/Second (fix) vs Switch to Token Bucket (honest partial) |
+| API Server | Queue Saturation (Backpressure Collapse) | **Built** | Architecture-change reference implementation — Load Balancer + 2nd API Server |
+| ~~Client~~ | ~~Defeating a Cache with Key Pool Size~~ | **Built** | Lower Key Pool Size — coalesced stampede protection needed to isolate this from Cache Stampede's own already-built lesson, see the demo's own code comment |
+| ~~API Server~~ | ~~Latency Cliff from Processing Time~~ | **Built** | Lower Processing Time — a ~23x p95 latency drop for a 20x Processing Time drop, near-proportional once the queue clears |
+| ~~Load Balancer~~ | ~~Weighted Misconfiguration~~ | **Built** | Fix Target Weights — set to the real 1:25 capacity ratio, not just swap the two broken values |
+| ~~Cache~~ | ~~Cache Penetration~~ | **Built** | Negative Caching Off (broken) → On (fix) — database's own request count/status flips Crashed→Healthy; overall client success rate stays low either way, honestly, since it's capped by the demo's Missing Key Rate itself (a guaranteed-fail lookup stays a guaranteed-fail lookup — the remedy protects the database, not that ceiling) |
+| ~~Cache~~ | ~~Cache Avalanche~~ | **Built** | TTL Jitter 0% → 50% — honestly partial, not a crash/recovery flip like every other demo: three structural confounds (naive stampede duplication, coalescing collapsing the cache's own admission instead, cold-start being jitter-invariant) capped tuning at a real ~29-point database failure-rate gap (70.1%→41.2%), never crossing the 90% "Crashed" threshold either side — see the demo's own code comment for the full reasoning. The Cache's own Avalanche section (peak burst 5→3, crossing the UI's own isAvalanche>3 threshold) is the demo's real evidence, not a canvas-wide status flip |
+| ~~Message Queue~~ | ~~Backlog Overflow~~ | **Built** | Raise Consumer Count (fix) vs Raise Max Queue Length (honest partial) |
+| Message Queue | Fan-out Load Multiplication | Todo (config) | Switch Delivery Mode back to Queue, or size capacity for the multiplier |
+| ~~Circuit Breaker~~ | ~~Cascading Failure Prevention~~ | **Skip** | Tuned across 5 config regimes (pure flakiness, capacity overload, combinations) — in every one, lowering Failure Threshold made overall success rate *worse*, not better (e.g. 10.9%→0.5%, 17.5%→0.8%), never a "Crashed → Healthy" flip. Two structural reasons, not a tuning gap: (1) this engine has no way for a dependency to recover mid-run (every entity is purely reactive to traffic, nothing self-schedules independent of it — same constraint `CDN.ts` already documents), so a breaker's half-open probes fail at the same rate forever and blocking traffic while open only ever blocks successes too, never nets ahead; (2) the entity's actual claimed benefit — failing fast instead of waiting on doomed queries — has no metric to show it: `MetricsCollector.ts` only records `duration` on `REQUEST_COMPLETED`, never `REQUEST_FAILED` — the exact same gap already blocking Database's "Independent Failure" row below. Revisit once `averageFailedLatency` (or similar) exists — see that row's own note. |
+| ~~Reverse Proxy~~ | ~~No Matching Route~~ | **Built** | Configure a Catch-all Target (fix); broken state's real ceiling is 88.5% (Route Pool Size caps at 8, so at most 7/8 can miss) — reads as steady-red "error", not pulsing "Crashed", structurally, not from undertuning |
+| Reverse Proxy | Route Misconfiguration (Silent Starvation) | **Skip** | Worked through both shapes while building No Matching Route above, not just at a glance: isolated cleanly (one real route, a second target's route never generated at all), it produces zero visible failure anywhere — 100% success throughout, no node ever turns red, only a Compare panel utilization row would show it — a genuinely different "silent bug" shape this pattern isn't built to dramatize. Built any other way (a second, generated-but-unclaimed route with no catch-all), it collapses into exactly what No Matching Route above already teaches — a typo standing in for an intentional gap, not a distinct lesson. |
+| ~~Kafka~~ | ~~Wasted Consumers Past the Partition Ceiling~~ | **Built** | Raise Partition Count (fix); "Raise Consumers per Group" ships too, as a deliberately-inert remedy proving the lesson bit-for-bit, not a partial mitigation |
+| Kafka | One Consumer Group Falling Behind | Todo (config) | Raise that group's Max Queue Length / Consumers per Group |
+| Database | Connection Pool Exhaustion (the *caching* fix) | Todo (architecture) | A Cache in front of it — a second, distinct remedy for a failure mode that already has a config-toggle demo (the two aren't exclusive: a demo can eventually offer both a config remedy and an architecture remedy for the same broken start, though nothing does yet) |
+| Database | Independent Failure (Flaky Infrastructure) | Blocked | A Circuit Breaker in front of it. Real fix, real lesson — but its benefit is failing fast on doomed queries instead of waiting out their full processing time, and `REQUEST_FAILED` events don't currently get a duration recorded anywhere in `MetricsCollector.ts` (only `REQUEST_COMPLETED` does), so that benefit has no metric to show yet. Unblock by adding `averageFailedLatency` (or similar) to `MetricsCollector.ts` first — a legitimate, separate small feature — then build this normally via §7. |
+| Client | Thundering Herd | Skip | Its own description frames the Client as "the trigger, not the target" — the actual failure it produces is API Server's Queue Saturation (already built) observed from upstream. Building this as its own demo would just duplicate that one from a different angle, not teach a distinct lesson. |
+| CDN | Cold Edge Network | Skip | Not a broken/fixed story — it's a tradeoff demonstration (more edges improves worst-case latency but can *hurt* overall hit rate, on purpose, both directions being "correct" depending on what you're optimizing for). The "Try It" pattern assumes a clear right answer to compare against; this failure mode doesn't have one. |
+| Replica Pool | Leader Overload Under High Write Ratio | Skip | No real fix exists in this engine today — per the entity's own `cons`, there's no leader failover, no promotion, no multi-leader write sharding modeled. The only honest "remedies" (shard writes, add a bigger leader) aren't things this entity can represent. Revisit only if Replica Pool ever gains one of those capabilities. |
+| Load Balancer | Load Balancer as SPOF | Not simulated | Named, not simulated — the Load Balancer itself never fails in this engine. See `LoadBalancer.ts`'s own class doc for why this was deferred (Circuit Breaker already teaches "detect and route around a failing thing"; duplicating that state machine inside Load Balancer would violate Single Responsibility). |
 
 **A lesson from building the Load Balancer demo, worth knowing before
 tuning the next one:** a remedy's *documented* fix isn't automatically a
@@ -297,28 +561,15 @@ your specific tuned numbers before shipping it, don't assume it does
 because it's named there — and it's fine to ship fewer remedies than the
 `reproduce` text mentions if one of them doesn't hold up under measurement.
 
-Failure modes whose *real* production fix needs a new component — good
-candidates for §5's architecture-change mechanism once it exists, not
-before:
-
-| Entity | Failure mode | Needs |
-|---|---|---|
-| API Server | Queue Saturation (Backpressure Collapse) | A Load Balancer + a second API Server |
-| Database | Independent Failure (Flaky Infrastructure) | A Circuit Breaker in front of it |
-| Database | Connection Pool Exhaustion (the *caching* fix, as opposed to the config-toggle one above) | A Cache in front of it |
-| Replica Pool | Leader Overload Under High Write Ratio | More replicas / a fundamentally different write pattern |
-
-Failure modes that aren't simulated yet at all (`simulated: false`) — out of
-scope for this pattern until they're simulated first: Cache Penetration,
-Cache Avalanche, Load Balancer as SPOF.
-
 ---
 
-## 8. Explicitly out of scope for now
+## 9. Explicitly out of scope for now
 
-- **Architecture-change remedies** (§5) — a real future milestone, not
-  started. Don't build a one-off version of it inside a single demo; extend
-  the shared mechanism instead once a second demo genuinely needs it.
+- **More architecture-change demos** (§5/§7) — the mechanism itself is
+  built and has one reference implementation (Queue Saturation); extending
+  it to the other "Todo (architecture)"/"Blocked" rows in §8 (Database's
+  Circuit Breaker and caching-fix candidates) is real, separate future
+  work, not started.
 - **Embedding demos inline in the article** instead of a separate route —
   considered as an alternative in the original design discussion, not
   chosen for v1 (§2, decision 1).
@@ -329,7 +580,42 @@ Cache Avalanche, Load Balancer as SPOF.
 
 ---
 
-## 9. Definition of done, per new demo
+## 10. The Compare panel's generic contract
+
+Both of these are already handled by the shared `RemediesPanel.tsx` /
+`failureDemoStore.ts` for every demo — a new demo's `entityDeepDive.ts`
+entry never needs to ask for either. Recorded here specifically so this
+doesn't need to be re-requested per demo (see Round 3 above):
+
+- **Per-entity utilization/error breakdown.** `EntityMetricsComparison`
+  renders one row per non-Client node in `demo.startingEntities` — label,
+  utilization %, error count, before → after — automatically, from
+  whatever nodes the demo defines. This sits alongside (not instead of)
+  the single "worst entity" status headline (`StatusComparisonRow`) and
+  the overall success-rate/latency rows; together they cover "what's the
+  headline," "what happened to *this specific* component," and "what was
+  the aggregate effect." A demo with more than one non-trivial node (most
+  of them — see §8's candidate table) gets real per-component evidence for
+  free, not just Cache Stampede's single "Database" story generalized
+  wrong.
+- **Compare requires a real Run first, and reuses that run's data.**
+  `compareRemedy` is a no-op (and the Compare button is disabled, with a
+  small "Run the simulation once to enable Compare" hint) until
+  `simulationResult !== null` — the student must press Run Simulation at
+  least once before any comparison is available, on this exact page load.
+  Once available, whichever side of the diff the *live* result already
+  represents (`activeRemedyId === null` → baseline; `activeRemedyId ===
+  remedyId` → this remedy) is reused verbatim instead of computing a
+  second, hidden simulation of a config the student can already see on
+  screen — only the side they haven't actually run yet gets a fresh one.
+  This supersedes §2 decision 2's original "automatic, no manual run
+  needed" framing: Compare is still a shortcut (it never requires a
+  *second* manual run to see a specific remedy's effect), but it's no
+  longer available before *any* manual run has happened.
+
+---
+
+## 11. Definition of done, per new demo
 
 - Numbers verified against the real engine via a tuning script, not
   estimated — and the script deleted afterward.

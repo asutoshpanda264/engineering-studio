@@ -14,9 +14,9 @@ const SEVERITY_ICON: Record<SuggestionSeverity, typeof AlertCircle> = {
 };
 
 const SEVERITY_CLASSES: Record<SuggestionSeverity, string> = {
-  critical: "border-error/40 text-error",
-  warning: "border-warning/40 text-warning",
-  info: "border-primary/40 text-primary",
+  critical: "border-status-critical/40 text-status-critical",
+  warning: "border-status-degraded/40 text-status-degraded",
+  info: "border-signal/40 text-signal",
 };
 
 /**

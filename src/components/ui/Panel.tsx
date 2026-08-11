@@ -44,7 +44,7 @@ function PanelHeader({
       className={`flex h-9 shrink-0 items-center justify-between border-b border-border px-3 ${className}`}
       {...props}
     >
-      <h2 className="truncate text-xs font-medium text-text-muted">
+      <h2 className="truncate text-xs font-medium uppercase tracking-wide text-text-muted">
         {title}
       </h2>
       {action}

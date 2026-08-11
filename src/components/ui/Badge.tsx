@@ -7,20 +7,23 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   dot?: boolean;
 }
 
+// Hairline-bordered tag, not a filled rounded pill — same "specimen" mark
+// as the landing page's Tag component, so a badge always reads as data,
+// never as decoration.
 const variantClasses: Record<BadgeVariant, string> = {
-  neutral: "bg-bg-elevated text-text-muted",
-  primary: "bg-primary/15 text-primary",
-  success: "bg-success/15 text-success",
-  warning: "bg-warning/15 text-warning",
-  error: "bg-error/15 text-error",
+  neutral: "border-border text-text-muted",
+  primary: "border-signal/50 text-signal",
+  success: "border-status-healthy/50 text-status-healthy",
+  warning: "border-status-degraded/50 text-status-degraded",
+  error: "border-status-critical/50 text-status-critical",
 };
 
 const dotClasses: Record<BadgeVariant, string> = {
   neutral: "bg-text-subtle",
-  primary: "bg-primary",
-  success: "bg-success",
-  warning: "bg-warning",
-  error: "bg-error",
+  primary: "bg-signal",
+  success: "bg-status-healthy",
+  warning: "bg-status-degraded",
+  error: "bg-status-critical",
 };
 
 export function Badge({
@@ -32,7 +35,7 @@ export function Badge({
 }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${variantClasses[variant]} ${className}`}
+      className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide ${variantClasses[variant]} ${className}`}
       {...props}
     >
       {dot && (

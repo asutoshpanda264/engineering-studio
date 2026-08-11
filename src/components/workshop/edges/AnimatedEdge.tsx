@@ -125,7 +125,7 @@ function Packet({
     return failed ? (
       <FailureMark x={end.x} y={end.y} opacity={0.8} />
     ) : (
-      <circle cx={end.x} cy={end.y} r={3} className="fill-success" opacity={0.8} />
+      <circle cx={end.x} cy={end.y} r={3} className="fill-status-healthy" opacity={0.8} />
     );
   }
 
@@ -159,7 +159,7 @@ function Packet({
   return (
     <motion.circle
       r={3}
-      className="fill-success"
+      className="fill-status-healthy"
       initial={{ opacity: 0 }}
       animate={{ cx: xs, cy: ys, opacity: opacitySteps }}
       transition={transition}
@@ -191,7 +191,7 @@ function FailureMark({
         y1={-size}
         x2={size}
         y2={size}
-        className="stroke-error"
+        className="stroke-status-critical"
         strokeWidth={1.5}
       />
       <line
@@ -199,7 +199,7 @@ function FailureMark({
         y1={size}
         x2={size}
         y2={-size}
-        className="stroke-error"
+        className="stroke-status-critical"
         strokeWidth={1.5}
       />
     </g>

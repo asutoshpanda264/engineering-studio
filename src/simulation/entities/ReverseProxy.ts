@@ -116,8 +116,27 @@ export class ReverseProxy implements Entity {
     ];
   }
 
-  /** An exact match on the request's route wins; a target configured as the catch-all is only used once nothing more specific claimed it. */
+  /**
+   * An exact match on the request's route wins; a target configured as
+   * the catch-all is only used once nothing more specific claimed it.
+   *
+   * A Reverse Proxy with `routes` still completely empty — freshly
+   * connected, nothing typed into the Routes section yet — falls back to
+   * its first downstream target instead of matching nothing. Every other
+   * entity here is useful the instant it's wired up (Load Balancer
+   * defaults to round_robin, Cache to LRU, ...); without this, a Reverse
+   * Proxy would be the one entity that fails 100% of its traffic by
+   * construction until an operator opens the Inspector and configures a
+   * route by hand. Once *any* route is configured, this fallback stops
+   * applying and the real "unmatched routes get nothing" semantics below
+   * take over exactly as documented — that's the intentional lesson for
+   * an operator who configured some routes but not this target's.
+   */
   private selectTarget(downstream: EntityId[], route: string | undefined): EntityId | null {
+    if (Object.keys(this.config.routes).length === 0) {
+      return downstream[0] ?? null;
+    }
+
     if (route !== undefined) {
       const exact = downstream.find((target) => this.config.routes[target] === route);
       if (exact) return exact;

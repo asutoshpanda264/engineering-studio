@@ -25,6 +25,7 @@ import { runSimulation as runSimulationEngine } from "@/simulation/engine/Simula
 import { removeEntityAndReroute } from "@/simulation/engine/compareArchitectures";
 import { computeEdgePacketSamples } from "@/lib/packetSampling";
 import { deriveNodeStatus } from "@/lib/nodeStatus";
+import { isGivenNode, lockedFieldsForNode } from "@/lib/scenarioLocking";
 import { PlaybackController } from "@/simulation/playback/PlaybackController";
 import type { PlaybackState } from "@/simulation/playback/PlaybackController";
 import { getScenario } from "@/scenarios";
@@ -81,6 +82,10 @@ interface WorkshopState {
   // source of truth for scenario content.
   activeScenarioId: string | null;
 
+  // True only right after loadOptimalSolution — an informational badge, see
+  // that action's own doc for why it isn't precisely tracked past that.
+  viewingOptimalSolution: boolean;
+
   // Scenario-level knobs. Traffic rate lives on the Client node's own
   // config instead (ENTITIES.md documents it as Client config) — these
   // two remain global, overridden by loadScenario when a scenario is
@@ -100,6 +105,16 @@ interface WorkshopState {
 
   /** Replaces the canvas with a scenario's starting architecture. No-op if the id is unknown. */
   loadScenario: (id: string) => void;
+  /**
+   * Replaces the canvas with the active scenario's `optimalSolution`
+   * (types.ts) — the revealable reference build. No-op if no scenario is
+   * active or it has none. Informational only: `viewingOptimalSolution`
+   * isn't re-cleared on every subsequent edit (that would need hooking
+   * every node/edge-mutating action), only on the next loadScenario/reset
+   * — a stale badge after a small tweak is a minor cosmetic gap, not a
+   * scoring one, since scoring always reads the live canvas either way.
+   */
+  loadOptimalSolution: () => void;
 
   setScenarioDurationMs: (durationMs: number) => void;
   setConnectionLatencyMs: (latencyMs: number) => void;
@@ -128,16 +143,37 @@ function generateNodeId(): string {
 }
 
 /**
- * Builds canvas nodes/edges from a scenario's starting architecture.
- * Scenario entity/connection ids are used directly as node/edge ids
- * (fixed strings like "client", not generateNodeId's "node_N" format),
- * so they never collide with manually-added nodes.
+ * The first node of a type keeps the plain catalog name ("API Server");
+ * every one after it gets numbered ("API Server 2", "API Server 3", ...).
+ * Without this, a Load Balancer fanned out to multiple identical servers
+ * — the whole point of load balancing — renders every one of them with
+ * the same label, which makes the Inspector's per-target routing
+ * distribution (InspectorPanel.tsx, keyed off `node.data.label`) show
+ * indistinguishable rows for what's actually the very comparison it
+ * exists to surface.
  */
-function scenarioToCanvas(scenario: Scenario): {
+function nextLabelFor(entityType: EntityType, existingNodes: ArchitectureNode[]): string {
+  const name = getEntityCatalogItem(entityType).name;
+  const existingCount = existingNodes.filter((n) => n.data.entityType === entityType).length;
+  return existingCount === 0 ? name : `${name} ${existingCount + 1}`;
+}
+
+/**
+ * Builds canvas nodes/edges from any ScenarioEntity[]/ConnectionConfig[]
+ * pair — a scenario's `startingEntities`/`startingConnections`, or its
+ * `optimalSolution`'s, same shape either way. Entity/connection ids are
+ * used directly as node/edge ids (fixed strings like "client", not
+ * generateNodeId's "node_N" format), so they never collide with
+ * manually-added nodes.
+ */
+function entitiesToCanvas(
+  entities: Scenario["startingEntities"],
+  connections: Scenario["startingConnections"]
+): {
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
 } {
-  const nodes: ArchitectureNode[] = scenario.startingEntities.map((entity) => ({
+  const nodes: ArchitectureNode[] = entities.map((entity) => ({
     id: entity.id,
     type: "component",
     position: entity.position,
@@ -148,7 +184,7 @@ function scenarioToCanvas(scenario: Scenario): {
     },
   }));
 
-  const edges: ArchitectureEdge[] = scenario.startingConnections.map((connection) => ({
+  const edges: ArchitectureEdge[] = connections.map((connection) => ({
     id: `${connection.source}->${connection.target}`,
     source: connection.source,
     target: connection.target,
@@ -199,11 +235,25 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   cdnComparisons: null,
 
   activeScenarioId: null,
+  viewingOptimalSolution: false,
   scenarioDurationMs: DEFAULT_SCENARIO_DURATION_MS,
   connectionLatencyMs: DEFAULT_CONNECTION_LATENCY_MS,
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) });
+    // React Flow's own Backspace/Delete handling (deleteKeyCode on
+    // <ReactFlow>) calls this directly with a "remove" change — it never
+    // goes through removeNode below. A given node (Scenario.givenNodeIds)
+    // is the "fact" a scenario's problem is built on; deleting it and
+    // dropping in a fresh, unlocked replacement would be a straightforward
+    // loophole around lockedFields, so the filter has to sit here, at the
+    // one place both the keyboard shortcut and any future delete UI funnel
+    // through — same principle as the "Try It" demo canvas, where a given
+    // node simply doesn't respond to Delete at all (FailureDemoCanvas.tsx).
+    const scenario = get().activeScenarioId ? getScenario(get().activeScenarioId!) : undefined;
+    const filtered = changes.filter(
+      (change) => !(change.type === "remove" && isGivenNode(scenario, change.id))
+    );
+    set({ nodes: applyNodeChanges(filtered, get().nodes) });
   },
 
   onEdgesChange: (changes) => {
@@ -215,14 +265,13 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   },
 
   addNode: (entityType, position) => {
-    const catalogItem = getEntityCatalogItem(entityType);
     const node: ArchitectureNode = {
       id: generateNodeId(),
       type: "component",
       position,
       data: {
         entityType,
-        label: catalogItem.name,
+        label: nextLabelFor(entityType, get().nodes),
         config: {},
       },
     };
@@ -230,6 +279,13 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   },
 
   removeNode: (id) => {
+    // Defense in depth alongside onNodesChange's own filter above — this
+    // action isn't currently called from anywhere but a Delete keypress,
+    // but a locked node shouldn't become deletable just because a future
+    // UI element (a right-click menu, say) calls this directly instead.
+    const scenario = get().activeScenarioId ? getScenario(get().activeScenarioId!) : undefined;
+    if (isGivenNode(scenario, id)) return;
+
     set({
       nodes: get().nodes.filter((node) => node.id !== id),
       edges: get().edges.filter(
@@ -244,10 +300,22 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   },
 
   updateNodeConfig: (id, config) => {
+    // Drop any key the active scenario locked on this node before merging
+    // — the Inspector already renders locked fields as disabled, but that's
+    // a UI courtesy, not the enforcement boundary; this is (same principle
+    // as onNodesChange's given-node filter above, one level down: whole
+    // node vs. individual field).
+    const scenario = get().activeScenarioId ? getScenario(get().activeScenarioId!) : undefined;
+    const locked = new Set(lockedFieldsForNode(scenario, id));
+    const allowedConfig = locked.size
+      ? Object.fromEntries(Object.entries(config).filter(([key]) => !locked.has(key)))
+      : config;
+    if (Object.keys(allowedConfig).length === 0) return;
+
     set({
       nodes: get().nodes.map((node) =>
         node.id === id
-          ? { ...node, data: { ...node.data, config: { ...node.data.config, ...config } } }
+          ? { ...node, data: { ...node.data, config: { ...node.data.config, ...allowedConfig } } }
           : node
       ),
     });
@@ -270,6 +338,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackMetrics: null,
       cdnComparisons: null,
       activeScenarioId: null,
+      viewingOptimalSolution: false,
     });
   },
 
@@ -278,7 +347,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
     if (!scenario) return;
 
     detachPlayback(get().playbackController);
-    const { nodes, edges } = scenarioToCanvas(scenario);
+    const { nodes, edges } = entitiesToCanvas(scenario.startingEntities, scenario.startingConnections);
 
     set({
       nodes,
@@ -291,7 +360,33 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackMetrics: null,
       cdnComparisons: null,
       activeScenarioId: scenario.id,
+      viewingOptimalSolution: false,
       scenarioDurationMs: scenario.durationMs,
+    });
+  },
+
+  loadOptimalSolution: () => {
+    const { activeScenarioId } = get();
+    const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
+    if (!scenario?.optimalSolution) return;
+
+    detachPlayback(get().playbackController);
+    const { nodes, edges } = entitiesToCanvas(
+      scenario.optimalSolution.entities,
+      scenario.optimalSolution.connections
+    );
+
+    set({
+      nodes,
+      edges,
+      selectedNodeId: null,
+      simulationResult: null,
+      simulationError: null,
+      playbackController: null,
+      playbackState: null,
+      playbackMetrics: null,
+      cdnComparisons: null,
+      viewingOptimalSolution: true,
     });
   },
 

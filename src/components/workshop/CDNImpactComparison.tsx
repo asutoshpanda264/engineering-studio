@@ -25,8 +25,8 @@ export function CDNImpactComparison({
       <div
         className={`rounded-md border px-3 py-2 text-xs font-medium ${
           helping
-            ? "border-success/30 bg-success/10 text-success"
-            : "border-warning/30 bg-warning/10 text-warning"
+            ? "border-status-healthy/30 bg-status-healthy/10 text-status-healthy"
+            : "border-status-degraded/30 bg-status-degraded/10 text-status-degraded"
         }`}
       >
         {helping
@@ -44,7 +44,7 @@ export function CDNImpactComparison({
         label="With CDN"
         valueMs={withAverageLatency}
         maxMs={maxLatency}
-        barClassName={helping ? "bg-success" : "bg-warning"}
+        barClassName={helping ? "bg-status-healthy" : "bg-status-degraded"}
       />
     </div>
   );

@@ -5,6 +5,11 @@ import { computeMetricsTimeSeries } from "@/simulation/metrics/MetricsTimeSeries
 import { Sparkline } from "@/components/ui/Sparkline";
 import type { SparklinePoint } from "@/components/ui/Sparkline";
 import { estimateCost } from "@/lib/costEngine";
+import { getScenario } from "@/scenarios";
+import type { Scenario } from "@/scenarios";
+import { scoreScenario } from "@/lib/scenarioScoring";
+import type { ArchitectureEdge, ArchitectureNode } from "@/store/workshopStore";
+import type { SimulationResult } from "@/simulation/types";
 
 // Stable reference for the no-warnings case — `?? []` inline would create
 // a new array every render, which breaks Zustand's reference-equality
@@ -33,9 +38,12 @@ export function SimulationResultsPanel() {
   const metrics = useWorkshopStore((s) => s.playbackMetrics);
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
   const nodes = useWorkshopStore((s) => s.nodes);
+  const edges = useWorkshopStore((s) => s.edges);
   const playbackTime = useWorkshopStore((s) => s.playbackState?.currentTime ?? null);
   const error = useWorkshopStore((s) => s.simulationError);
   const warnings = useWorkshopStore((s) => s.simulationResult?.warnings ?? NO_WARNINGS);
+  const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
+  const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
 
   const series = useMemo(() => {
     if (!simulationResult) return null;
@@ -59,7 +67,7 @@ export function SimulationResultsPanel() {
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center gap-2 px-4 text-error">
+      <div className="flex flex-1 items-center gap-2 px-4 text-status-critical">
         <AlertTriangle className="size-4 shrink-0" aria-hidden />
         <p className="text-sm">{error}</p>
       </div>
@@ -91,6 +99,9 @@ export function SimulationResultsPanel() {
 
   return (
     <div className="flex flex-1 items-center gap-6 px-4">
+      {scenario && simulationResult && (
+        <ScenarioScoreStat scenario={scenario} result={simulationResult} nodes={nodes} edges={edges} />
+      )}
       <Stat label="Requests" value={String(metrics.totalRequests)} />
       <StatWithSparkline
         label="Success rate"
@@ -122,7 +133,7 @@ export function SimulationResultsPanel() {
       )}
       {warnings.length > 0 && (
         <div
-          className="ml-auto flex shrink-0 items-center gap-1.5 text-warning"
+          className="ml-auto flex shrink-0 items-center gap-1.5 text-status-degraded"
           title={warnings.join(" ")}
         >
           <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
@@ -133,10 +144,52 @@ export function SimulationResultsPanel() {
   );
 }
 
+/**
+ * The scenario's pass/fail + star readout, always visible here regardless
+ * of what's selected in the Inspector — the authoritative version of this
+ * (with Compare/Restart/full detail) lives in InspectorPanel.tsx's
+ * ScenarioBriefing, but that panel only renders when *no* node is
+ * selected, which is rarely true the moment a student finishes wiring up
+ * a build and hits Run. This is the copy nobody has to go deselect
+ * everything to find.
+ */
+function ScenarioScoreStat({
+  scenario,
+  result,
+  nodes,
+  edges,
+}: {
+  scenario: Scenario;
+  result: SimulationResult;
+  nodes: ArchitectureNode[];
+  edges: ArchitectureEdge[];
+}) {
+  const score = scoreScenario(scenario, result, nodes, edges);
+  const color = score.legendary
+    ? "text-signal"
+    : score.gatesPassed
+      ? "text-status-healthy"
+      : "text-text-subtle";
+  const label = score.legendary
+    ? "★★★★★ LEGENDARY"
+    : score.gatesPassed
+      ? `${"★".repeat(score.stars)}${"☆".repeat(3 - score.stars)}`
+      : "Not solved yet";
+
+  return (
+    <div className="flex flex-col gap-1 border-r border-border pr-6">
+      <span className="text-xs uppercase tracking-wide text-text-subtle">
+        {scenario.title}
+      </span>
+      <span className={`text-sm font-medium ${color}`}>{label}</span>
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs text-text-subtle">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-text-subtle">{label}</span>
       <span className="text-sm font-medium text-text">{value}</span>
     </div>
   );
@@ -157,7 +210,7 @@ function StatWithSparkline({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs text-text-subtle">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-text-subtle">{label}</span>
       <div className="flex items-center gap-2">
         <span className="w-14 shrink-0 text-sm font-medium text-text">{value}</span>
         <Sparkline

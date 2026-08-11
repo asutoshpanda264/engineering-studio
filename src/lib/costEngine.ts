@@ -220,11 +220,17 @@ const cdnPricing: PricingModel = (node, result) => {
  * Load Balancer — base ≈ ALB's flat hourly charge ($0.0225/hr); no
  * capacity config field exists to scale it on. Usage ≈ ALB's LCU-style
  * per-GB-processed charge ($0.008/GB, assuming 20KB/request). Uses
- * entityMetrics.routingDistribution (summed the same way
- * InspectorPanel.tsx already does), NOT requestCount — LoadBalancer.ts
+ * entityMetrics.routingDistribution directly (summed the same way
+ * InspectorPanel.tsx already does) rather than requestCount — LoadBalancer.ts
  * has no BoundedProcessor and never emits PROCESSING_STARTED (it "has no
- * capacity of its own", per its own class doc), so requestCount is
- * unconditionally 0 for every Load Balancer, always.
+ * capacity of its own", per its own class doc). requestCount is no longer
+ * unconditionally 0 here (MetricsCollector.ts now falls back to this same
+ * routingDistribution sum when a request source's PROCESSING_STARTED count
+ * is 0, so a router's requestCount and errorCount stay comparable — see
+ * its comment), but this function still reads routingDistribution
+ * directly rather than relying on that fallback, since it's the actual
+ * source of truth this pricing model needs regardless of how
+ * requestCount is derived.
  */
 const loadBalancerPricing: PricingModel = (node, result) => {
   const distribution = result?.metrics.entityMetrics[node.id]?.routingDistribution ?? [];

@@ -23,7 +23,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={selectId}
-            className="text-xs font-medium text-text-muted"
+            className="text-xs font-medium uppercase tracking-wide text-text-muted"
           >
             {label}
           </label>
@@ -35,7 +35,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             className={`h-9 w-full appearance-none rounded-md border border-border bg-bg-elevated pl-3 pr-8 text-sm text-text
               transition-colors duration-fast ease-standard
               hover:border-border-hover
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
               disabled:opacity-50 disabled:pointer-events-none
               ${className}`}
             {...props}

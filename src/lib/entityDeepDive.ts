@@ -27,14 +27,14 @@ export interface Tradeoff {
 
 /**
  * A config change that addresses (fully or partially) a failure mode's
- * demo — surfaced as one card in the "Try It" page's Remedies panel.
- * Deliberately just a config override on one already-present node, not an
- * architecture change (adding/removing a node): that's the cheap, common
- * case (Cache's stampedeMode, Load Balancer's algorithm, ...) and covers
- * this failure mode. A remedy whose fix is "add a Load Balancer" needs a
- * different mechanism — not built yet, see FailureModeDemo's doc.
+ * demo — surfaced as one card in the "Try It" page's Remedies panel. Just
+ * a config override on one already-present node — the cheap, common case
+ * (Cache's stampedeMode, Load Balancer's algorithm, ...). See
+ * `ArchitectureRemedy` for the other kind: a remedy whose real-world fix
+ * is adding a new component instead.
  */
-export interface Remedy {
+export interface ConfigRemedy {
+  kind: "config";
   id: string;
   label: string;
   /** Plain-language explanation of why this helps — and, where relevant, what it doesn't fix. */
@@ -46,21 +46,47 @@ export interface Remedy {
 }
 
 /**
+ * A remedy whose real-world fix is adding a new component — a Load
+ * Balancer, a Circuit Breaker — not flipping an existing field. Applying
+ * one doesn't auto-build the fix: it resets the canvas to the demo's
+ * baseline and enables a scoped drag-and-drop palette (see
+ * `RemediesPanel.tsx`'s `ArchitectureRemedyPalette` and
+ * `failureDemoStore.ts`'s `addNode`/`onConnect`) restricted to
+ * `allowedComponentTypes`, plus `instructions` walking through building it
+ * — the student wires it up themselves, same "build before reading"
+ * philosophy the real Workshop already teaches. `Compare` never touches
+ * whatever the student has (or hasn't) built — it always measures
+ * `referenceEntities`/`referenceConnections`, a separately hand-authored,
+ * tuning-verified "what a correct fix looks like" architecture (same
+ * verification discipline `FailureModeDemo`'s own doc describes), fresh,
+ * every time. See `docs/Learn-Problem-Solution.md`'s architecture-change
+ * remedies section for the full design writeup and how to add the next one.
+ */
+export interface ArchitectureRemedy {
+  kind: "architecture";
+  id: string;
+  label: string;
+  description: string;
+  /** Numbered steps shown while this remedy is active — the manual "how to build it" guide. */
+  instructions: string[];
+  /** Component types the scoped palette offers while this remedy is active. */
+  allowedComponentTypes: EntityType[];
+  /** The correct fix, fully wired — used only to compute Compare's "with remedy" numbers. Never auto-applied to the student's canvas. */
+  referenceEntities: ScenarioEntity[];
+  referenceConnections: ConnectionConfig[];
+}
+
+export type Remedy = ConfigRemedy | ArchitectureRemedy;
+
+/**
  * A pre-built, fixed-seed architecture that reliably reproduces one
- * FailureMode, plus the config-toggle remedies a student can try against
- * it — the automated form of that FailureMode's own `reproduce` steps.
- * Powers `/entities/[slug]/try/[failureModeSlug]`.
+ * FailureMode, plus the remedies a student can try against it — the
+ * automated form of that FailureMode's own `reproduce` steps. Powers
+ * `/entities/[slug]/try/[failureModeSlug]`.
  *
  * Every number here was verified against the real engine (same seed,
  * printed metrics) before being written down, not guessed — see the
  * demo's own inline comment for what was measured.
- *
- * Deliberately narrow: only covers failure modes whose fix is a config
- * override on an already-present node (see Remedy's doc). A failure mode
- * whose real-world fix is adding a new component (a Load Balancer, a
- * Circuit Breaker) needs its `demo` to instead let a student drag one in —
- * not modeled yet, since Cache Stampede (the first demo built) doesn't
- * need it. Extend this shape once a second failure mode actually does.
  */
 export interface FailureModeDemo {
   startingEntities: ScenarioEntity[];
@@ -198,6 +224,97 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "Hit rate in the Cache's Inspector panel collapses toward zero as Key Pool Size grows, independent of Capacity or Eviction Policy.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 200
+        // req/s -> Cache (capacity 50, coalesced stampede protection so a
+        // hot key's concurrent misses don't multiply — an unrelated
+        // confound that would otherwise swamp this failure mode's own
+        // signal, since 200 req/s comfortably outpaces this Database's
+        // per-connection processing time for the same key) -> a
+        // deliberately narrow Database (1 connection, 60ms/query) sized
+        // to comfortably absorb a well-tuned cache's trickle of real
+        // misses but not a defeated cache's near-total miss traffic. The
+        // Cache itself is given generous headroom (maxConcurrent 200,
+        // maxQueueLength 1000) so its own throughput is never the
+        // confound — this failure mode is about hit rate, not the cache's
+        // own capacity):
+        //   BROKEN (Key Pool Size 100,000, the field's own max): hit rate
+        //     0.3%, Database failure rate 90.6% (107 attempts, 1036
+        //     rejected — crosses this app's 90% "Crashed" threshold),
+        //     overall success 9.6%. The Cache's own status reads "error"
+        //     (steady red, 31.2% of its own attempts) not pulsing
+        //     "Crashed" — same forwarded-failure attribution as every
+        //     other pass-through entity; the Database is what's actually
+        //     down.
+        //   REMEDY Lower Key Pool Size (100,000 -> 10): hit rate 95.5%,
+        //     Database failure rate 0.0% (10/10 succeed — exactly one
+        //     legitimate first-time miss per distinct key, the coalescing
+        //     fix's own signature), overall success 100.0% — fully
+        //     healthy, and Capacity/Eviction Policy never changed. Re-
+        //     verified through getFailureModeDemo() itself, not just a
+        //     standalone tuning config.
+        // Worth knowing before re-tuning: with naive stampede protection
+        // instead of coalesced, even this remedy's small key pool showed
+        // real Database failures (concurrent requests for the same hot
+        // key each independently re-fetching while the first fetch was
+        // still in flight) — a real mechanism, but the wrong one to
+        // demonstrate here; it would have conflated Key Pool Size with
+        // Cache Stampede's own already-built lesson instead of isolating
+        // Key Pool Size on its own.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 200, keyPoolSize: 100000 },
+            },
+            {
+              id: "cache",
+              type: "cache",
+              label: "Cache",
+              position: { x: 360, y: 160 },
+              config: {
+                capacity: 50,
+                evictionPolicy: "lru",
+                ttlMs: 0,
+                stampedeMode: "coalesced",
+                maxConcurrent: 200,
+                maxQueueLength: 1000,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 1,
+                maxQueueLength: 6,
+                processingTimeMs: 60,
+                processingJitterMs: 3,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "cache", latencyMs: 5 },
+            { source: "cache", target: "database", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "lower-key-pool-size",
+              label: "Lower Key Pool Size",
+              nodeId: "client",
+              configOverride: { keyPoolSize: 10 },
+              description:
+                "The production fix — and it's a traffic-shape fix, not a cache-tuning one: nothing about the Cache changed, Capacity and Eviction Policy are exactly what they were in the broken run. A cache can only remember what actually repeats; ten distinct resources fit comfortably in this Cache's 50-slot capacity and stay cached indefinitely, so only the very first request for each one ever reaches the Database.",
+            },
+          ],
+        },
       },
     ],
   },
@@ -277,6 +394,151 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "Success rate falls in the Results bar, the API Server's node-health dot goes red, and its Inspector panel shows the queue pinned at Max Queue Length.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, 100 req/s)
+        // before writing these numbers down — the first architecture-
+        // change remedy built (see docs/Learn-Problem-Solution.md's
+        // architecture-change remedies section):
+        //   BROKEN (1 API Server):              api1 failure rate 50.9%
+        //     (609 admissions, 632 errors), overall success rate 45.1%
+        //     (client status "error" — below the 50% threshold).
+        //   REFERENCE (Load Balancer + 2nd API): api1/api2 failure rate
+        //     0.5%/0.7%, overall success rate 98.8% — both servers
+        //     comfortably healthy at identical demand.
+        // Deliberately doesn't cross nodeStatus.ts's 90% "Crashed"
+        // (pulsing red) threshold on api1, unlike every config-toggle
+        // demo before it — and this isn't under-tuning. For an admission-
+        // loss system (bounded concurrency + a small queue), reaching a
+        // literal 90% failure rate on ONE server requires demand roughly
+        // 10x its capacity — confirmed empirically by sweeping request
+        // rates 60→800 before settling here. At that much demand, TWO
+        // servers' combined capacity (only 2x one server's) is *also*
+        // still ~5x oversubscribed, so the "fix" would look nearly as
+        // broken as the problem — the opposite of the lesson this demo
+        // teaches. 100 req/s is chosen instead as the highest demand
+        // where the fix is still unambiguously healthy (98.8%) — the
+        // single server's "error" (steady red, not pulsing) status and a
+        // sub-50% client success rate are still an honestly bad, clearly
+        // visible broken state, just not the same threshold every
+        // config-toggle demo happens to cross.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 100, keyPoolSize: 50 },
+            },
+            {
+              id: "api1",
+              type: "api",
+              label: "API Server",
+              position: { x: 360, y: 160 },
+              config: {
+                maxConcurrent: 5,
+                maxQueueLength: 6,
+                processingTimeMs: 50,
+                processingJitterMs: 5,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 1000,
+                maxQueueLength: 1000,
+                processingTimeMs: 1,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "api1", latencyMs: 5 },
+            { source: "api1", target: "database", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "architecture",
+              id: "scale-horizontally",
+              label: "Scale Horizontally — Load Balancer + 2nd API Server",
+              description:
+                "The production fix: a Load Balancer doesn't create capacity on its own, but it lets a second API Server's capacity actually get used, doubling the total throughput ceiling. Build it yourself below, then Run — Compare shows what a correctly-wired version measures.",
+              instructions: [
+                "Drag a Load Balancer onto the canvas.",
+                "Drag a second API Server onto the canvas.",
+                "Select the direct Client → API Server connection and press Delete.",
+                "Connect Client → Load Balancer.",
+                "Connect Load Balancer → each API Server (both of them).",
+                "Connect the new API Server → Database, same as the existing one.",
+                "Run the simulation.",
+              ],
+              allowedComponentTypes: ["load_balancer", "api"],
+              referenceEntities: [
+                {
+                  id: "client",
+                  type: "client",
+                  label: "Client",
+                  position: { x: 80, y: 160 },
+                  config: { requestRate: 100, keyPoolSize: 50 },
+                },
+                {
+                  id: "lb",
+                  type: "load_balancer",
+                  label: "Load Balancer",
+                  position: { x: 320, y: 160 },
+                  config: { algorithm: "round_robin" },
+                },
+                {
+                  id: "api1",
+                  type: "api",
+                  label: "API Server",
+                  position: { x: 560, y: 60 },
+                  config: {
+                    maxConcurrent: 5,
+                    maxQueueLength: 6,
+                    processingTimeMs: 50,
+                    processingJitterMs: 5,
+                  },
+                },
+                {
+                  id: "api2",
+                  type: "api",
+                  label: "API Server (2)",
+                  position: { x: 560, y: 260 },
+                  config: {
+                    maxConcurrent: 5,
+                    maxQueueLength: 6,
+                    processingTimeMs: 50,
+                    processingJitterMs: 5,
+                  },
+                },
+                {
+                  id: "database",
+                  type: "database",
+                  label: "Database",
+                  position: { x: 840, y: 160 },
+                  config: {
+                    maxConnections: 1000,
+                    maxQueueLength: 1000,
+                    processingTimeMs: 1,
+                    failureProbability: 0,
+                  },
+                },
+              ],
+              referenceConnections: [
+                { source: "client", target: "lb", latencyMs: 5 },
+                { source: "lb", target: "api1", latencyMs: 5 },
+                { source: "lb", target: "api2", latencyMs: 5 },
+                { source: "api1", target: "database", latencyMs: 2 },
+                { source: "api2", target: "database", latencyMs: 2 },
+              ],
+            },
+          ],
+        },
       },
       {
         name: "Latency Cliff from Processing Time",
@@ -290,6 +552,75 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "p95 latency in the Results bar jumps disproportionately — not linearly with the Processing Time change, because requests now queue that didn't before.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 150
+        // req/s -> API Server -> a generously-capacitied Database so it's
+        // never the bottleneck being measured). Max Concurrent (5) and Max
+        // Queue Length (6) never change between broken and remedy — only
+        // Processing Time does, isolating exactly the axis this failure
+        // mode is about:
+        //   BROKEN (processingTimeMs=200, the field's own max): failure
+        //     rate 90.8% (164 admitted, 1618 rejected — crosses this app's
+        //     90% "Crashed" threshold), overall success 6.5%, p95 latency
+        //     987ms.
+        //   REMEDY Lower Processing Time (200 -> 10): failure rate 0.0%
+        //     (1730/1730 admitted), overall success 100.0%, p95 latency
+        //     42ms — a ~23x p95 drop for a 20x Processing Time drop,
+        //     nearly proportional once the server is no longer queueing at
+        //     all, matching this failure mode's own "not linear near the
+        //     cliff" observation. Re-verified through getFailureModeDemo()
+        //     itself, not just a standalone tuning config.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 150, keyPoolSize: 50 },
+            },
+            {
+              id: "api1",
+              type: "api",
+              label: "API Server",
+              position: { x: 360, y: 160 },
+              config: {
+                maxConcurrent: 5,
+                maxQueueLength: 6,
+                processingTimeMs: 200,
+                processingJitterMs: 5,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 1000,
+                maxQueueLength: 1000,
+                processingTimeMs: 1,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "api1", latencyMs: 5 },
+            { source: "api1", target: "database", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "lower-processing-time",
+              label: "Lower Processing Time",
+              nodeId: "api1",
+              configOverride: { processingTimeMs: 10 },
+              description:
+                "The production fix: the endpoint itself got faster — a query got an index, an N+1 call got batched, unnecessary work got cut — so each request now occupies a concurrency slot for a fraction of the time it used to. Max Concurrent never changed; the server didn't get more capacity, the same capacity just got used more efficiently.",
+            },
+          ],
+        },
       },
     ],
   },
@@ -421,6 +752,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
           seed: 42,
           remedies: [
             {
+              kind: "config",
               id: "raise-max-connections",
               label: "Raise Max Connections",
               nodeId: "database",
@@ -429,6 +761,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
                 "The production fix: actually raise the connection pool's ceiling so the database can run more queries at once instead of rejecting or queueing the overflow. Real databases cap this against server memory, so it isn't free to raise indefinitely — but here it's comfortably above the incoming load, so nearly everything succeeds.",
             },
             {
+              kind: "config",
               id: "raise-max-queue-length",
               label: "Raise Max Queue Length",
               nodeId: "database",
@@ -437,6 +770,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
                 "A partial mitigation, not a fix: queueing lets overflow queries wait instead of failing instantly, but it doesn't add any real capacity — the pool still only drains 2 queries at a time. Against a temporary burst that would be enough; against demand that stays above capacity for the whole run, even the field's own maximum queue barely helps.",
             },
             {
+              kind: "config",
               id: "switch-to-nosql",
               label: "Switch to NoSQL",
               nodeId: "database",
@@ -642,6 +976,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
           seed: 42,
           remedies: [
             {
+              kind: "config",
               id: "least-connections",
               label: "Least Connections",
               nodeId: "lb",
@@ -664,6 +999,124 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "With the mismatched weights, the low-capacity target's queue length and error count climb even though the high-capacity target sits comfortably under load — the Load Balancer did exactly what it was told, which is the point.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 880
+        // req/s -> Load Balancer -> two API Servers with identical
+        // Processing Time (30ms) but a real 1:25 capacity ratio
+        // (maxConcurrent 2 vs 50), each with its own generously-sized
+        // Database so neither is the bottleneck being measured):
+        //   BROKEN (weights: api-low=4, api-high=1 — backwards, giving
+        //     4x the traffic to the target with 1/25th the capacity):
+        //     api-low failure rate 90.2% (444 attempts, 4097 errors —
+        //     crosses this app's 90% "Crashed" threshold), api-high
+        //     failure rate 0.0% (barely used, comfortably idle), overall
+        //     success 20.6%. The Load Balancer's own status dot reads
+        //     "error" (steady red, 44.2% of its own forwarded requests
+        //     failed) not pulsing "Crashed" — same backfilled-metrics fix
+        //     as the Uneven Backend Divergence demo, correctly attributing
+        //     the failure to api-low, not the router forwarding it.
+        //   REMEDY Fix Target Weights (api-low=4->1, api-high=1->25 — the
+        //     real 1:25 capacity ratio, not just "swap the two numbers"):
+        //     api-low failure rate 0.0% (398/398 succeed), api-high
+        //     failure rate 0.0% (9925 attempts, 2 errors), overall success
+        //     100.0% — fully healthy. Re-verified through
+        //     getFailureModeDemo() itself, not just a standalone tuning
+        //     config.
+        // Worth noting for anyone re-tuning this: a naive "just swap the
+        // two weight values" (1:4) was tried first and rejected — it
+        // under-corrects, since the targets' real capacity ratio here is
+        // 1:25, not 1:4. A meaningfully wrong weight in the *other*
+        // direction still leaves api-high under-fed relative to what it
+        // can safely absorb; only a weight ratio that actually tracks
+        // real capacity clears both targets.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 880, keyPoolSize: 50 },
+            },
+            {
+              id: "lb",
+              type: "load_balancer",
+              label: "Load Balancer",
+              position: { x: 340, y: 160 },
+              config: {
+                algorithm: "weighted_round_robin",
+                weights: { "api-low": 4, "api-high": 1 },
+              },
+            },
+            {
+              id: "api-low",
+              type: "api",
+              label: "API Server (low capacity)",
+              position: { x: 600, y: 60 },
+              config: {
+                maxConcurrent: 2,
+                maxQueueLength: 20,
+                processingTimeMs: 30,
+                processingJitterMs: 5,
+              },
+            },
+            {
+              id: "api-high",
+              type: "api",
+              label: "API Server (high capacity)",
+              position: { x: 600, y: 260 },
+              config: {
+                maxConcurrent: 50,
+                maxQueueLength: 100,
+                processingTimeMs: 30,
+                processingJitterMs: 5,
+              },
+            },
+            {
+              id: "db-low",
+              type: "database",
+              label: "Database (behind low)",
+              position: { x: 860, y: 60 },
+              config: {
+                maxConnections: 1000,
+                maxQueueLength: 1000,
+                processingTimeMs: 1,
+                failureProbability: 0,
+              },
+            },
+            {
+              id: "db-high",
+              type: "database",
+              label: "Database (behind high)",
+              position: { x: 860, y: 260 },
+              config: {
+                maxConnections: 1000,
+                maxQueueLength: 1000,
+                processingTimeMs: 1,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "lb", latencyMs: 5 },
+            { source: "lb", target: "api-low", latencyMs: 5 },
+            { source: "lb", target: "api-high", latencyMs: 5 },
+            { source: "api-low", target: "db-low", latencyMs: 2 },
+            { source: "api-high", target: "db-high", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "fix-target-weights",
+              label: "Fix Target Weights",
+              nodeId: "lb",
+              configOverride: { weights: { "api-low": 1, "api-high": 25 } },
+              description:
+                "The production fix: set each target's weight to actually track its real capacity, not a guessed or inherited number. Here that's a 1:25 ratio, matching the servers' real 2:50 Max Concurrent split — not simply swapping the two broken values, which would still under-feed the high-capacity target relative to what it can safely absorb. Weighted Round Robin never validates this itself; it trusts whatever weight it's given completely.",
+            },
+          ],
+        },
       },
       {
         name: "Load Balancer as SPOF",
@@ -800,6 +1253,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
           seed: 42,
           remedies: [
             {
+              kind: "config",
               id: "coalesced",
               label: "Coalesced (single-flight)",
               nodeId: "cache",
@@ -808,6 +1262,7 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
                 "The production fix: the first miss for a key becomes its leader and fetches; every other concurrent miss for that same key waits on and shares the leader's result instead of fetching independently. Doesn't change how often the hot key expires — changes what happens each time it does.",
             },
             {
+              kind: "config",
               id: "raise-ttl",
               label: "Raise TTL",
               nodeId: "cache",
@@ -830,6 +1285,84 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "The Cache Inspector's Penetration section shows almost all misses as 'Downstream (not found)' under Off; switching On shifts most of that same traffic to 'Negative cache (avoided)' and the Database's request count drops for identical traffic.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, 1200 req/s,
+        // 88% of traffic targeting a small pool of permanently-missing
+        // keys) before writing these numbers down — deliberately extreme
+        // (a single-connection database, an aggressive probing rate) so
+        // the broken state crosses this app's own 90% "Crashed" status
+        // threshold:
+        //   BROKEN (negativeCaching=off): database failure rate 90.2%
+        //     (6483 attempts, 5848 errors — crosses CRASH_FAILURE_RATE),
+        //     100% utilization; all 6229 misses for the missing-key pool
+        //     went downstream (0 avoided).
+        //   REMEDY Negative Caching On: database failure rate 0.0% (148
+        //     attempts, 0 errors), utilization drops to 25.5% — fully
+        //     healthy. 6140 of 6229 phantom misses answered from the
+        //     negative cache instead of hitting the database again (98.6%
+        //     avoided) — the small residual (89) is each missing key's
+        //     unavoidable first-ever lookup, before that key has a
+        //     negative entry yet.
+        // Overall client success rate stays low either way (8.7% -> 12.0%)
+        // — capped by missingKeyRate=0.88 itself: 88% of all traffic
+        // targets a key that will never exist, and Cache.ts resolves that
+        // deterministically as "not found" regardless of Negative Caching.
+        // This remedy protects the database, not the client's raw success
+        // rate — see its own description below.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 1200, keyPoolSize: 20, missingKeyRate: 0.88 },
+            },
+            {
+              id: "cache",
+              type: "cache",
+              label: "Cache",
+              position: { x: 360, y: 160 },
+              config: {
+                capacity: 50,
+                evictionPolicy: "lru",
+                ttlMs: 0,
+                maxConcurrent: 100,
+                maxQueueLength: 200,
+                negativeCaching: "off",
+                negativeCacheTtlMs: 5000,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 1,
+                maxQueueLength: 50,
+                processingTimeMs: 10,
+                processingJitterMs: 5,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "cache", latencyMs: 5 },
+            { source: "cache", target: "database", latencyMs: 5 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "negative-caching-on",
+              label: "Negative Caching On",
+              nodeId: "cache",
+              configOverride: { negativeCaching: "on" },
+              description:
+                "The production fix: the first \"not found\" result for a given missing key gets cached too, for Negative Cache TTL, so every repeat lookup for that same permanently-missing key is answered locally instead of making its own full round trip to the database. Doesn't change that a lookup for a missing key still comes back \"not found\" — changes whether the database has to be asked again to know that.",
+            },
+          ],
+        },
       },
       {
         name: "Cache Avalanche",
@@ -843,6 +1376,98 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "The Cache Inspector's Avalanche section shows a high 'Peak burst (100ms)' number relative to total expired misses at 0% Jitter — a synchronized wave; raising Jitter lowers that peak and the callout switches to 'no synchronized wave detected'.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, 1000 req/s,
+        // an 8-key pool at Cache capacity 8, Naive stampede mode) before
+        // writing these numbers down. Unlike every other "Try It" demo,
+        // tuning could not push the broken state to this app's own 90%
+        // "Crashed" status threshold — three real, structural reasons
+        // found along the way (see docs/Learn-Problem-Solution.md §8's
+        // own note on this row): naive stampede duplication dominates at
+        // high traffic and drowns out the avalanche-specific signal;
+        // switching to Coalesced stampede protection to remove that
+        // confound instead collapses the *cache's* own admission (a
+        // waiting follower holds its own concurrency slot for the whole
+        // wait against a slow-draining backend); and the cold-start phase
+        // is mathematically jitter-invariant (jitter only randomizes an
+        // entry's *future* expiry, never its *first* fetch), so whatever
+        // crashes during warm-up crashes identically in both runs and
+        // dilutes the aggregate number either way. The numbers below are
+        // the best real, honest gap found after a systematic sweep — a
+        // meaningful, correctly-directioned improvement, not a full
+        // crash-to-healthy flip:
+        //   BROKEN (ttlJitterPercent=0): database failure rate 70.1%
+        //     (334 attempts, 234 errors), overall success rate 96.0%
+        //     (most traffic never reaches the database at all — only
+        //     cache misses do). cacheAvalanche: 16 expired misses, peak
+        //     burst 5 within 100ms — crosses this app's own isAvalanche
+        //     (> 3) threshold, so the Inspector's callout reads as a
+        //     detected wave.
+        //   REMEDY Raise TTL Jitter (0% -> 50%): database failure rate
+        //     41.2% (279 attempts, 115 errors) — a real ~29-point
+        //     improvement, not a fix. Peak burst drops to 3 (at the
+        //     isAvalanche threshold), flipping the callout to "no
+        //     synchronized wave detected".
+        // The database's own node-health dot reads "error" (steady red)
+        // in both runs — never "Crashed" (pulsing) broken, never
+        // green/healthy fixed. This demo's evidence is the Cache's own
+        // Avalanche section (expired misses, peak burst, the callout
+        // text) and the database's measurably lower failure rate, not a
+        // canvas-wide status flip the way every other demo here shows.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 1000, keyPoolSize: 8 },
+            },
+            {
+              id: "cache",
+              type: "cache",
+              label: "Cache",
+              position: { x: 360, y: 160 },
+              config: {
+                capacity: 8,
+                evictionPolicy: "lru",
+                ttlMs: 2000,
+                ttlJitterPercent: 0,
+                stampedeMode: "naive",
+                maxConcurrent: 200,
+                maxQueueLength: 1000,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 3,
+                maxQueueLength: 6,
+                processingTimeMs: 40,
+                processingJitterMs: 3,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "cache", latencyMs: 5 },
+            { source: "cache", target: "database", latencyMs: 5 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "raise-ttl-jitter",
+              label: "Raise TTL Jitter",
+              nodeId: "cache",
+              configOverride: { ttlJitterPercent: 0.5 },
+              description:
+                "The production fix, honestly partial at this traffic level: spreading each entry's own expiry over a window instead of letting a whole batch share one exact TTL cuts the database's failure rate substantially (70% → 41% here) by turning one large synchronized spike into several smaller ones. It doesn't eliminate the underlying mismatch — jitter changes *when* entries expire, not *how many* need refetching — so watch the Cache's own Avalanche section for the real evidence: Peak Burst drops enough to flip the callout from a detected wave to \"no synchronized wave detected\", even though the database keeps seeing real load either way.",
+            },
+          ],
+        },
       },
     ],
   },
@@ -1004,6 +1629,91 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "The Results bar shows rejections once the backlog fills — compare against raising Consumer Count alone to drain faster without touching the backlog size.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 500
+        // req/s -> MessageQueue -> Database, Database given generous
+        // capacity (50 connections) so it's never the bottleneck being
+        // measured):
+        //   BROKEN (consumerCount=2, maxQueueLength=20, dispatchTimeMs=30):
+        //     drain rate = 2 / 0.03s ≈ 66.7 msg/s, far under the 500 req/s
+        //     producer rate. Queue failure rate 92.3% (420 admitted, 5062
+        //     rejected), overall success 14.2% — crosses this app's 90%
+        //     "Crashed" threshold.
+        //   REMEDY Raise Consumer Count (2 -> 40): drain rate ≈ 1333 msg/s,
+        //     comfortably above demand. Queue failure rate 0.0% (2951
+        //     admitted, 0 rejected), overall success 100.0% — the real fix,
+        //     actual added drain throughput.
+        //   REMEDY Raise Max Queue Length only (20 -> 500, the field's own
+        //     max, consumerCount left at 2): failure rate 82.0% (900
+        //     admitted, 4102 rejected), overall success 30.5% — a real but
+        //     honest partial mitigation: a bigger backlog absorbs a bigger
+        //     burst, but demand stays above drain rate for the whole run
+        //     here, not just a temporary spike, so even the field's own
+        //     maximum barely moves the needle. No longer pulsing "Crashed"
+        //     (under the 90% threshold) but still clearly unhealthy.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 500, keyPoolSize: 200 },
+            },
+            {
+              id: "message-queue",
+              type: "message_queue",
+              label: "Message Queue",
+              position: { x: 360, y: 160 },
+              config: {
+                deliveryMode: "queue",
+                consumerCount: 2,
+                maxQueueLength: 20,
+                dispatchTimeMs: 30,
+                dispatchJitterMs: 5,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                type: "sql",
+                maxConnections: 50,
+                maxQueueLength: 500,
+                processingTimeMs: 10,
+                processingJitterMs: 2,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "message-queue", latencyMs: 2 },
+            { source: "message-queue", target: "database", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "raise-consumer-count",
+              label: "Raise Consumer Count",
+              nodeId: "message-queue",
+              configOverride: { consumerCount: 40 },
+              description:
+                "The production fix: actual added drain throughput. The backlog was never the real problem — it was absorbing a gap between producer and consumer speed that never closed, because too few consumers were pulling from it at once. More consumers drain messages faster than the producer can add them, so the backlog stops growing and stays near-empty instead of staying permanently full.",
+            },
+            {
+              kind: "config",
+              id: "raise-max-queue-length",
+              label: "Raise Max Queue Length",
+              nodeId: "message-queue",
+              configOverride: { maxQueueLength: 500 },
+              description:
+                "A partial mitigation, not a fix: a bigger backlog absorbs a bigger burst of producer traffic without rejecting it, but it doesn't add any real drain capacity — still only 2 consumers pulling from it. Against a temporary spike that would be enough to ride it out; against demand that stays above drain rate for the whole run, even the field's own maximum queue length barely helps, it just delays rejections rather than preventing them.",
+            },
+          ],
+        },
       },
       {
         name: "Fan-out Load Multiplication",
@@ -1081,6 +1791,85 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "Token Bucket admits more of the burst (spending Burst Capacity); Sliding Window rejects the overflow immediately once the steady rate is exceeded, regardless of how idle the limiter was just before.",
         simulated: true,
+        // Verified against the real engine (seed 42, 3s run, 300 req/s
+        // sustained against a Requests/Second ceiling of 20) before writing
+        // these numbers down — deliberately extreme (a real misconfigured
+        // ceiling, not a subtle one) so the broken state crosses this app's
+        // own 90% "Crashed" status threshold:
+        //   BROKEN (sliding_window, requestsPerSecond=20): rate limiter
+        //     admitted 60 / rejected 805 (93.1% failure rate — crosses
+        //     CRASH_FAILURE_RATE), overall success rate 6.9%.
+        //   REMEDY Raise Requests/Second (20 -> 400): admitted 865 /
+        //     rejected 0, overall success rate 100% — fully healthy. The
+        //     real fix: the ceiling now actually matches real demand.
+        //   REMEDY Switch to Token Bucket only (requestsPerSecond left at
+        //     20): admitted 159 / rejected 706 (81.6% failure rate — still
+        //     unhealthy, but no longer crosses the Crashed threshold).
+        //     Token Bucket's accumulated burst capacity forgives the first
+        //     instant of overload, then throttles down to the same 20
+        //     req/s ceiling Sliding Window enforces from the first
+        //     request — a real, honest partial improvement against
+        //     sustained overload, not a fix for an undersized ceiling.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 300, keyPoolSize: 50 },
+            },
+            {
+              id: "rate-limiter",
+              type: "rate_limiter",
+              label: "Rate Limiter",
+              position: { x: 360, y: 160 },
+              config: {
+                algorithm: "sliding_window",
+                requestsPerSecond: 20,
+                burstCapacity: 100,
+              },
+            },
+            {
+              id: "database",
+              type: "database",
+              label: "Database",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConnections: 50,
+                maxQueueLength: 200,
+                processingTimeMs: 5,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "rate-limiter", latencyMs: 5 },
+            { source: "rate-limiter", target: "database", latencyMs: 5 },
+          ],
+          durationMs: 3000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "raise-requests-per-second",
+              label: "Raise Requests/Second",
+              nodeId: "rate-limiter",
+              configOverride: { requestsPerSecond: 400 },
+              description:
+                "The production fix: the configured ceiling was simply too low for real legitimate traffic. Raising it so the steady rate actually matches demand fixes this regardless of which algorithm is running — algorithm choice only ever changes how a temporary burst above the ceiling is handled, not whether the ceiling itself is sized correctly.",
+            },
+            {
+              kind: "config",
+              id: "switch-to-token-bucket",
+              label: "Switch to Token Bucket",
+              nodeId: "rate-limiter",
+              configOverride: { algorithm: "token_bucket" },
+              description:
+                "A partial mitigation, not a fix: Token Bucket's accumulated idle capacity forgives the first instant of overload, admitting a real burst that Sliding Window would reject immediately — but once that saved-up capacity is spent, it throttles down to the exact same undersized ceiling. Against demand that stays above the ceiling for a while, not just a brief spike, this only delays the failure, it doesn't prevent it.",
+            },
+          ],
+        },
       },
     ],
   },
@@ -1296,6 +2085,93 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "The Results bar shows failures with reason no_matching_route, and the Reverse Proxy's node-health dot turns red — even though the one configured route (/orders) is working perfectly.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 300
+        // req/s, Route Pool Size 8 (the field's own max — ROUTE_LABELS in
+        // TrafficGenerator.ts has exactly 8 entries) -> Reverse Proxy,
+        // routes: { "api-orders": "/orders" }, one specific route, no
+        // catch-all -> a generously-capacitied API Server + Database so
+        // neither is ever the bottleneck being measured):
+        //   BROKEN: Reverse Proxy's own failure rate 88.55% (200 routed,
+        //     1547 rejected no_matching_route), overall success 11.4%.
+        //   REMEDY Configure a Catch-all Target (routes.api-orders:
+        //     "/orders" -> "*"): failure rate 0.0% (1747/1747 routed),
+        //     overall success 100.0% — fully healthy. Re-verified through
+        //     getFailureModeDemo() itself, not just a standalone tuning
+        //     config.
+        // Worth knowing before re-tuning: 88.55% is close to this demo's
+        // real ceiling, not an undertuned broken state. With exactly one
+        // legitimately-matching route, the miss fraction is bounded by
+        // (Route Pool Size - 1) / Route Pool Size, and Route Pool Size
+        // maxes out at 8 (ROUTE_LABELS' fixed length) — so the highest
+        // achievable miss rate here is 7/8 = 87.5%, no matter the traffic
+        // rate (routing here has no capacity/queueing component to push
+        // higher under load, unlike every bounded-processor entity). That
+        // stays under this app's 90% "Crashed" threshold — the Reverse
+        // Proxy's own node status reads "error" (steady red), not pulsing
+        // "Crashed", on both sides of this failure mode's reproduce steps,
+        // structurally, not from undertuning. Still an honest, dramatic
+        // failure (fewer than 1 in 8 requests gets anywhere) — just not
+        // this app's most extreme visual state.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 300, keyPoolSize: 50, routePoolSize: 8 },
+            },
+            {
+              id: "rp",
+              type: "reverse_proxy",
+              label: "Reverse Proxy",
+              position: { x: 340, y: 160 },
+              config: { routes: { "api-orders": "/orders" } },
+            },
+            {
+              id: "api-orders",
+              type: "api",
+              label: "API Server (Orders)",
+              position: { x: 600, y: 160 },
+              config: {
+                maxConcurrent: 50,
+                maxQueueLength: 200,
+                processingTimeMs: 5,
+                processingJitterMs: 1,
+              },
+            },
+            {
+              id: "db-orders",
+              type: "database",
+              label: "Database (Orders)",
+              position: { x: 860, y: 160 },
+              config: {
+                maxConnections: 1000,
+                maxQueueLength: 1000,
+                processingTimeMs: 1,
+                failureProbability: 0,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "rp", latencyMs: 5 },
+            { source: "rp", target: "api-orders", latencyMs: 5 },
+            { source: "api-orders", target: "db-orders", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "configure-catch-all",
+              label: "Configure a Catch-all Target",
+              nodeId: "rp",
+              configOverride: { routes: { "api-orders": "*" } },
+              description:
+                "The production fix that guarantees nothing gets dropped: mark this target as the catch-all (nginx's default_server pattern) instead of a specific route, so it receives anything no other target's specific route claims. The real tradeoff, named honestly: this target now loses its precise '/orders only' identity and absorbs every kind of traffic instead — the right call when availability matters more than routing precision, not a free upgrade.",
+            },
+          ],
+        },
       },
       {
         name: "Route Misconfiguration (Silent Starvation)",
@@ -1385,6 +2261,102 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
         observe:
           "The group's effective throughput and backlog behavior are statistically indistinguishable between the two runs — proof the extra consumers past Partition Count did nothing, even though the config value tripled.",
         simulated: true,
+        // Verified against the real engine (seed 42, 6s run, Client at 720
+        // req/s -> Kafka -> a downstream "Analytics Service" API Server
+        // given generous capacity so it's never the bottleneck being
+        // measured). Story: Consumers per Group already generous (12) —
+        // a team that already tried "add more consumers" — but Partition
+        // Count=1 caps real parallelism at 1, wasting 11 of those 12.
+        //   BROKEN (partitionCount=1, consumerCountPerGroup=12): Kafka's
+        //     own failure rate 90.05% (422 admitted, 3818 rejected) —
+        //     crosses this app's 90% "Crashed" threshold on the Kafka
+        //     node itself.
+        //   REMEDY "wasted" attempt — Raise Consumers per Group further
+        //     (12 -> 20), Partition Count left at 1: failure rate 90.05%
+        //     (422 admitted, 3818 rejected) — bit-for-bit identical to
+        //     broken. This is the demo's whole point, not a tuning miss:
+        //     effective parallelism is min(consumers, partitions), so
+        //     raising consumers past a partition ceiling of 1 changes
+        //     nothing, deterministically.
+        //   REMEDY Raise Partition Count (1 -> 12, the field's own max),
+        //     Consumers per Group left unchanged at 12: failure rate 0.0%
+        //     (4240 admitted, 0 rejected) — the real fix. Consumers per
+        //     Group was never the problem; it was already sized right and
+        //     sitting idle waiting for a partition to read.
+        // One more thing this demo makes visible, true in every run above:
+        // the Client's own success rate stays 100% throughout, broken and
+        // fixed alike — Kafka acknowledges a producer the instant a
+        // message is durably admitted to the log, never gated on any
+        // consumer group's readiness (see Kafka.ts's own class doc). The
+        // failure here is real, but it's invisible to the producer by
+        // design — only Kafka's own node status and its Inspector's
+        // Consumer Group Distribution section show it. A different, and
+        // genuinely important, shape than every earlier demo: "the write
+        // succeeded" and "every consumer group is keeping up with it" are
+        // two separate claims in a real log-based system, and conflating
+        // them is its own common mistake.
+        demo: {
+          startingEntities: [
+            {
+              id: "client",
+              type: "client",
+              label: "Client",
+              position: { x: 80, y: 160 },
+              config: { requestRate: 720, keyPoolSize: 200 },
+            },
+            {
+              id: "kafka",
+              type: "kafka",
+              label: "Kafka",
+              position: { x: 360, y: 160 },
+              config: {
+                partitionCount: 1,
+                consumerCountPerGroup: 12,
+                maxQueueLength: 20,
+                dispatchTimeMs: 15,
+                dispatchJitterMs: 3,
+              },
+            },
+            {
+              id: "analytics-service",
+              type: "api",
+              label: "Analytics Service",
+              position: { x: 640, y: 160 },
+              config: {
+                maxConcurrent: 50,
+                maxQueueLength: 500,
+                processingTimeMs: 5,
+                processingJitterMs: 1,
+              },
+            },
+          ],
+          startingConnections: [
+            { source: "client", target: "kafka", latencyMs: 2 },
+            { source: "kafka", target: "analytics-service", latencyMs: 2 },
+          ],
+          durationMs: 6000,
+          seed: 42,
+          remedies: [
+            {
+              kind: "config",
+              id: "raise-consumers-per-group",
+              label: "Raise Consumers per Group",
+              nodeId: "kafka",
+              configOverride: { consumerCountPerGroup: 20 },
+              description:
+                "The instinctive but wrong fix — and the whole lesson of this failure mode: this changes nothing, literally. A group's real parallelism is capped at min(Consumers per Group, Partition Count), and Partition Count is still 1, so the extra consumers still have no partition to read. Compare below and confirm the numbers are bit-for-bit identical to the broken run, not just similar.",
+            },
+            {
+              kind: "config",
+              id: "raise-partition-count",
+              label: "Raise Partition Count",
+              nodeId: "kafka",
+              configOverride: { partitionCount: 12 },
+              description:
+                "The real fix — and it needs no change to Consumers per Group at all, because those 12 consumers were already provisioned and idle, waiting for partitions to read. Raising Partition Count is the only lever that actually raises a group's parallelism ceiling; it's shared by every consumer group reading this topic, not sized per group.",
+            },
+          ],
+        },
       },
       {
         name: "One Consumer Group Falling Behind",

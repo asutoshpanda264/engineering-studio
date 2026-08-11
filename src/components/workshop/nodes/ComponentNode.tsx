@@ -2,16 +2,20 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Lock } from "lucide-react";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
 import { ENTITY_CONFIG_SCHEMA } from "@/lib/entityConfigSchema";
+import { useWorkshopStore } from "@/store/workshopStore";
 import type { ArchitectureNode, NodeStatus } from "@/store/workshopStore";
+import { getScenario } from "@/scenarios";
+import { isGivenNode } from "@/lib/scenarioLocking";
 
 const STATUS_DOT_CLASSES: Record<NodeStatus, string> = {
   idle: "bg-text-subtle",
-  running: "bg-success",
-  overloaded: "bg-warning",
-  unavailable: "bg-error",
-  error: "bg-error",
+  running: "bg-status-healthy",
+  overloaded: "bg-status-degraded",
+  unavailable: "bg-status-critical",
+  error: "bg-status-critical",
   disabled: "bg-text-subtle",
 };
 
@@ -31,10 +35,16 @@ const STATUS_LABELS: Record<NodeStatus, string> = {
   disabled: "Disabled",
 };
 
+// The visible dot stays 10px (!size-2.5) — the `after:` pseudo-element
+// expands only the *invisible* clickable area (to ~26px) around it, since
+// React Flow starts a connection drag exclusively from a pointerdown that
+// lands on this element. Without it, a normal-precision click near the dot
+// misses the handle's small hit box and falls through to node-drag instead
+// of connect — the "dragging wires up nodes instead" bug.
 const HANDLE_CLASSES =
-  "!size-2.5 !border-2 !border-bg-panel !bg-text-subtle !transition-colors";
+  "!size-2.5 !border-2 !border-bg-panel !bg-text-subtle !transition-colors after:absolute after:-inset-2 after:content-['']";
 
-function ComponentNodeImpl({ data, selected }: NodeProps<ArchitectureNode>) {
+function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) {
   const catalogItem = getEntityCatalogItem(data.entityType);
   const Icon = catalogItem.icon;
   const status = data.status ?? "idle";
@@ -42,13 +52,20 @@ function ComponentNodeImpl({ data, selected }: NodeProps<ArchitectureNode>) {
   const fields = ENTITY_CONFIG_SCHEMA[data.entityType] ?? [];
   const prefersReducedMotion = useReducedMotion();
   const shouldPulse = PULSING_STATUSES.has(status) && !prefersReducedMotion;
+  // A given node's identity is fixed by the active scenario (see
+  // workshopStore.ts's onNodesChange) — a small lock glyph says so at a
+  // glance, per WORKSHOP-UI.md §8: "Users should never need to click a
+  // node simply to know what it represents."
+  const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
+  const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
+  const isGiven = isGivenNode(scenario, id);
 
   return (
     <div
       data-node-card
       className={`w-52 rounded-lg border bg-bg-panel px-3 py-2.5 shadow-elevated
-        transition-colors duration-fast ease-standard
-        ${selected ? "border-primary" : "border-border hover:border-border-hover"}
+        transition-all duration-fast ease-standard
+        ${selected ? "border-signal" : "border-border hover:-translate-y-0.5 hover:border-border-hover hover:shadow-dropdown"}
         ${disabled ? "opacity-50" : ""}`}
     >
       <Handle type="target" position={Position.Left} className={HANDLE_CLASSES} />
@@ -58,6 +75,13 @@ function ComponentNodeImpl({ data, selected }: NodeProps<ArchitectureNode>) {
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-text">
           {data.label}
         </p>
+        {isGiven && (
+          <Lock
+            className="size-3 shrink-0 text-text-subtle"
+            aria-label="Fixed by this scenario — can't be deleted or reconfigured"
+            role="img"
+          />
+        )}
         <span className="relative flex size-2 shrink-0">
           {shouldPulse && (
             <motion.span

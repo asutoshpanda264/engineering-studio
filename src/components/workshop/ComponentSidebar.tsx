@@ -7,8 +7,6 @@ import type { EntityType } from "@/simulation/types";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import type { EntityCatalogItem } from "@/lib/entityCatalog";
 import { useWorkshopStore } from "@/store/workshopStore";
-import { SCENARIOS } from "@/scenarios";
-import type { Scenario } from "@/scenarios";
 
 export const ENTITY_DRAG_MIME_TYPE = "application/x-engineering-studio-entity";
 
@@ -26,50 +24,12 @@ function nextClickPosition(nodeCount: number) {
   };
 }
 
-type SidebarTab = "components" | "scenarios";
-
 export function ComponentSidebar() {
-  const [tab, setTab] = useState<SidebarTab>("components");
-
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-bg-elevated">
-      <Panel.Header title={tab === "components" ? "Components" : "Scenarios"} />
-      <div className="flex gap-1 border-b border-border p-2" role="tablist" aria-label="Sidebar">
-        <TabButton active={tab === "components"} onClick={() => setTab("components")}>
-          Components
-        </TabButton>
-        <TabButton active={tab === "scenarios"} onClick={() => setTab("scenarios")}>
-          Scenarios
-        </TabButton>
-      </div>
-      {tab === "components" ? <ComponentsTab /> : <ScenariosTab />}
+      <Panel.Header title="Components" />
+      <ComponentsTab />
     </aside>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors duration-fast ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated ${
-        active
-          ? "bg-primary/15 text-primary"
-          : "text-text-subtle hover:bg-bg-panel hover:text-text"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -125,71 +85,6 @@ function ComponentsTab() {
         )}
       </Panel.Body>
     </>
-  );
-}
-
-function ScenariosTab() {
-  const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
-  const loadScenario = useWorkshopStore((s) => s.loadScenario);
-
-  return (
-    <Panel.Body className="flex flex-col gap-2">
-      <p className="px-1 text-xs text-text-subtle">
-        Pick a problem to solve. Loading a scenario replaces the current
-        architecture with its starting point.
-      </p>
-      {SCENARIOS.map((scenario) => (
-        <ScenarioCard
-          key={scenario.id}
-          scenario={scenario}
-          active={scenario.id === activeScenarioId}
-          onSelect={() => loadScenario(scenario.id)}
-        />
-      ))}
-    </Panel.Body>
-  );
-}
-
-function ScenarioCard({
-  scenario,
-  active,
-  onSelect,
-}: {
-  scenario: Scenario;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onSelect();
-    }
-  };
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={handleKeyDown}
-      className={`flex flex-col gap-1.5 rounded-md border p-2.5 text-left transition-colors duration-fast ease-standard
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated
-        ${
-          active
-            ? "cursor-default border-primary/40 bg-primary/10"
-            : "cursor-pointer border-transparent hover:border-border-hover hover:bg-bg-panel"
-        }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-sm font-medium text-text">{scenario.title}</p>
-        {active && <Badge variant="primary">Active</Badge>}
-      </div>
-      <p className="text-[11px] text-text-subtle">
-        {"★".repeat(scenario.difficulty)}
-        {"☆".repeat(5 - scenario.difficulty)}
-      </p>
-      <p className="line-clamp-2 text-xs text-text-subtle">{scenario.story}</p>
-    </div>
   );
 }
 
@@ -252,6 +147,7 @@ function ComponentCard({
 
   return (
     <div
+      data-tour-id={`sidebar-component-${item.type}`}
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
@@ -260,12 +156,12 @@ function ComponentCard({
       onClick={activate}
       onKeyDown={handleKeyDown}
       className={`group flex items-start gap-2.5 rounded-md border border-transparent p-2 text-left
-        transition-colors duration-fast ease-standard
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated
+        transition-all duration-fast ease-standard
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated
         ${
           disabled
             ? "cursor-not-allowed opacity-50"
-            : "cursor-grab hover:border-border-hover hover:bg-bg-panel active:cursor-grabbing"
+            : "cursor-grab hover:-translate-y-0.5 hover:border-border-hover hover:bg-bg-panel active:translate-y-0 active:cursor-grabbing"
         }`}
     >
       <Icon className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden />
