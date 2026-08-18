@@ -30,6 +30,8 @@ import { PlaybackController } from "@/simulation/playback/PlaybackController";
 import type { PlaybackState } from "@/simulation/playback/PlaybackController";
 import { getScenario } from "@/scenarios";
 import type { Scenario } from "@/scenarios";
+import { recordAttempted } from "@/lib/problemProgress";
+import { DEFAULT_CONNECTION_LATENCY_MS } from "@/lib/simulationDefaults";
 
 /**
  * Visual node state, derived from the last simulation run's metrics —
@@ -86,12 +88,35 @@ interface WorkshopState {
   // that action's own doc for why it isn't precisely tracked past that.
   viewingOptimalSolution: boolean;
 
+  // Timed Challenge mode — the wall-clock timestamp (Date.now()) the
+  // current attempt started, or null when not in timed mode. Cleared by
+  // reset()/loadScenario() (any fresh scenario load exits timed mode by
+  // default — see loadScenario's own comment for the Restart-button
+  // exception that re-enters it).
+  timedModeStartedAt: number | null;
+
   // Scenario-level knobs. Traffic rate lives on the Client node's own
   // config instead (ENTITIES.md documents it as Client config) — these
   // two remain global, overridden by loadScenario when a scenario is
   // active (see workshopBridge.ts).
   scenarioDurationMs: number;
   connectionLatencyMs: number;
+
+  // Whether a scenario's budgetUsd factors into scoring at all — see
+  // scoreScenario's `ignoreBudget` option (scenarioScoring.ts). Global,
+  // like duration/connectionLatencyMs, not per-scenario: a student
+  // exploring without cost pressure wants that for whatever they're
+  // building right now, not a property baked into the scenario itself.
+  // Defaults on (existing behavior, unchanged unless a student opts out).
+  budgetCheckingEnabled: boolean;
+
+  // Whether the on-demand Components panel (ComponentSidebar) is open.
+  // Lives here rather than as local component state so the guided tour
+  // (TutorialRunner) can force it open for steps that need the real
+  // catalog list visible ("Drag or click X to add it") — see
+  // tutorialPlanner.ts's `requiresComponentsPanel`. Starts closed: the
+  // Workshop opens canvas-first by default (see ComponentSidebar.tsx).
+  componentsPanelOpen: boolean;
 
   onNodesChange: (changes: NodeChange<ArchitectureNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<ArchitectureEdge>[]) => void;
@@ -116,8 +141,15 @@ interface WorkshopState {
    */
   loadOptimalSolution: () => void;
 
+  /** Starts (or restarts) a Timed Challenge countdown for the currently active scenario. No-op if no scenario is active. */
+  startTimedChallenge: () => void;
+  /** Exits Timed Challenge mode without touching the canvas/scenario. */
+  clearTimedChallenge: () => void;
+
   setScenarioDurationMs: (durationMs: number) => void;
   setConnectionLatencyMs: (latencyMs: number) => void;
+  setBudgetCheckingEnabled: (enabled: boolean) => void;
+  setComponentsPanelOpen: (open: boolean) => void;
 
   runSimulation: () => void;
   /** Clears the last run's result/error and node statuses — leaves the architecture untouched. */
@@ -130,7 +162,11 @@ interface WorkshopState {
 }
 
 export const DEFAULT_SCENARIO_DURATION_MS = 10_000;
-export const DEFAULT_CONNECTION_LATENCY_MS = 5;
+// Re-exported for backward compatibility — the canonical definition (and
+// why every scenario/test must be tuned against it) lives in
+// simulationDefaults.ts so scoring/test code can import it without
+// pulling in this whole store module.
+export { DEFAULT_CONNECTION_LATENCY_MS };
 
 let nodeIdCounter = 0;
 
@@ -236,8 +272,11 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
 
   activeScenarioId: null,
   viewingOptimalSolution: false,
+  timedModeStartedAt: null,
   scenarioDurationMs: DEFAULT_SCENARIO_DURATION_MS,
   connectionLatencyMs: DEFAULT_CONNECTION_LATENCY_MS,
+  budgetCheckingEnabled: true,
+  componentsPanelOpen: false,
 
   onNodesChange: (changes) => {
     // React Flow's own Backspace/Delete handling (deleteKeyCode on
@@ -323,6 +362,8 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
 
   setScenarioDurationMs: (durationMs) => set({ scenarioDurationMs: durationMs }),
   setConnectionLatencyMs: (latencyMs) => set({ connectionLatencyMs: latencyMs }),
+  setBudgetCheckingEnabled: (enabled) => set({ budgetCheckingEnabled: enabled }),
+  setComponentsPanelOpen: (open) => set({ componentsPanelOpen: open }),
 
   reset: () => {
     nodeIdCounter = 0;
@@ -339,6 +380,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       cdnComparisons: null,
       activeScenarioId: null,
       viewingOptimalSolution: false,
+      timedModeStartedAt: null,
     });
   },
 
@@ -361,8 +403,18 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       cdnComparisons: null,
       activeScenarioId: scenario.id,
       viewingOptimalSolution: false,
+      // Any fresh scenario load exits timed mode by default — this is the
+      // one place a scenario-switch or a plain Restart both funnel
+      // through, and a switch to a *different* scenario must not leave a
+      // stale countdown running against the new one. The Restart path
+      // specifically (InspectorPanel.tsx's ScenarioBriefing) re-enters it
+      // immediately via startTimedChallenge() when the prior attempt was
+      // timed, so "Restart" mid-challenge reads as "fresh clock," not
+      // "silently exit timed mode."
+      timedModeStartedAt: null,
       scenarioDurationMs: scenario.durationMs,
     });
+    recordAttempted(scenario.id);
   },
 
   loadOptimalSolution: () => {
@@ -390,6 +442,13 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
     });
   },
 
+  startTimedChallenge: () => {
+    if (!get().activeScenarioId) return;
+    set({ timedModeStartedAt: Date.now() });
+  },
+
+  clearTimedChallenge: () => set({ timedModeStartedAt: null }),
+
   runSimulation: () => {
     set({ isSimulating: true, simulationError: null });
 
@@ -400,6 +459,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       durationMs: scenarioDurationMs,
       connectionLatencyMs,
       seed: activeScenario?.seed,
+      trafficPattern: activeScenario?.trafficPattern,
     });
     if (!built.ok) {
       set({ isSimulating: false, simulationError: built.error });
@@ -420,10 +480,13 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
     }));
 
     const packetSamples = computeEdgePacketSamples(edges, result);
-    const animatedEdges = edges.map((edge) => ({
-      ...edge,
-      data: { ...edge.data, packets: packetSamples[edge.id] },
-    }));
+    const animatedEdges = edges.map((edge) => {
+      const sample = packetSamples[edge.id];
+      return {
+        ...edge,
+        data: { ...edge.data, packets: sample },
+      };
+    });
 
     // For every CDN on the canvas, re-run the identical config with just
     // that CDN spliced out — same seed, same traffic, same everything

@@ -1,4 +1,4 @@
-import { ArrowMarker, DiagramBox } from "./primitives";
+import { ArrowMarker, DiagramBox, svgResponsiveProps } from "./primitives";
 
 /**
  * The three-level DNS server hierarchy (Root → TLD → Authoritative) from
@@ -38,7 +38,13 @@ export function DnsHierarchyDiagram() {
   const comBottom = { x: comCenter.x, y: tldY + tldH };
 
   return (
-    <svg viewBox="0 0 680 240" className="h-auto w-full text-text-muted" role="img" aria-label="DNS server hierarchy: Root delegates to TLD servers, which delegate to each domain's authoritative DNS server.">
+    <svg
+      viewBox="0 0 680 240"
+      {...svgResponsiveProps(680, 240)}
+      className="text-text-muted"
+      role="img"
+      aria-label="DNS server hierarchy: Root delegates to TLD servers, which delegate to each domain's authoritative DNS server."
+    >
       <ArrowMarker id={ARROW_ID} />
 
       {/* Root -> each TLD */}

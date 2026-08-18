@@ -1,9 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowMarker, DiagramArrow, DiagramBox } from "../primitives";
+import { ArrowMarker, DiagramArrow, DiagramBox, svgResponsiveProps } from "../primitives";
 import { useSteppedAnimation } from "../useSteppedAnimation";
 import { DiagramCaptionBar } from "../DiagramCaptionBar";
+import { getEntityCatalogItem } from "@/lib/entityCatalog";
+
+const ClientIcon = getEntityCatalogItem("client").icon;
+const DatabaseIcon = getEntityCatalogItem("database").icon;
+const CircuitBreakerIcon = getEntityCatalogItem("circuit_breaker").icon;
 
 /**
  * The three-state breaker (Closed → Open → Half-Open → Closed) from
@@ -114,7 +119,8 @@ export function CircuitBreakerStateMachineDiagram() {
   return (
     <svg
       viewBox={`0 0 660 ${VIEWBOX_HEIGHT}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(660, VIEWBOX_HEIGHT)}
+      className="text-text-muted"
       role="img"
       aria-label="Circuit breaker state machine: five consecutive failures trip the breaker open, every request then fails instantly without reaching the Database, and after a trip duration a single trial request probes for recovery and closes the breaker again."
     >
@@ -122,12 +128,13 @@ export function CircuitBreakerStateMachineDiagram() {
       <DiagramArrow x1={CLIENT.x + CLIENT.w} y1={clientCenter.y} x2={BREAKER.x} y2={clientCenter.y} markerId="circuit-breaker-arrow" />
       <DiagramArrow x1={BREAKER.x + BREAKER.w} y1={databaseCenter.y} x2={DATABASE.x} y2={databaseCenter.y} markerId="circuit-breaker-arrow" />
 
-      <DiagramBox x={CLIENT.x} y={CLIENT.y} width={CLIENT.w} height={CLIENT.h} lines={["Client"]} />
-      <DiagramBox x={DATABASE.x} y={DATABASE.y} width={DATABASE.w} height={DATABASE.h} lines={["Database"]} />
+      <DiagramBox x={CLIENT.x} y={CLIENT.y} width={CLIENT.w} height={CLIENT.h} lines={["Client"]} icon={ClientIcon} />
+      <DiagramBox x={DATABASE.x} y={DATABASE.y} width={DATABASE.w} height={DATABASE.h} lines={["Database"]} icon={DatabaseIcon} />
 
       {/* Circuit Breaker — a labeled box housing the state badge and the failure-streak slots. */}
       <rect x={BREAKER.x} y={BREAKER.y} width={BREAKER.w} height={BREAKER.h} rx={2} strokeWidth={1} className="fill-bg-elevated stroke-signal" />
-      <text x={BREAKER.x + 16} y={BREAKER.y + 22} className="fill-signal text-[11px] font-medium">
+      <CircuitBreakerIcon x={BREAKER.x + 16} y={BREAKER.y + 10} width={11} height={11} strokeWidth={2} className="text-signal" aria-hidden />
+      <text x={BREAKER.x + 33} y={BREAKER.y + 22} className="fill-signal text-[11px] font-medium">
         Circuit Breaker
       </text>
       <text x={BREAKER.x + 16} y={BREAKER.y + 38} className="fill-text-subtle text-[9.5px]">

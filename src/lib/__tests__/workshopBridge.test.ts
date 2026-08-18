@@ -97,6 +97,37 @@ describe("buildSimulationConfig", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("uses the Client's own requestRate as a constant pattern when no scenario traffic pattern is supplied", () => {
+    const nodes = [node("client", "client", "Client", { requestRate: 77 }), node("api", "api")];
+    const result = buildSimulationConfig(nodes, [edge("client", "api")], OPTIONS);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.config.scenario.trafficPattern).toEqual({ type: "constant", rate: 77 });
+    }
+  });
+
+  it("uses a scenario's own traffic pattern (burst/ramp) instead of the Client's requestRate, when supplied", () => {
+    // A scenario's given Client still carries a requestRate config value
+    // (for display/lock purposes), but a burst/ramp scenario's actual
+    // traffic shouldn't collapse to that single number — this is the
+    // fix for the bridge silently downgrading every scenario to
+    // constant-rate traffic regardless of what it declared.
+    const nodes = [node("client", "client", "Client", { requestRate: 999 }), node("api", "api")];
+    const result = buildSimulationConfig(nodes, [edge("client", "api")], {
+      ...OPTIONS,
+      trafficPattern: { type: "burst", rate: 50, interval: 10_000, duration: 1_000 },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.config.scenario.trafficPattern).toEqual({
+        type: "burst",
+        rate: 50,
+        interval: 10_000,
+        duration: 1_000,
+      });
+    }
+  });
+
   it("warns about a component the Client can never reach, but still runs", () => {
     const nodes = [
       node("client", "client"),

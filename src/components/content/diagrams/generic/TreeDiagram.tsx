@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ArrowMarker, DiagramBox } from "../primitives";
+import { ArrowMarker, DiagramBox, svgResponsiveProps } from "../primitives";
 import type { TreeNode } from "@/content/shared/lesson";
 
 /**
@@ -74,7 +74,13 @@ export function TreeDiagram({ root }: { root: TreeNode }) {
   const height = Math.max(...positions.map((p) => p.y)) + BOX_H + 12;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full text-text-muted" role="img" aria-label={`${root.label} hierarchy diagram.`}>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      {...svgResponsiveProps(width, height)}
+      className="text-text-muted"
+      role="img"
+      aria-label={`${root.label} hierarchy diagram.`}
+    >
       <ArrowMarker id={arrowId} />
 
       {edges.map((edge, i) => (

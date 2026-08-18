@@ -85,6 +85,42 @@
   --shadow-elevated: none;
 }
 
+/*
+ * Night Ops (PREVIEW) — an experimental third theme, not yet a default for
+ * anyone. Same warm-void philosophy as Trace but pushed cold: true black
+ * void instead of warm charcoal, and a hard saturated signal-yellow in
+ * place of copper. Reachable by cycling ThemeToggle. Deliberately dark
+ * only — there's no paper counterpart, since the whole point is testing
+ * whether the colder, harder read is worth adopting before it's wired into
+ * the light theme (or replaces the dark default) for real. See
+ * docs/BROWSER-CHECKS.md for what to verify.
+ */
+:root[data-theme="night-ops"] {
+  color-scheme: dark;
+
+  --color-bg: hsl(240 18% 3%);
+  --color-bg-elevated: hsl(228 15% 6%);
+  --color-bg-panel: hsl(230 12% 10%);
+  --color-border: hsl(240 7% 73% / 16%);
+  --color-border-hover: hsl(240 7% 73% / 28%);
+
+  --color-text: hsl(47 6% 93%);
+  --color-text-muted: hsl(46 8% 66%);
+  --color-text-subtle: hsl(45 6% 44%);
+
+  --color-signal: hsl(50 100% 50%);
+  --color-signal-hover: hsl(50 100% 56%);
+  --color-signal-active: hsl(50 100% 62%);
+
+  --color-status-healthy: hsl(158 60% 46%);
+  --color-status-degraded: hsl(39 100% 56%);
+  --color-status-critical: hsl(353 74% 56%);
+
+  --shadow-panel: none;
+  --shadow-dropdown: 0 8px 20px -6px rgb(0 0 0 / 0.6);
+  --shadow-elevated: none;
+}
+
 :root {
   /* ---- Surface roles ---- */
   --color-surface: var(--color-bg);

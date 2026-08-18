@@ -73,6 +73,10 @@ export const urlShortener: Scenario = {
   id: "url-shortener",
   title: "URL Shortener",
   difficulty: 1,
+  // Cache-fronted hot-key skew is the whole lesson (see header) — a
+  // small "system-design" capstone, not one entity's mechanism in
+  // isolation.
+  topics: ["caching", "system-design"],
   story:
     "A link-shortening service is popular because of a handful of viral posts — the same " +
     "few short links get clicked millions of times, while the long tail barely gets touched " +
@@ -87,8 +91,25 @@ export const urlShortener: Scenario = {
       position: { x: 80, y: 200 },
       config: { requestRate: 400, keyPoolSize: 30 },
     },
+    {
+      id: "api",
+      type: "api",
+      label: "API Server",
+      position: { x: 400, y: 200 },
+      config: {},
+    },
+    {
+      id: "db",
+      type: "database",
+      label: "Database",
+      position: { x: 720, y: 200 },
+      config: {},
+    },
   ],
-  startingConnections: [],
+  startingConnections: [
+    { source: "client", target: "api" },
+    { source: "api", target: "db" },
+  ],
   // Both fields describe the fixed shape of the demand itself: how much
   // traffic arrives, and how concentrated it is on a small set of hot
   // links (see this file's header comment for why keyPoolSize is locked
@@ -164,6 +185,26 @@ export const urlShortener: Scenario = {
     summary:
       "A cache sized to hold the Client's entire key pool — so nearly every request is answered " +
       "without ever reaching the database — in front of a minimally-sized pool underneath it.",
+    editorial: [
+      "The traffic here is deliberately skewed: a handful of viral links get clicked far more " +
+        "than everything else combined. That skew is exactly what a cache is built for — a " +
+        "small cache can absorb a disproportionate share of requests when the traffic itself " +
+        "is this lopsided.",
+      "Raw sizing alone (a bigger API Server, a bigger database connection pool, tighter " +
+        "processing times) plateaus quickly. It can get an unconfigured build to pass, but it " +
+        "can't touch the real cost driver: this app's pricing bills per request that actually " +
+        "reaches the database, and sizing alone never reduces how many requests that is.",
+      "A cache in front of the database — sized to hold the full key pool, so essentially " +
+        "every hot link is a cache hit — cuts the *volume* of requests reaching the database, " +
+        "which is the lever raw sizing can't pull. That's what separates the 2-star and " +
+        "3-star builds here: same functional shape, meaningfully cheaper once the cache is " +
+        "doing its job.",
+      "A tempting shortcut that doesn't actually solve this scenario: skipping the API Server " +
+        "and wiring the Client straight to the Cache/Database. It looks cheaper on paper, but " +
+        "it isn't a real architecture — production traffic never reaches a database directly " +
+        "without an application tier in front of it, which is why this app's scoring " +
+        "explicitly rejects any build shaped that way, no matter how well it scores otherwise.",
+    ],
     entities: [
       {
         id: "client",

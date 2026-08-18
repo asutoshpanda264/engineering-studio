@@ -8,6 +8,9 @@ import { TreeDiagram } from "@/components/content/diagrams/generic/TreeDiagram";
 import { ArchitectureDiagram } from "@/components/content/diagrams/generic/ArchitectureDiagram";
 import { CompareDiagram } from "@/components/content/diagrams/generic/CompareDiagram";
 import { UmlDiagram } from "@/components/content/diagrams/generic/UmlDiagram";
+import { TimelineDiagram } from "@/components/content/diagrams/generic/TimelineDiagram";
+import { VennDiagram } from "@/components/content/diagrams/generic/VennDiagram";
+import { GraphDiagram } from "@/components/content/diagrams/generic/GraphDiagram";
 
 /**
  * Tiny inline-markdown subset for body text authored in `src/content/`:
@@ -123,6 +126,27 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
       return (
         <FigureFrame>
           <UmlDiagram relationships={block.relationships} />
+        </FigureFrame>
+      );
+
+    case "timeline":
+      return (
+        <FigureFrame>
+          <TimelineDiagram steps={block.steps} />
+        </FigureFrame>
+      );
+
+    case "venn":
+      return (
+        <FigureFrame>
+          <VennDiagram panels={block.panels} />
+        </FigureFrame>
+      );
+
+    case "graph":
+      return (
+        <FigureFrame>
+          <GraphDiagram nodes={block.nodes} edges={block.edges} />
         </FigureFrame>
       );
 

@@ -4,10 +4,34 @@
 import { describe, expect, it } from "vitest";
 import { scoreScenario } from "../scenarioScoring";
 import { movieTicketBooking } from "@/scenarios/movieTicketBooking";
+import { priceAlertNotifications } from "@/scenarios/priceAlertNotifications";
+import { internalAdminDashboard } from "@/scenarios/internalAdminDashboard";
+import { trendingHashtagsFeed } from "@/scenarios/trendingHashtagsFeed";
+import { iotSensorIngestion } from "@/scenarios/iotSensorIngestion";
+import { concertTicketDrop } from "@/scenarios/concertTicketDrop";
+import { slowSearchEndpoint } from "@/scenarios/slowSearchEndpoint";
+import { viralVideoComments } from "@/scenarios/viralVideoComments";
+import { adAuctionBidding } from "@/scenarios/adAuctionBidding";
+import { checkoutTimeoutMystery } from "@/scenarios/checkoutTimeoutMystery";
+import { recipeOfTheDay } from "@/scenarios/recipeOfTheDay";
+import { newsletterSendConfirmations } from "@/scenarios/newsletterSendConfirmations";
+import { weatherForecastApi } from "@/scenarios/weatherForecastApi";
+import { warehouseInventorySync } from "@/scenarios/warehouseInventorySync";
+import { liveSportsScoreboard } from "@/scenarios/liveSportsScoreboard";
+import { rideHailingLocationPings } from "@/scenarios/rideHailingLocationPings";
+import { flightStatusPushUpdates } from "@/scenarios/flightStatusPushUpdates";
+import { globalLeaderboardUpdates } from "@/scenarios/globalLeaderboardUpdates";
+import { couponCodeRedemption } from "@/scenarios/couponCodeRedemption";
+import { fitnessTrackerStepSync } from "@/scenarios/fitnessTrackerStepSync";
+import { apiGatewaySlowdown } from "@/scenarios/apiGatewaySlowdown";
+import { wildfireAlertBroadcast } from "@/scenarios/wildfireAlertBroadcast";
+import { trendingProductSearch } from "@/scenarios/trendingProductSearch";
+import { publicTransitTrackerApi } from "@/scenarios/publicTransitTrackerApi";
 import { runSimulation } from "@/simulation/engine/Simulator";
 import type { ConnectionConfig, EntityType, SimulationConfig } from "@/simulation/types";
 import type { Scenario } from "@/scenarios/types";
 import type { ArchitectureNode } from "@/store/workshopStore";
+import { DEFAULT_CONNECTION_LATENCY_MS } from "@/lib/simulationDefaults";
 
 function fakeNode(id: string, type: EntityType, config: Record<string, unknown>): ArchitectureNode {
   return {
@@ -18,15 +42,27 @@ function fakeNode(id: string, type: EntityType, config: Record<string, unknown>)
   } as unknown as ArchitectureNode;
 }
 
-function run(scenario: Scenario, nodes: ArchitectureNode[], connections: ConnectionConfig[]) {
+function run(
+  scenario: Scenario,
+  nodes: ArchitectureNode[],
+  connections: ConnectionConfig[],
+  ignoreBudget = false
+) {
+  // Mirrors workshopBridge.ts's buildSimulationConfig, which applies
+  // DEFAULT_CONNECTION_LATENCY_MS to every edge *unconditionally* —
+  // ignoring whatever latencyMs a connection is authored with — since
+  // that's what a real student's live simulation always actually uses.
+  // A scenario "verified against the real engine" at 0ms was never
+  // actually verified against what ships; see simulationDefaults.ts.
+  const liveConnections = connections.map((c) => ({ ...c, latencyMs: DEFAULT_CONNECTION_LATENCY_MS }));
   const config: SimulationConfig = {
     entities: nodes.map((n) => ({ id: n.id, type: n.data.entityType, position: n.position, config: n.data.config })),
-    connections,
+    connections: liveConnections,
     scenario: { id: scenario.id, title: scenario.title, trafficPattern: scenario.trafficPattern, durationMs: scenario.durationMs },
     options: { seed: scenario.seed },
   };
   const result = runSimulation(config);
-  return { result, score: scoreScenario(scenario, result, nodes, connections) };
+  return { result, score: scoreScenario(scenario, result, nodes, liveConnections, ignoreBudget) };
 }
 
 describe("scoreScenario — legendary tier", () => {
@@ -37,6 +73,7 @@ describe("scoreScenario — legendary tier", () => {
     id: "test-legendary",
     title: "Test Legendary",
     difficulty: 1,
+    topics: ["system-design"],
     story: "",
     startingEntities: [
       { id: "client", type: "client", label: "Client", position: { x: 0, y: 0 }, config: { requestRate: 100 } },
@@ -56,6 +93,7 @@ describe("scoreScenario — legendary tier", () => {
     learningGoals: [],
     optimalSolution: {
       summary: "test",
+      editorial: ["test"],
       entities: [
         { id: "client", type: "client", label: "Client", position: { x: 0, y: 0 }, config: { requestRate: 100 } },
         { id: "api", type: "api", label: "API Server", position: { x: 0, y: 0 }, config: { maxConcurrent: 20, maxQueueLength: 50, processingTimeMs: 5 } },
@@ -127,6 +165,38 @@ describe("scoreScenario — legendary tier", () => {
   });
 });
 
+describe("priceAlertNotifications's own optimalSolution", () => {
+  // Regression guard for the numbers recorded in
+  // priceAlertNotifications.ts's own header comment. Also the one test in
+  // this codebase that exercises a `burst` (not `constant`) trafficPattern
+  // through the full scoring pipeline — a real check that
+  // `computeOptimalScore` (scenarioScoring.ts) actually re-simulates with
+  // the scenario's own pattern, not a silently-substituted constant rate.
+  it("the shipped reference solution clears every gate at 2 stars, not legendary against itself", () => {
+    const solution = priceAlertNotifications.optimalSolution!;
+    const nodes = solution.entities.map((e) => fakeNode(e.id, e.type, e.config));
+    const { score } = run(priceAlertNotifications, nodes, solution.connections);
+
+    expect(score.gatesPassed).toBe(true);
+    expect(score.stars).toBe(2);
+    expect(score.legendary).toBe(false);
+  });
+
+  it("an unmodified, unconfigured build fails on latency, not just capacity", () => {
+    const nodes = [
+      fakeNode("client", "client", { requestRate: 67 }),
+      fakeNode("api", "api", {}),
+      fakeNode("db", "database", {}),
+    ];
+    const connections: ConnectionConfig[] = [
+      { source: "client", target: "api", latencyMs: 5 },
+      { source: "api", target: "db", latencyMs: 2 },
+    ];
+    const { score } = run(priceAlertNotifications, nodes, connections);
+    expect(score.gatesPassed).toBe(false);
+  });
+});
+
 describe("movieTicketBooking's own optimalSolution", () => {
   // Regression guard for the numbers recorded in movieTicketBooking.ts's
   // own header comment — if this ever stops passing at 3 stars, the
@@ -164,5 +234,99 @@ describe("movieTicketBooking's own optimalSolution", () => {
     expect(score.gatesPassed).toBe(false);
     expect(score.stars).toBe(0);
     expect(score.legendary).toBe(false);
+  });
+});
+
+/**
+ * Regression guard for the numbers recorded in each of the 8-scenario
+ * validation wave's own header comments — factored out the same way
+ * `describeScenarioBasics` is in validator.test.ts, instead of
+ * copy-pasting this block 8 more times.
+ */
+function describeOptimalSolutionRegression(scenario: Scenario, expectedStars: 0 | 1 | 2 | 3 | 5) {
+  it(`the shipped reference solution clears every gate at ${expectedStars} star(s), not legendary against itself`, () => {
+    const solution = scenario.optimalSolution!;
+    const nodes = solution.entities.map((e) => fakeNode(e.id, e.type, e.config));
+    const { score } = run(scenario, nodes, solution.connections);
+
+    expect(score.gatesPassed).toBe(true);
+    expect(score.stars).toBe(expectedStars);
+    expect(score.legendary).toBe(false);
+  });
+}
+
+describe("8-scenario validation wave — each optimalSolution's own regression guard", () => {
+  describeOptimalSolutionRegression(internalAdminDashboard, 2);
+  describeOptimalSolutionRegression(trendingHashtagsFeed, 2);
+  describeOptimalSolutionRegression(iotSensorIngestion, 2);
+  describeOptimalSolutionRegression(concertTicketDrop, 2);
+  describeOptimalSolutionRegression(slowSearchEndpoint, 2);
+  describeOptimalSolutionRegression(viralVideoComments, 1);
+  describeOptimalSolutionRegression(adAuctionBidding, 1);
+  describeOptimalSolutionRegression(checkoutTimeoutMystery, 2);
+});
+
+describe("second 8-scenario wave — each optimalSolution's own regression guard", () => {
+  describeOptimalSolutionRegression(recipeOfTheDay, 2);
+  describeOptimalSolutionRegression(newsletterSendConfirmations, 2);
+  describeOptimalSolutionRegression(weatherForecastApi, 2);
+  describeOptimalSolutionRegression(warehouseInventorySync, 2);
+  describeOptimalSolutionRegression(liveSportsScoreboard, 2);
+  describeOptimalSolutionRegression(rideHailingLocationPings, 2);
+  describeOptimalSolutionRegression(flightStatusPushUpdates, 2);
+  describeOptimalSolutionRegression(globalLeaderboardUpdates, 1);
+});
+
+describe("third scenario wave — each optimalSolution's own regression guard", () => {
+  describeOptimalSolutionRegression(couponCodeRedemption, 1);
+  describeOptimalSolutionRegression(fitnessTrackerStepSync, 2);
+  describeOptimalSolutionRegression(apiGatewaySlowdown, 2);
+  describeOptimalSolutionRegression(wildfireAlertBroadcast, 2);
+  describeOptimalSolutionRegression(trendingProductSearch, 1);
+  describeOptimalSolutionRegression(publicTransitTrackerApi, 2);
+});
+
+describe("scoreScenario — ignoreBudget option (the budget/cost checking toggle)", () => {
+  // recipeOfTheDay's own bare starting scaffold (schema-default API+DB,
+  // no cache — see its header) is a real, already-verified case that
+  // clears success/latency functionally but fails on cost alone ($461 >
+  // its $450 budget) — exactly the shape needed to prove ignoreBudget
+  // does something real, not a synthetic fixture.
+  function bareRecipeOfTheDay() {
+    const nodes = recipeOfTheDay.startingEntities.map((e) => fakeNode(e.id, e.type, e.config));
+    return { nodes, connections: recipeOfTheDay.startingConnections };
+  }
+
+  it("defaults to counting budget (unchanged existing behavior) when ignoreBudget is omitted", () => {
+    const { nodes, connections } = bareRecipeOfTheDay();
+    const { score } = run(recipeOfTheDay, nodes, connections);
+    expect(score.budgetPassed).toBe(false);
+    expect(score.gatesPassed).toBe(false);
+  });
+
+  it("ignores the budget gate and drops cost from the composite when ignoreBudget is true", () => {
+    const { nodes, connections } = bareRecipeOfTheDay();
+    const { score } = run(recipeOfTheDay, nodes, connections, true);
+    expect(score.budgetUsd).toBeNull();
+    expect(score.budgetPassed).toBe(true);
+    expect(score.gatesPassed).toBe(true);
+    // Cost dropped out of the composite entirely — same "budgetUsd ===
+    // null contributes a perfect 1/3" path a scenario with no budget at
+    // all already takes (scenarioScoring.ts's costScore branch).
+    expect(score.composite).toBeGreaterThan(0);
+  });
+
+  it("keeps the reference solution's own score consistent with the same toggle — no false 'legendary' from comparing a cost-free build against a cost-counting reference", () => {
+    const { nodes, connections } = bareRecipeOfTheDay();
+    const { score: withBudget } = run(recipeOfTheDay, nodes, connections, false);
+    const { score: withoutBudget } = run(recipeOfTheDay, nodes, connections, true);
+
+    // Same build, opposite toggle: gatesPassed flips, and optimalComposite
+    // (the reference build's own score) must have been recomputed under
+    // the matching setting each time, not read from a stale cache shared
+    // across the two.
+    expect(withBudget.gatesPassed).toBe(false);
+    expect(withoutBudget.gatesPassed).toBe(true);
+    expect(withoutBudget.optimalComposite).not.toBeNull();
   });
 });

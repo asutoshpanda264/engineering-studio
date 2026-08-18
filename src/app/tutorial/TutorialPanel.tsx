@@ -3,11 +3,12 @@ import { Compass, Pause, Play, RefreshCw, X } from "lucide-react";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import type { EntityType } from "@/simulation/types";
 import type { TourStep } from "@/components/tour/types";
+import { useWorkshopStore } from "@/store/workshopStore";
 
 /**
- * Fixed top-left of the canvas (past the component sidebar's width), on
- * top of everything else `/tutorial` renders — the one place a tutorial
- * ever starts, switches, pauses, or resumes from. Two modes:
+ * Fixed top-left of the canvas, on top of everything else `/tutorial`
+ * renders — the one place a tutorial ever starts, switches, pauses, or
+ * resumes from. Two modes:
  *
  * - No target picked: an entity picker (Core Flow featured, then every
  *   catalog entry). Non-modal on purpose — the canvas behind it stays
@@ -21,7 +22,7 @@ import type { TourStep } from "@/components/tour/types";
  *
  * Both states also carry an "Exit tutorial" link back to `/workshop` —
  * `/tutorial` is otherwise a one-way door (WorkshopHeader's own nav has
- * no link back), and loading a scenario from the header's Scenarios menu
+ * no link back), and loading a scenario from the header's Workshop menu
  * doesn't navigate away either, so without this the guide overlay would
  * just sit on top of the scenario with no way to dismiss it for good.
  * Distinct from "choose a different tutorial": that one stays on
@@ -29,11 +30,16 @@ import type { TourStep } from "@/components/tour/types";
  * `WorkshopShell` is the same component both routes render, the canvas
  * (zustand store, not route state) is untouched by the navigation.
  *
- * Deliberately offset past `ComponentSidebar`'s `w-72` instead of sitting
- * at `left-4`: the picker lists the same catalog the sidebar does, and a
+ * Offset past `ComponentSidebar`'s docked list *only while that list is
+ * actually on screen* — it lists the same catalog the sidebar does, and a
  * click on each does something different (pick a tutorial target vs.
- * actually add a node) — stacking two lookalike lists in the same spot
- * made it a coin flip which one you'd hit.
+ * actually add a node), so stacking two lookalike lists in the same spot
+ * is a coin flip which one you'd hit. ComponentSidebar is on-demand now
+ * (closed by default), so that collision only exists when its panel is
+ * genuinely open — otherwise this sits at the true left edge instead of
+ * leaving a dead gap where a permanent dock used to be. `/tutorial` always
+ * forces the plain list (`WorkshopShell`'s `forceComponentsList` — see its
+ * own doc comment for why), so no theme check is needed here.
  */
 export function TutorialPanel({
   activeTarget,
@@ -50,10 +56,13 @@ export function TutorialPanel({
   onTogglePaused: () => void;
   onChooseAnother: () => void;
 }) {
+  const componentsPanelOpen = useWorkshopStore((s) => s.componentsPanelOpen);
+  const leftOffset = componentsPanelOpen ? "left-[20rem]" : "left-3";
+
   if (activeTarget && currentStep) {
     const catalogItem = ENTITY_CATALOG.find((item) => item.type === activeTarget);
     return (
-      <div className="pointer-events-auto fixed left-[19rem] top-20 z-40 flex w-72 flex-col gap-2 border border-border bg-bg-elevated p-3 shadow-dropdown">
+      <div className={`pointer-events-auto fixed ${leftOffset} top-20 z-40 flex w-72 flex-col gap-2 border border-border bg-bg-elevated p-3 shadow-dropdown`}>
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-subtle">
             <Compass className="size-3.5 text-signal" aria-hidden />
@@ -108,7 +117,7 @@ export function TutorialPanel({
   const modules = ENTITY_CATALOG.filter((item) => item.phase === 2);
 
   return (
-    <div className="pointer-events-auto fixed left-[19rem] top-20 z-40 flex max-h-[calc(100vh-6rem)] w-72 flex-col border border-border bg-bg-elevated shadow-dropdown">
+    <div className={`pointer-events-auto fixed ${leftOffset} top-20 z-40 flex max-h-[calc(100vh-6rem)] w-72 flex-col border border-border bg-bg-elevated shadow-dropdown`}>
       <div className="flex items-center justify-between gap-1.5 border-b border-border px-3 py-2.5">
         <span className="flex items-center gap-1.5">
           <Compass className="size-4 text-signal" aria-hidden />

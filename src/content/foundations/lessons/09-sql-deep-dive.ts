@@ -211,6 +211,15 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
           code: "SELECT\n    u.name          as customer,\n    r.name          as restaurant,\n    oi.dish_name,\n    oi.quantity,\n    oi.price,\n    o.total,\n    o.status\nFROM orders o\nINNER JOIN users u        ON o.user_id = u.user_id\nINNER JOIN restaurants r  ON o.restaurant_id = r.restaurant_id\nINNER JOIN order_items oi ON o.order_id = oi.order_id\nWHERE o.order_id = 9981;",
         },
         {
+          kind: "venn",
+          panels: [
+            { title: "INNER JOIN", subtitle: "only matching rows", leftLabel: "users", rightLabel: "orders", highlight: "overlap" },
+            { title: "LEFT JOIN", subtitle: "all of users + matches", leftLabel: "users", rightLabel: "orders", highlight: "left" },
+            { title: "RIGHT JOIN", subtitle: "all of orders + matches", leftLabel: "users", rightLabel: "orders", highlight: "right" },
+            { title: "FULL JOIN", subtitle: "everything from both", leftLabel: "users", rightLabel: "orders", highlight: "all" },
+          ],
+        },
+        {
           kind: "table",
           headers: ["Join type", "Notation", "Result"],
           rows: [

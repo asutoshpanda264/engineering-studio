@@ -44,10 +44,52 @@ export const MESSAGE_QUEUES: FoundationLesson = {
       id: "the-problem",
       heading: "The problem message queues solve",
       blocks: [
-        { kind: "paragraph", text: "Problem 1: Tight Coupling. Without queues, services call each other directly:" },
+        {
+          kind: "compare",
+          panels: [
+            {
+              title: "Direct calls",
+              nodes: [
+                { id: "direct-order", label: "Order Service", col: 0, row: 2, entityType: "api" },
+                { id: "direct-sms", label: "SMS Service", col: 1, row: 0, entityType: "api" },
+                { id: "direct-email", label: "Email Service", col: 1, row: 1, entityType: "api" },
+                { id: "direct-restaurant", label: "Restaurant Service", col: 1, row: 2, entityType: "api" },
+                { id: "direct-analytics", label: "Analytics Service", col: 1, row: 3, entityType: "api" },
+                { id: "direct-loyalty", label: "Loyalty Service", col: 1, row: 4, entityType: "api" },
+              ],
+              edges: [
+                { from: "direct-order", to: "direct-sms" },
+                { from: "direct-order", to: "direct-email" },
+                { from: "direct-order", to: "direct-restaurant" },
+                { from: "direct-order", to: "direct-analytics" },
+                { from: "direct-order", to: "direct-loyalty" },
+              ],
+            },
+            {
+              title: "Via queue",
+              nodes: [
+                { id: "queued-order", label: "Order Service", col: 0, row: 1, tone: "healthy", entityType: "api" },
+                { id: "queued-queue", label: "Queue", col: 1, row: 1, entityType: "message_queue" },
+                { id: "queued-sms", label: "SMS Service", sublabel: "processes when ready", col: 2, row: 0, entityType: "api" },
+                { id: "queued-email", label: "Email Service", sublabel: "processes when ready", col: 2, row: 1, entityType: "api" },
+                { id: "queued-analytics", label: "Analytics", sublabel: "processes when ready", col: 2, row: 2, entityType: "api" },
+              ],
+              edges: [
+                { from: "queued-order", to: "queued-queue", tone: "healthy" },
+                { from: "queued-queue", to: "queued-sms" },
+                { from: "queued-queue", to: "queued-email" },
+                { from: "queued-queue", to: "queued-analytics" },
+              ],
+            },
+          ],
+        },
         {
           kind: "paragraph",
-          text: "What if SMS Service is down? Order Service crashes or returns an error, the user's order fails — even though the order WAS placed successfully. Services are tightly coupled. One failure cascades everywhere.",
+          text: "Without a queue (left), Order Service calls SMS, Email, Restaurant, Analytics, and Loyalty services directly and waits on all of them. With a queue (right), it hands off one message and moves on. That single change fixes three separate problems.",
+        },
+        {
+          kind: "paragraph",
+          text: "Problem 1: Tight Coupling. What if SMS Service is down? Order Service crashes or returns an error, the user's order fails — even though the order WAS placed successfully. One failure cascades everywhere.",
         },
         { kind: "paragraph", text: "Problem 2: Traffic Spikes." },
         {
@@ -69,46 +111,6 @@ export const MESSAGE_QUEUES: FoundationLesson = {
             ["Updating analytics", "slow (complex computation)"],
           ],
         },
-        { kind: "paragraph", text: "The user shouldn't wait for slow operations to complete. Message queues solve all three:" },
-        {
-          kind: "compare",
-          panels: [
-            {
-              title: "Direct calls",
-              nodes: [
-                { id: "direct-order", label: "Order Service", col: 0, row: 2 },
-                { id: "direct-sms", label: "SMS Service", col: 1, row: 0 },
-                { id: "direct-email", label: "Email Service", col: 1, row: 1 },
-                { id: "direct-restaurant", label: "Restaurant Service", col: 1, row: 2 },
-                { id: "direct-analytics", label: "Analytics Service", col: 1, row: 3 },
-                { id: "direct-loyalty", label: "Loyalty Service", col: 1, row: 4 },
-              ],
-              edges: [
-                { from: "direct-order", to: "direct-sms" },
-                { from: "direct-order", to: "direct-email" },
-                { from: "direct-order", to: "direct-restaurant" },
-                { from: "direct-order", to: "direct-analytics" },
-                { from: "direct-order", to: "direct-loyalty" },
-              ],
-            },
-            {
-              title: "Via queue",
-              nodes: [
-                { id: "queued-order", label: "Order Service", col: 0, row: 1, tone: "healthy" },
-                { id: "queued-queue", label: "Queue", col: 1, row: 1 },
-                { id: "queued-sms", label: "SMS Service", sublabel: "processes when ready", col: 2, row: 0 },
-                { id: "queued-email", label: "Email Service", sublabel: "processes when ready", col: 2, row: 1 },
-                { id: "queued-analytics", label: "Analytics", sublabel: "processes when ready", col: 2, row: 2 },
-              ],
-              edges: [
-                { from: "queued-order", to: "queued-queue", tone: "healthy" },
-                { from: "queued-queue", to: "queued-sms" },
-                { from: "queued-queue", to: "queued-email" },
-                { from: "queued-queue", to: "queued-analytics" },
-              ],
-            },
-          ],
-        },
         {
           kind: "paragraph",
           text: "Order Service completes in 50ms — everything else happens asynchronously. If Email Service is down, messages wait in the queue; when it recovers, it processes the backlog.",
@@ -123,9 +125,9 @@ export const MESSAGE_QUEUES: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "producer", label: "Producer", sublabel: "Order Service", col: 0, row: 0 },
-            { id: "queue", label: "Queue", sublabel: "Message Broker", col: 1, row: 0 },
-            { id: "consumer", label: "Consumer", sublabel: "Email Service", col: 2, row: 0 },
+            { id: "producer", label: "Producer", sublabel: "Order Service", col: 0, row: 0, entityType: "api" },
+            { id: "queue", label: "Queue", sublabel: "Message Broker", col: 1, row: 0, entityType: "message_queue" },
+            { id: "consumer", label: "Consumer", sublabel: "Email Service", col: 2, row: 0, entityType: "api" },
           ],
           edges: [
             { from: "producer", to: "queue", label: "sends message" },
@@ -165,16 +167,6 @@ export const MESSAGE_QUEUES: FoundationLesson = {
       id: "queue-vs-topic",
       heading: "Queue vs topic — two delivery models",
       blocks: [
-        { kind: "paragraph", text: "Point-to-Point (Queue Model). One message → processed by exactly ONE consumer." },
-        {
-          kind: "paragraph",
-          text: "Used for: task queues, job processing, one-to-one work distribution. Order placed → [email queue] → Email Worker (one worker sends one email).",
-        },
-        { kind: "paragraph", text: "Publish-Subscribe (Topic Model). One message → delivered to ALL subscribers." },
-        {
-          kind: "paragraph",
-          text: "Used for: event broadcasting, notifications, fan-out patterns.",
-        },
         {
           kind: "compare",
           panels: [
@@ -182,7 +174,7 @@ export const MESSAGE_QUEUES: FoundationLesson = {
               title: "Queue — point to point",
               nodes: [
                 { id: "qvt-q-producer", label: "Producer", col: 0, row: 1 },
-                { id: "qvt-q-queue", label: "Queue", col: 1, row: 1 },
+                { id: "qvt-q-queue", label: "Queue", col: 1, row: 1, entityType: "message_queue" },
                 { id: "qvt-q-a", label: "Consumer A", col: 2, row: 0, tone: "healthy" },
                 { id: "qvt-q-b", label: "Consumer B", col: 2, row: 1 },
                 { id: "qvt-q-c", label: "Consumer C", col: 2, row: 2 },
@@ -198,7 +190,7 @@ export const MESSAGE_QUEUES: FoundationLesson = {
               title: "Topic — pub/sub",
               nodes: [
                 { id: "qvt-t-producer", label: "Producer", col: 0, row: 1 },
-                { id: "qvt-t-topic", label: "Topic", col: 1, row: 1 },
+                { id: "qvt-t-topic", label: "Topic", col: 1, row: 1, entityType: "message_queue" },
                 { id: "qvt-t-a", label: "Consumer A", col: 2, row: 0, tone: "healthy" },
                 { id: "qvt-t-b", label: "Consumer B", col: 2, row: 1, tone: "healthy" },
                 { id: "qvt-t-c", label: "Consumer C", col: 2, row: 2, tone: "healthy" },
@@ -213,20 +205,20 @@ export const MESSAGE_QUEUES: FoundationLesson = {
           ],
           transitionLabel: ["One consumer gets each message", "vs. ALL consumers get each message"],
         },
+        {
+          kind: "paragraph",
+          text: "Point-to-Point (Queue Model) — used for task queues, job processing, one-to-one work distribution. Order placed → [email queue] → Email Worker (one worker sends one email).",
+        },
+        {
+          kind: "paragraph",
+          text: "Publish-Subscribe (Topic Model) — used for event broadcasting, notifications, fan-out patterns.",
+        },
       ],
     },
     {
       id: "delivery-guarantees",
       heading: "Message queue guarantees",
       blocks: [
-        {
-          kind: "paragraph",
-          text: "Different queues offer different guarantees. Understanding them is critical for system design.",
-        },
-        { kind: "paragraph", text: "At-Most-Once: message delivered 0 or 1 times. Might be lost. Never duplicated. Use when losing a message is acceptable (metrics, analytics)." },
-        { kind: "paragraph", text: "At-Least-Once (most common): message delivered 1 or more times. Might be duplicated. Never lost. Consumer must handle duplicates (idempotent processing). Use when losing a message is NOT acceptable (orders, payments)." },
-        { kind: "paragraph", text: "Exactly-Once (hardest to implement): message delivered exactly 1 time. Not lost, not duplicated. Very expensive to implement, rare in practice. Use when strict financial accuracy is required." },
-        { kind: "paragraph", text: "Why At-Least-Once requires idempotent consumers:" },
         {
           kind: "flow",
           steps: [
@@ -238,6 +230,13 @@ export const MESSAGE_QUEUES: FoundationLesson = {
             { title: "Consumer sends email AGAIN", detail: "user gets 2 emails", tone: "critical" },
           ],
         },
+        {
+          kind: "paragraph",
+          text: "That's the failure mode At-Least-Once delivery creates without an idempotent consumer — and it's the most common of three guarantee levels different queues offer:",
+        },
+        { kind: "paragraph", text: "At-Most-Once: message delivered 0 or 1 times. Might be lost. Never duplicated. Use when losing a message is acceptable (metrics, analytics)." },
+        { kind: "paragraph", text: "At-Least-Once (most common): message delivered 1 or more times. Might be duplicated. Never lost. Consumer must handle duplicates (idempotent processing). Use when losing a message is NOT acceptable (orders, payments)." },
+        { kind: "paragraph", text: "Exactly-Once (hardest to implement): message delivered exactly 1 time. Not lost, not duplicated. Very expensive to implement, rare in practice. Use when strict financial accuracy is required." },
         {
           kind: "paragraph",
           text: "Solution: idempotent consumer. Before sending email, check: \"Have I already processed order_9981?\" If yes → skip (don't send duplicate). If no → send and mark as processed.",
@@ -253,29 +252,15 @@ export const MESSAGE_QUEUES: FoundationLesson = {
       id: "dead-letter-queue",
       heading: "Dead Letter Queue (DLQ)",
       blocks: [
-        { kind: "paragraph", text: "What happens when a message keeps failing to process?" },
-        {
-          kind: "flow",
-          steps: [
-            { title: "Message: \"Send email to invalid_email@@broken\"" },
-            { title: "Consumer tries to process: fails", tone: "critical" },
-            { title: "Consumer NACKs", detail: "negative acknowledgment" },
-            { title: "Broker redelivers: fails", tone: "critical" },
-            { title: "Redelivers again: fails... forever?", tone: "critical" },
-          ],
-        },
-        { kind: "paragraph", text: "Solution: Dead Letter Queue. After N failed attempts, move the message to a separate DLQ." },
         {
           kind: "paragraph",
-          text: "Operations team monitors the DLQ: investigate why messages failed, fix the bug, replay messages from the DLQ.",
+          text: "What happens when a message keeps failing to process — say, \"send email to invalid_email@@broken\"? The consumer tries, fails, and NACKs. The broker redelivers it. It fails again. Redelivered again. Without a limit, that repeats forever: one bad message blocks the queue (or a worker pool burns cycles retrying it endlessly).",
         },
+        { kind: "paragraph", text: "Solution: Dead Letter Queue. After N failed attempts, move the message to a separate DLQ — the ops team monitors it, investigates why messages failed, fixes the bug, and replays them." },
         {
-          kind: "architecture",
-          nodes: [
-            { id: "dlq-order-queue", label: "Order Queue", sublabel: "[msg1] [msg2] [msg3_broken] [msg4] [msg5]", col: 0, row: 0 },
-            { id: "dlq-dlq", label: "Dead Letter Queue", sublabel: "[msg3_broken] ← ops team investigates", col: 1, row: 0, tone: "critical" },
-          ],
-          edges: [{ from: "dlq-order-queue", to: "dlq-dlq", label: "msg3_broken fails 3 times" }],
+          kind: "figure",
+          diagram: "mq-dead-letter-queue",
+          caption: "msg3 fails 3 attempts in a row, gets moved out of the order queue into the DLQ, then replayed once ops fixes the bug",
         },
         {
           kind: "insight",
@@ -291,7 +276,7 @@ export const MESSAGE_QUEUES: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "work-queue", label: "Job Queue", col: 1, row: 0 },
+            { id: "work-queue", label: "Job Queue", col: 1, row: 0, entityType: "message_queue" },
             { id: "work-w1", label: "Worker 1", sublabel: "processing job A", col: 0, row: 1 },
             { id: "work-w2", label: "Worker 2", sublabel: "processing job B", col: 1, row: 1 },
             { id: "work-w3", label: "Worker 3", sublabel: "processing job C", col: 2, row: 1 },
@@ -334,7 +319,7 @@ export const MESSAGE_QUEUES: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "ratelimit-producer", label: "Producer", sublabel: "10,000 msg/sec (spike)", col: 0, row: 0 },
-            { id: "ratelimit-queue", label: "Queue", sublabel: "buffers all messages", col: 1, row: 0 },
+            { id: "ratelimit-queue", label: "Queue", sublabel: "buffers all messages", col: 1, row: 0, entityType: "message_queue" },
             { id: "ratelimit-consumer", label: "Consumer", sublabel: "100 msg/sec, controlled", col: 2, row: 0, tone: "healthy" },
           ],
           edges: [
@@ -411,8 +396,8 @@ export const MESSAGE_QUEUES: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "direct-exchange", label: "Exchange", sublabel: "\"orders\"", col: 0, row: 0 },
-            { id: "direct-email-q", label: "email_queue", col: 1, row: 0 },
-            { id: "direct-sms-q", label: "sms_queue", col: 1, row: 1 },
+            { id: "direct-email-q", label: "email_queue", col: 1, row: 0, entityType: "message_queue" },
+            { id: "direct-sms-q", label: "sms_queue", col: 1, row: 1, entityType: "message_queue" },
           ],
           edges: [
             { from: "direct-exchange", to: "direct-email-q", label: "key: email" },
@@ -424,9 +409,9 @@ export const MESSAGE_QUEUES: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "fanout-exchange", label: "Exchange", sublabel: "\"order_events\"", col: 0, row: 1 },
-            { id: "fanout-email-q", label: "email_queue", col: 1, row: 0 },
-            { id: "fanout-sms-q", label: "sms_queue", col: 1, row: 1 },
-            { id: "fanout-analytics-q", label: "analytics_queue", col: 1, row: 2 },
+            { id: "fanout-email-q", label: "email_queue", col: 1, row: 0, entityType: "message_queue" },
+            { id: "fanout-sms-q", label: "sms_queue", col: 1, row: 1, entityType: "message_queue" },
+            { id: "fanout-analytics-q", label: "analytics_queue", col: 1, row: 2, entityType: "message_queue" },
           ],
           edges: [
             { from: "fanout-exchange", to: "fanout-email-q" },
@@ -439,9 +424,9 @@ export const MESSAGE_QUEUES: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "topic-exchange", label: "Exchange", sublabel: "\"logs\"", col: 0, row: 1 },
-            { id: "topic-payment-q", label: "payment_errors_queue", col: 1, row: 0 },
-            { id: "topic-all-errors-q", label: "all_errors_queue", col: 1, row: 1 },
-            { id: "topic-critical-q", label: "critical_alerts_queue", col: 1, row: 2 },
+            { id: "topic-payment-q", label: "payment_errors_queue", col: 1, row: 0, entityType: "message_queue" },
+            { id: "topic-all-errors-q", label: "all_errors_queue", col: 1, row: 1, entityType: "message_queue" },
+            { id: "topic-critical-q", label: "critical_alerts_queue", col: 1, row: 2, entityType: "message_queue" },
           ],
           edges: [
             { from: "topic-exchange", to: "topic-payment-q", label: "error.payment" },

@@ -1,5 +1,6 @@
 import { useId } from "react";
-import { ArrowMarker, DiagramArrow, DiagramBox } from "../primitives";
+import { ArrowMarker, DiagramArrow, DiagramBox, svgResponsiveProps } from "../primitives";
+import { getEntityCatalogItem } from "@/lib/entityCatalog";
 import type { ArchEdge, ArchNode } from "@/content/shared/lesson";
 
 /**
@@ -53,20 +54,26 @@ export function ArchitectureLayer({
     y: originY + node.row * ARCH_ROW_HEIGHT + ARCH_BOX_H / 2,
   });
 
+  // A request/response pair — two edges between the same two nodes, opposite
+  // directions — previously drew as one line with both labels stacked at the
+  // identical midpoint, silently burying whichever edge came first in the
+  // array. Give every edge sharing its (unordered) node pair with another
+  // edge a fixed perpendicular offset: `DiagramArrow` derives the offset's
+  // actual on-screen direction from that edge's own direction vector, and a
+  // reversed edge's vector is the negation of its partner's, so the same
+  // offset magnitude naturally lands the pair on opposite sides of the
+  // shared path instead of needing to track which edge is "first".
+  const pairKey = (edge: ArchEdge) => [edge.from, edge.to].sort().join("|");
+  const pairCounts = new Map<string, number>();
+  for (const edge of edges) pairCounts.set(pairKey(edge), (pairCounts.get(pairKey(edge)) ?? 0) + 1);
+
   return (
     <>
-      {edges.map((edge, i) => {
-        const from = byId.get(edge.from);
-        const to = byId.get(edge.to);
-        if (!from || !to) return null;
-        const a = centerOf(from);
-        const b = centerOf(to);
-        const p1 = boundaryPoint(a.x, a.y, b.x, b.y, ARCH_BOX_W / 2, ARCH_BOX_H / 2);
-        const p2 = boundaryPoint(b.x, b.y, a.x, a.y, ARCH_BOX_W / 2, ARCH_BOX_H / 2);
-        return (
-          <DiagramArrow key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} markerId={arrowId} label={edge.label} dashed={edge.dashed} tone={edge.tone} />
-        );
-      })}
+      {/* Nodes paint first, edges (and their labels) second — a short label
+          on a tight column gutter routinely spills past its own arrow into
+          the neighboring box (see `DiagramArrow`'s backing-chip comment);
+          drawing edges last keeps that spillover legible on top of the box
+          fill instead of the box silently painting over it. */}
       {nodes.map((node) => (
         <DiagramBox
           key={node.id}
@@ -77,8 +84,33 @@ export function ArchitectureLayer({
           lines={node.sublabel ? [node.label, node.sublabel] : [node.label]}
           tone={node.tone}
           dashed={node.dashed}
+          icon={node.entityType ? getEntityCatalogItem(node.entityType).icon : undefined}
         />
       ))}
+      {edges.map((edge, i) => {
+        const from = byId.get(edge.from);
+        const to = byId.get(edge.to);
+        if (!from || !to) return null;
+        const a = centerOf(from);
+        const b = centerOf(to);
+        const p1 = boundaryPoint(a.x, a.y, b.x, b.y, ARCH_BOX_W / 2, ARCH_BOX_H / 2);
+        const p2 = boundaryPoint(b.x, b.y, a.x, a.y, ARCH_BOX_W / 2, ARCH_BOX_H / 2);
+        const offset = (pairCounts.get(pairKey(edge)) ?? 1) > 1 ? 6 : 0;
+        return (
+          <DiagramArrow
+            key={i}
+            x1={p1.x}
+            y1={p1.y}
+            x2={p2.x}
+            y2={p2.y}
+            markerId={arrowId}
+            label={edge.label}
+            dashed={edge.dashed}
+            tone={edge.tone}
+            offset={offset}
+          />
+        );
+      })}
     </>
   );
 }
@@ -91,7 +123,8 @@ export function ArchitectureDiagram({ nodes, edges }: { nodes: ArchNode[]; edges
   return (
     <svg
       viewBox={`0 0 ${width + pad * 2} ${height + pad * 2}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(width + pad * 2, height + pad * 2)}
+      className="text-text-muted"
       role="img"
       aria-label={`Architecture diagram: ${nodes.map((n) => n.label).join(", ")}.`}
     >

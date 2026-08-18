@@ -1,11 +1,45 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, Boxes, Shapes } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import { FOUNDATION_LESSONS } from "@/content/foundations";
 import { LLD_LESSONS } from "@/content/lld";
+
+/**
+ * Static "map" of the three reading rooms — same node-on-a-line motif as
+ * the landing page's HeroDiagram, but with no simulation dependency and no
+ * motion: this is orientation, not a demo. Sits inside a hairline
+ * "specimen" frame with a corner Fig. tag, same convention as the landing
+ * page's `Fig. 01 — Live Architecture` box, so /learn's hero reads as
+ * another issue of the same reference instead of a bare text block.
+ */
+const READING_ROOMS = [
+  { icon: BookOpen, label: "Foundations", sub: "theory" },
+  { icon: Shapes, label: "LLD", sub: "code-level" },
+  { icon: Boxes, label: "Entities", sub: "components" },
+] as const;
+
+function ReadingRoomsDiagram() {
+  return (
+    <div className="relative flex items-stretch justify-between gap-3">
+      <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border" aria-hidden />
+      {READING_ROOMS.map((room) => (
+        <div
+          key={room.label}
+          className="relative z-10 flex flex-1 flex-col items-center gap-2 border border-border bg-bg-panel px-4 py-5"
+        >
+          <room.icon className="size-5 text-signal" aria-hidden />
+          <span className="font-mono text-[11px] uppercase tracking-wide text-text">{room.label}</span>
+          <span className="font-mono text-[10px] text-text-subtle">{room.sub}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export const metadata: Metadata = {
   title: "Learn — Engineering Studio",
@@ -45,16 +79,30 @@ export default function LearnHubPage() {
       {/* Three cards, still centered in the space below the header rather
           than pinned to the top — on a tall viewport that reads as a
           deliberately minimal chooser screen instead of a page that ran
-          out of content. */}
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6 pb-12 text-center">
-          <span className="inline-flex items-center gap-1.5 border border-border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-            Three reading rooms
-          </span>
+          out of content. `SystemMeshBackground` sits behind this whole
+          block (not the header, which stays a clean solid strip) via a
+          negative z-index — a plain in-flow background-image would paint
+          *above* it per normal stacking order, since a positioned
+          descendant with z-index:auto stacks after in-flow siblings. */}
+      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <SystemMeshBackground />
+        </div>
+        <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6 pb-10 text-center">
+          <Badge variant="primary">Three reading rooms</Badge>
           <h1 className="text-3xl font-semibold tracking-tight text-text sm:text-4xl">Learn</h1>
           <p className="max-w-xl text-balance text-text-muted">
             Read the theory, then go prove it to yourself in the Workshop.
           </p>
+        </section>
+
+        <section className="mx-auto w-full max-w-lg px-6 pb-12">
+          <div className="relative border border-border bg-bg-elevated p-5">
+            <span className="absolute -top-px -left-px border border-signal/50 bg-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-signal">
+              Fig. 01 — Reading Rooms
+            </span>
+            <ReadingRoomsDiagram />
+          </div>
         </section>
 
         <section className="mx-auto grid w-full max-w-4xl gap-4 px-6 pb-16 sm:grid-cols-2 lg:grid-cols-3">

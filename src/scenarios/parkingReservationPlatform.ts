@@ -98,6 +98,10 @@ export const parkingReservationPlatform: Scenario = {
   id: "parking-reservation-platform",
   title: "Parking Reservation Platform",
   difficulty: 3,
+  // "Utilization is a symptom, not a diagnosis" (see header) — a
+  // system-design capstone; Reverse Proxy is explicitly the rejected
+  // fix here, not the lesson.
+  topics: ["system-design"],
   story:
     "A citywide parking reservation platform grew from a single weekend side project into eight " +
     "backend services — accounts, search, checkout, reservation history, payments, notifications, " +
@@ -115,8 +119,25 @@ export const parkingReservationPlatform: Scenario = {
       position: { x: 80, y: 200 },
       config: { requestRate: 400, keyPoolSize: 1000, routePoolSize: 8 },
     },
+    {
+      id: "api",
+      type: "api",
+      label: "API Server",
+      position: { x: 400, y: 200 },
+      config: {},
+    },
+    {
+      id: "db",
+      type: "database",
+      label: "Database",
+      position: { x: 720, y: 200 },
+      config: {},
+    },
   ],
-  startingConnections: [],
+  startingConnections: [
+    { source: "client", target: "api" },
+    { source: "api", target: "db" },
+  ],
   // requestRate and keyPoolSize describe the fixed shape of the demand
   // itself (see this file's header comment for why keyPoolSize is locked
   // large — a small pool would let a Cache cheaply dominate the intended
@@ -194,6 +215,26 @@ export const parkingReservationPlatform: Scenario = {
       "A single, correctly-sized API Server and Database — concurrency and connections right-sized " +
       "for the real 400 req/s ceiling, processing time tightened to reduce latency further. No " +
       "second pool: splitting this traffic never actually pays for itself under a real budget.",
+    editorial: [
+      "An unconfigured build shows both the API Server and Database at roughly 100% " +
+        "utilization — but that's two symptoms of one problem, not two independent shortages. " +
+        "The API Server's slots are stuck waiting on a struggling downstream database " +
+        "(backpressure), not short on their own raw capacity.",
+      "The tell: raising the API Server's own concurrency alone (even 3x higher) barely moves " +
+        "success rate at all, because the database was always the true ceiling. Sizing the " +
+        "database alone — leaving the API Server at its default — fixes both symptoms at " +
+        "once. Utilization is a symptom, not a diagnosis; verify a fix actually helps before " +
+        "spending budget chasing the wrong bottleneck.",
+      "A tempting-looking fix that does NOT work here: carving the busiest route onto its own " +
+        "dedicated API+Database pair behind a Reverse Proxy. Splitting one pool into two never " +
+        "reduces base cost (this app's pricing tiers are subadditive — two smaller pools " +
+        "always cost at least as much as one pool sized for the same total capacity) and " +
+        "loses pooling efficiency besides, so it comes out strictly worse on both cost and " +
+        "latency versus one properly-sized pool.",
+      "Both the traffic rate and key pool size are locked here for the same reason as Flash " +
+        "Sale's: at a smaller pool, a Cache would trivialize this scenario and the " +
+        "utilization-diagnosis lesson would never get tested.",
+    ],
     entities: [
       {
         id: "client",

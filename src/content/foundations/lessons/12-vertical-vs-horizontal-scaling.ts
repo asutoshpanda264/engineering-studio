@@ -115,10 +115,10 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
             {
               title: "After horizontal scaling",
               nodes: [
-                { id: "hs-lb", label: "Load Balancer", col: 1, row: 0 },
-                { id: "hs-server-1", label: "Server 1", sublabel: "4 CPU, 16GB RAM", col: 0, row: 1, tone: "healthy" },
-                { id: "hs-server-2", label: "Server 2", sublabel: "4 CPU, 16GB RAM", col: 1, row: 1, tone: "healthy" },
-                { id: "hs-server-3", label: "Server 3", sublabel: "4 CPU, 16GB RAM", col: 2, row: 1, tone: "healthy" },
+                { id: "hs-lb", label: "Load Balancer", col: 1, row: 0, entityType: "load_balancer" },
+                { id: "hs-server-1", label: "Server 1", sublabel: "4 CPU, 16GB RAM", col: 0, row: 1, tone: "healthy", entityType: "api" },
+                { id: "hs-server-2", label: "Server 2", sublabel: "4 CPU, 16GB RAM", col: 1, row: 1, tone: "healthy", entityType: "api" },
+                { id: "hs-server-3", label: "Server 3", sublabel: "4 CPU, 16GB RAM", col: 2, row: 1, tone: "healthy", entityType: "api" },
               ],
               edges: [
                 { from: "hs-lb", to: "hs-server-1" },
@@ -171,9 +171,9 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "stateless-server-1", label: "Server 1", sublabel: "stateless", col: 0, row: 0, tone: "healthy" },
-            { id: "stateless-redis", label: "Redis", sublabel: "session:123 = Priya", col: 1, row: 0, tone: "healthy" },
-            { id: "stateless-server-2", label: "Server 2", sublabel: "stateless", col: 2, row: 0, tone: "healthy" },
+            { id: "stateless-server-1", label: "Server 1", sublabel: "stateless", col: 0, row: 0, tone: "healthy", entityType: "api" },
+            { id: "stateless-redis", label: "Redis", sublabel: "session:123 = Priya", col: 1, row: 0, tone: "healthy", entityType: "cache" },
+            { id: "stateless-server-2", label: "Server 2", sublabel: "stateless", col: 2, row: 0, tone: "healthy", entityType: "api" },
           ],
           edges: [
             { from: "stateless-server-1", to: "stateless-redis", tone: "healthy" },
@@ -207,10 +207,10 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "primary-db", label: "Primary DB", sublabel: "source of truth — all writes", col: 1, row: 0 },
-            { id: "replica-1", label: "Replica 1", sublabel: "read only", col: 0, row: 1 },
-            { id: "replica-2", label: "Replica 2", sublabel: "read only", col: 1, row: 1 },
-            { id: "replica-3", label: "Replica 3", sublabel: "read only", col: 2, row: 1 },
+            { id: "primary-db", label: "Primary DB", sublabel: "source of truth — all writes", col: 1, row: 0, entityType: "database" },
+            { id: "replica-1", label: "Replica 1", sublabel: "read only", col: 0, row: 1, entityType: "database" },
+            { id: "replica-2", label: "Replica 2", sublabel: "read only", col: 1, row: 1, entityType: "database" },
+            { id: "replica-3", label: "Replica 3", sublabel: "read only", col: 2, row: 1, entityType: "database" },
           ],
           edges: [
             { from: "primary-db", to: "replica-1", label: "replicates" },
@@ -246,8 +246,8 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "cache-front-request", label: "Read request", col: 0, row: 0 },
-            { id: "cache-front-cache", label: "Redis Cache", col: 1, row: 0 },
-            { id: "cache-front-db", label: "Database", sublabel: "only uncached data hits DB", col: 1, row: 1 },
+            { id: "cache-front-cache", label: "Redis Cache", col: 1, row: 0, entityType: "cache" },
+            { id: "cache-front-db", label: "Database", sublabel: "only uncached data hits DB", col: 1, row: 1, entityType: "database" },
           ],
           edges: [
             { from: "cache-front-request", to: "cache-front-cache" },
@@ -298,20 +298,20 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
             {
               title: "Stage 3",
               nodes: [
-                { id: "journey-app", label: "App Server", col: 0, row: 0 },
-                { id: "journey-db", label: "Database Server", col: 1, row: 0 },
+                { id: "journey-app", label: "App Server", col: 0, row: 0, entityType: "api" },
+                { id: "journey-db", label: "Database Server", col: 1, row: 0, entityType: "database" },
               ],
               edges: [{ from: "journey-app", to: "journey-db" }],
             },
             {
               title: "Stage 4",
               nodes: [
-                { id: "journey-lb", label: "Load Balancer", col: 1, row: 0 },
-                { id: "journey-app1", label: "App 1", col: 0, row: 1 },
-                { id: "journey-app2", label: "App 2", col: 1, row: 1 },
-                { id: "journey-app3", label: "App 3", col: 2, row: 1 },
-                { id: "journey-db-cluster", label: "Database", sublabel: "Primary + Replicas", col: 0, row: 2 },
-                { id: "journey-cache", label: "Redis Cache", col: 2, row: 2 },
+                { id: "journey-lb", label: "Load Balancer", col: 1, row: 0, entityType: "load_balancer" },
+                { id: "journey-app1", label: "App 1", col: 0, row: 1, entityType: "api" },
+                { id: "journey-app2", label: "App 2", col: 1, row: 1, entityType: "api" },
+                { id: "journey-app3", label: "App 3", col: 2, row: 1, entityType: "api" },
+                { id: "journey-db-cluster", label: "Database", sublabel: "Primary + Replicas", col: 0, row: 2, entityType: "database" },
+                { id: "journey-cache", label: "Redis Cache", col: 2, row: 2, entityType: "cache" },
               ],
               edges: [
                 { from: "journey-lb", to: "journey-app1" },

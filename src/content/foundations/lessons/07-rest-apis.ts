@@ -77,11 +77,11 @@ export const REST_APIS: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "android", label: "Android app", col: 0, row: 0 },
-            { id: "ios", label: "iOS app", col: 0, row: 1 },
-            { id: "web", label: "Web browser", col: 0, row: 2 },
-            { id: "third-party", label: "Third-party", col: 0, row: 3 },
-            { id: "rest-api", label: "REST API", col: 1, row: 1 },
+            { id: "android", label: "Android app", col: 0, row: 0, entityType: "client" },
+            { id: "ios", label: "iOS app", col: 0, row: 1, entityType: "client" },
+            { id: "web", label: "Web browser", col: 0, row: 2, entityType: "client" },
+            { id: "third-party", label: "Third-party", col: 0, row: 3, entityType: "client" },
+            { id: "rest-api", label: "REST API", col: 1, row: 1, entityType: "api" },
             { id: "server-db", label: "Server + Database", col: 2, row: 1 },
           ],
           edges: [
@@ -138,12 +138,12 @@ export const REST_APIS: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "layered-client", label: "Client", col: 0, row: 0 },
-            { id: "layered-cdn", label: "CDN", col: 1, row: 0 },
-            { id: "layered-lb", label: "Load Balancer", col: 2, row: 0 },
-            { id: "layered-cache", label: "Cache", col: 3, row: 0 },
-            { id: "layered-app", label: "App Server", col: 4, row: 0 },
-            { id: "layered-db", label: "DB", col: 5, row: 0 },
+            { id: "layered-client", label: "Client", col: 0, row: 0, entityType: "client" },
+            { id: "layered-cdn", label: "CDN", col: 1, row: 0, entityType: "cdn" },
+            { id: "layered-lb", label: "Load Balancer", col: 2, row: 0, entityType: "load_balancer" },
+            { id: "layered-cache", label: "Cache", col: 3, row: 0, entityType: "cache" },
+            { id: "layered-app", label: "App Server", col: 4, row: 0, entityType: "api" },
+            { id: "layered-db", label: "DB", col: 5, row: 0, entityType: "database" },
           ],
           edges: [
             { from: "layered-client", to: "layered-cdn" },

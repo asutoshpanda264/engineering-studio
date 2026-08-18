@@ -7,11 +7,35 @@ import { movieTicketBooking } from "../movieTicketBooking";
 import { urlShortener } from "../urlShortener";
 import { flashSale } from "../flashSale";
 import { parkingReservationPlatform } from "../parkingReservationPlatform";
+import { priceAlertNotifications } from "../priceAlertNotifications";
+import { internalAdminDashboard } from "../internalAdminDashboard";
+import { trendingHashtagsFeed } from "../trendingHashtagsFeed";
+import { iotSensorIngestion } from "../iotSensorIngestion";
+import { concertTicketDrop } from "../concertTicketDrop";
+import { slowSearchEndpoint } from "../slowSearchEndpoint";
+import { viralVideoComments } from "../viralVideoComments";
+import { adAuctionBidding } from "../adAuctionBidding";
+import { checkoutTimeoutMystery } from "../checkoutTimeoutMystery";
+import { recipeOfTheDay } from "../recipeOfTheDay";
+import { newsletterSendConfirmations } from "../newsletterSendConfirmations";
+import { weatherForecastApi } from "../weatherForecastApi";
+import { warehouseInventorySync } from "../warehouseInventorySync";
+import { liveSportsScoreboard } from "../liveSportsScoreboard";
+import { rideHailingLocationPings } from "../rideHailingLocationPings";
+import { flightStatusPushUpdates } from "../flightStatusPushUpdates";
+import { globalLeaderboardUpdates } from "../globalLeaderboardUpdates";
+import { couponCodeRedemption } from "../couponCodeRedemption";
+import { fitnessTrackerStepSync } from "../fitnessTrackerStepSync";
+import { apiGatewaySlowdown } from "../apiGatewaySlowdown";
+import { wildfireAlertBroadcast } from "../wildfireAlertBroadcast";
+import { trendingProductSearch } from "../trendingProductSearch";
+import { publicTransitTrackerApi } from "../publicTransitTrackerApi";
 import type { Scenario, ScenarioConstraint } from "../types";
 import type { MetricsSnapshot } from "@/simulation/types";
 import { runSimulation } from "@/simulation/engine/Simulator";
 import { scoreScenario } from "@/lib/scenarioScoring";
 import type { ArchitectureNode } from "@/store/workshopStore";
+import { DEFAULT_CONNECTION_LATENCY_MS } from "@/lib/simulationDefaults";
 
 function baseMetrics(overrides: Partial<MetricsSnapshot> = {}): MetricsSnapshot {
   return {
@@ -331,7 +355,14 @@ describe("movieTicketBooking scenario data", () => {
   });
 });
 
-/** Runs a scenario's unmodified starting architecture through the real engine. */
+/**
+ * Runs a scenario's unmodified starting architecture through the real
+ * engine. Overrides every connection's latencyMs with
+ * DEFAULT_CONNECTION_LATENCY_MS, mirroring workshopBridge.ts's
+ * buildSimulationConfig (which applies it unconditionally) — a bare
+ * canvas run through the real UI never gets to use whatever latencyMs a
+ * scenario file happens to author on `startingConnections`.
+ */
 function runUnmodified(scenario: Scenario) {
   const config = {
     entities: scenario.startingEntities.map(({ id, type, position, config }) => ({
@@ -340,7 +371,7 @@ function runUnmodified(scenario: Scenario) {
       position,
       config,
     })),
-    connections: scenario.startingConnections,
+    connections: scenario.startingConnections.map((c) => ({ ...c, latencyMs: DEFAULT_CONNECTION_LATENCY_MS })),
     scenario: {
       id: scenario.id,
       title: scenario.title,
@@ -1276,4 +1307,273 @@ describe("parkingReservationPlatform scenario data", () => {
     expect(score.architectureValid).toBe(false);
     expect(score.gatesPassed).toBe(false);
   });
+});
+
+describe("priceAlertNotifications scenario data", () => {
+  const implemented = new Set(["client", "api", "database", "message_queue"]);
+
+  it("only uses entity types the Simulator currently implements", () => {
+    for (const entity of priceAlertNotifications.startingEntities) {
+      expect(implemented.has(entity.type)).toBe(true);
+    }
+    for (const entity of priceAlertNotifications.optimalSolution!.entities) {
+      expect(implemented.has(entity.type)).toBe(true);
+    }
+  });
+
+  it("has exactly one client, and every connection references a real entity", () => {
+    const ids = new Set(priceAlertNotifications.startingEntities.map((e) => e.id));
+    const clients = priceAlertNotifications.startingEntities.filter((e) => e.type === "client");
+    expect(clients).toHaveLength(1);
+
+    for (const connection of priceAlertNotifications.startingConnections) {
+      expect(ids.has(connection.source)).toBe(true);
+      expect(ids.has(connection.target)).toBe(true);
+    }
+  });
+
+  it("declares a burst traffic pattern, not constant — the whole point of this scenario", () => {
+    expect(priceAlertNotifications.trafficPattern.type).toBe("burst");
+  });
+
+  it("fails at least one constraint when run unmodified — there must be a real problem to solve", () => {
+    const result = runUnmodified(priceAlertNotifications);
+    const evaluation = evaluateScenario(priceAlertNotifications, result.metrics);
+    expect(evaluation.passed).toBe(false);
+  });
+
+  it("every given node id is a real starting entity, and every locked field belongs to one", () => {
+    const startingIds = new Set(priceAlertNotifications.startingEntities.map((e) => e.id));
+    for (const givenId of priceAlertNotifications.givenNodeIds ?? []) {
+      expect(startingIds.has(givenId)).toBe(true);
+    }
+    for (const nodeId of Object.keys(priceAlertNotifications.lockedFields ?? {})) {
+      expect(priceAlertNotifications.givenNodeIds ?? []).toContain(nodeId);
+    }
+  });
+});
+
+/**
+ * Shared basic-integrity checks for a "given + budget" scenario — the
+ * same shape every hand-written `describe("<scenario> scenario data")`
+ * block above already runs, factored out for the 8-scenario validation
+ * wave (docs/scenario-redesign.md's own recipe step 7) instead of
+ * copy-pasting the block 8 more times. Scenario-specific behavioral
+ * assertions (e.g. "the wrong lever barely helps") stay hand-written per
+ * scenario where a scenario actually has one worth encoding — this only
+ * covers the structural integrity every scenario needs regardless.
+ */
+function describeScenarioBasics(scenario: Scenario, implementedTypes: string[]) {
+  const implemented = new Set(implementedTypes);
+
+  it("only uses entity types the Simulator currently implements", () => {
+    for (const entity of scenario.startingEntities) {
+      expect(implemented.has(entity.type)).toBe(true);
+    }
+    for (const entity of scenario.optimalSolution?.entities ?? []) {
+      expect(implemented.has(entity.type)).toBe(true);
+    }
+  });
+
+  it("has exactly one client, and every connection references a real entity", () => {
+    const ids = new Set(scenario.startingEntities.map((e) => e.id));
+    const clients = scenario.startingEntities.filter((e) => e.type === "client");
+    expect(clients).toHaveLength(1);
+    for (const connection of scenario.startingConnections) {
+      expect(ids.has(connection.source)).toBe(true);
+      expect(ids.has(connection.target)).toBe(true);
+    }
+  });
+
+  // Checks the FULL gate (functional constraints + budget + architecture
+  // validity via scoreScenario), not just evaluateScenario's functional
+  // check — a scenario's "genuine problem" can legitimately be
+  // budget-shaped (e.g. recipeOfTheDay.ts: defaults already clear
+  // success/latency, but cost too much) rather than a raw capacity
+  // failure, and both are real "there's something to solve here"
+  // properties. gatesPassed is a strict superset of evaluation.passed
+  // (it ANDs the same check in), so this is a safe generalization, not a
+  // behavior change for scenarios that already failed functionally.
+  it("fails the full gate when run unmodified — there must be a real problem to solve", () => {
+    const result = runUnmodified(scenario);
+    const nodes = scenario.startingEntities.map(
+      (e) =>
+        ({
+          id: e.id,
+          type: "component",
+          position: e.position,
+          data: { entityType: e.type, label: e.label, config: e.config },
+        }) as unknown as ArchitectureNode
+    );
+    const score = scoreScenario(scenario, result, nodes, scenario.startingConnections);
+    expect(score.gatesPassed).toBe(false);
+  });
+
+  it("every given node id is a real starting entity, and every locked field belongs to one", () => {
+    const startingIds = new Set(scenario.startingEntities.map((e) => e.id));
+    for (const givenId of scenario.givenNodeIds ?? []) {
+      expect(startingIds.has(givenId)).toBe(true);
+    }
+    for (const nodeId of Object.keys(scenario.lockedFields ?? {})) {
+      expect(scenario.givenNodeIds ?? []).toContain(nodeId);
+    }
+  });
+}
+
+describe("internalAdminDashboard scenario data", () => {
+  describeScenarioBasics(internalAdminDashboard, ["client", "api", "database"]);
+});
+
+describe("trendingHashtagsFeed scenario data", () => {
+  describeScenarioBasics(trendingHashtagsFeed, ["client", "api", "cache", "database"]);
+});
+
+describe("iotSensorIngestion scenario data", () => {
+  describeScenarioBasics(iotSensorIngestion, ["client", "api", "database"]);
+});
+
+describe("concertTicketDrop scenario data", () => {
+  describeScenarioBasics(concertTicketDrop, ["client", "api", "message_queue", "database"]);
+  it("declares a burst traffic pattern, not constant", () => {
+    expect(concertTicketDrop.trafficPattern.type).toBe("burst");
+  });
+});
+
+describe("slowSearchEndpoint scenario data", () => {
+  describeScenarioBasics(slowSearchEndpoint, ["client", "api", "database"]);
+  // The real lesson: raising the wrong tier (API) barely moves success
+  // rate, confirming it was never the bottleneck — see this scenario's
+  // own header for the verified numbers this regresses against.
+  it("raising only the API server does not fix it — the database was always the real ceiling", () => {
+    const client = slowSearchEndpoint.startingEntities.find((e) => e.type === "client")!;
+    const config = {
+      entities: [
+        { id: client.id, type: client.type, position: client.position, config: client.config },
+        { id: "api", type: "api" as const, position: { x: 0, y: 0 }, config: { maxConcurrent: 30, maxQueueLength: 50, processingTimeMs: 5 } },
+        { id: "db", type: "database" as const, position: { x: 0, y: 0 }, config: {} },
+      ],
+      connections: [
+        { source: client.id, target: "api", latencyMs: 5 },
+        { source: "api", target: "db", latencyMs: 5 },
+      ],
+      scenario: {
+        id: slowSearchEndpoint.id,
+        title: slowSearchEndpoint.title,
+        trafficPattern: slowSearchEndpoint.trafficPattern,
+        durationMs: slowSearchEndpoint.durationMs,
+      },
+      options: { seed: slowSearchEndpoint.seed },
+    };
+    const result = runSimulation(config);
+    const evaluation = evaluateScenario(slowSearchEndpoint, result.metrics);
+    expect(evaluation.passed).toBe(false);
+  });
+});
+
+describe("viralVideoComments scenario data", () => {
+  describeScenarioBasics(viralVideoComments, ["client", "api", "cache", "database"]);
+});
+
+describe("adAuctionBidding scenario data", () => {
+  describeScenarioBasics(adAuctionBidding, ["client", "api", "message_queue", "database"]);
+  it("declares a burst traffic pattern, not constant", () => {
+    expect(adAuctionBidding.trafficPattern.type).toBe("burst");
+  });
+});
+
+describe("checkoutTimeoutMystery scenario data", () => {
+  describeScenarioBasics(checkoutTimeoutMystery, ["client", "api", "database"]);
+  // The mirror-image lesson from slowSearchEndpoint: this time raising
+  // only the DATABASE barely helps, because the API Server's own fixed
+  // processing time was always the real ceiling.
+  it("raising only the database does not fix it — the API server's fixed processing time was always the real ceiling", () => {
+    const client = checkoutTimeoutMystery.startingEntities.find((e) => e.type === "client")!;
+    const api = checkoutTimeoutMystery.startingEntities.find((e) => e.type === "api")!;
+    const config = {
+      entities: [
+        { id: client.id, type: client.type, position: client.position, config: client.config },
+        { id: api.id, type: api.type, position: api.position, config: api.config },
+        { id: "db", type: "database" as const, position: { x: 0, y: 0 }, config: { maxConnections: 30, maxQueueLength: 100, processingTimeMs: 5 } },
+      ],
+      connections: [
+        { source: client.id, target: api.id, latencyMs: 5 },
+        { source: api.id, target: "db", latencyMs: 5 },
+      ],
+      scenario: {
+        id: checkoutTimeoutMystery.id,
+        title: checkoutTimeoutMystery.title,
+        trafficPattern: checkoutTimeoutMystery.trafficPattern,
+        durationMs: checkoutTimeoutMystery.durationMs,
+      },
+      options: { seed: checkoutTimeoutMystery.seed },
+    };
+    const result = runSimulation(config);
+    const evaluation = evaluateScenario(checkoutTimeoutMystery, result.metrics);
+    expect(evaluation.passed).toBe(false);
+  });
+});
+
+describe("recipeOfTheDay scenario data", () => {
+  describeScenarioBasics(recipeOfTheDay, ["client", "api", "cache", "database"]);
+});
+
+describe("newsletterSendConfirmations scenario data", () => {
+  describeScenarioBasics(newsletterSendConfirmations, ["client", "api", "message_queue", "database"]);
+  it("declares a burst traffic pattern, not constant", () => {
+    expect(newsletterSendConfirmations.trafficPattern.type).toBe("burst");
+  });
+});
+
+describe("weatherForecastApi scenario data", () => {
+  describeScenarioBasics(weatherForecastApi, ["client", "api", "database"]);
+});
+
+describe("warehouseInventorySync scenario data", () => {
+  describeScenarioBasics(warehouseInventorySync, ["client", "api", "database"]);
+});
+
+describe("liveSportsScoreboard scenario data", () => {
+  describeScenarioBasics(liveSportsScoreboard, ["client", "api", "cache", "database"]);
+});
+
+describe("rideHailingLocationPings scenario data", () => {
+  describeScenarioBasics(rideHailingLocationPings, ["client", "api", "database"]);
+});
+
+describe("flightStatusPushUpdates scenario data", () => {
+  describeScenarioBasics(flightStatusPushUpdates, ["client", "api", "message_queue", "database"]);
+  it("declares a burst traffic pattern, not constant", () => {
+    expect(flightStatusPushUpdates.trafficPattern.type).toBe("burst");
+  });
+});
+
+describe("globalLeaderboardUpdates scenario data", () => {
+  describeScenarioBasics(globalLeaderboardUpdates, ["client", "api", "cache", "database"]);
+});
+
+describe("couponCodeRedemption scenario data", () => {
+  describeScenarioBasics(couponCodeRedemption, ["client", "api", "cache", "database"]);
+});
+
+describe("fitnessTrackerStepSync scenario data", () => {
+  describeScenarioBasics(fitnessTrackerStepSync, ["client", "api", "database"]);
+});
+
+describe("apiGatewaySlowdown scenario data", () => {
+  describeScenarioBasics(apiGatewaySlowdown, ["client", "api", "database"]);
+});
+
+describe("wildfireAlertBroadcast scenario data", () => {
+  describeScenarioBasics(wildfireAlertBroadcast, ["client", "api", "message_queue", "database"]);
+  it("declares a burst traffic pattern, not constant", () => {
+    expect(wildfireAlertBroadcast.trafficPattern.type).toBe("burst");
+  });
+});
+
+describe("trendingProductSearch scenario data", () => {
+  describeScenarioBasics(trendingProductSearch, ["client", "api", "cache", "database"]);
+});
+
+describe("publicTransitTrackerApi scenario data", () => {
+  describeScenarioBasics(publicTransitTrackerApi, ["client", "api", "database"]);
 });

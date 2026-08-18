@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ArrowMarker, DiagramArrow } from "../primitives";
+import { ArrowMarker, DiagramArrow, svgResponsiveProps } from "../primitives";
 import type { SequenceActor, SequenceMessage } from "@/content/shared/lesson";
 
 /**
@@ -27,7 +27,8 @@ export function SequenceDiagram({ actors, messages }: { actors: SequenceActor[];
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(width, height)}
+      className="text-text-muted"
       role="img"
       aria-label={`Message sequence between ${actors.map((actor) => actor.label).join(" and ")}: ${messages
         .map((msg) => msg.label)

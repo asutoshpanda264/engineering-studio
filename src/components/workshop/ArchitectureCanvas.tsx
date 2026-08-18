@@ -4,6 +4,7 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  MarkerType,
   Panel as FlowPanel,
   ReactFlow,
   ReactFlowProvider,
@@ -18,11 +19,18 @@ import { ENTITY_DRAG_MIME_TYPE } from "@/components/workshop/ComponentSidebar";
 import { StatusLegend } from "@/components/workshop/StatusLegend";
 import { SuggestionsPanel } from "@/components/workshop/SuggestionsPanel";
 import { CostPanel } from "@/components/workshop/CostPanel";
+import { CornerBrackets } from "@/components/workshop/CornerBrackets";
 import type { EntityType } from "@/simulation/types";
 
 const nodeTypes = { component: ComponentNode };
 const edgeTypes = { animated: AnimatedEdge };
-const defaultEdgeOptions = { type: "animated" };
+// A static arrowhead so a graph reads as directed at a glance, even before
+// any simulation has run — until now the only thing indicating direction
+// at all was the animated packet dots, which only exist post-run.
+const defaultEdgeOptions = {
+  type: "animated",
+  markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--color-border-hover)" },
+};
 
 function CanvasInner() {
   const nodes = useWorkshopStore((s) => s.nodes);
@@ -32,7 +40,7 @@ function CanvasInner() {
   const onConnect = useWorkshopStore((s) => s.onConnect);
   const addNode = useWorkshopStore((s) => s.addNode);
   const setSelectedNode = useWorkshopStore((s) => s.setSelectedNode);
-  const { theme } = useTheme();
+  const { colorMode } = useTheme();
 
   const { screenToFlowPosition, fitView } = useReactFlow();
 
@@ -79,6 +87,18 @@ function CanvasInner() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* React Flow's own background layer defaults to transparent (see
+          @xyflow/react's style.css), so this radial gradient shows straight
+          through the grid pattern rendered on top of it instead of one flat
+          `bg` fill. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 75% 65% at 50% 42%, var(--color-bg) 0%, var(--color-bg-panel) 100%)",
+        }}
+      />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -91,17 +111,22 @@ function CanvasInner() {
         onNodeClick={(_, node) => setSelectedNode(node.id)}
         onPaneClick={() => setSelectedNode(null)}
         deleteKeyCode={["Backspace", "Delete"]}
-        colorMode={theme}
+        colorMode={colorMode}
         connectionRadius={32}
         fitView
       >
         <Background
-          variant={BackgroundVariant.Dots}
-          gap={24}
+          variant={BackgroundVariant.Lines}
+          gap={18}
           size={1}
-          color="var(--color-border-hover)"
-          className="!bg-bg"
+          lineWidth={0.5}
+          color="var(--color-border)"
         />
+        {/* A second, coarser dot grid layered on top of the fine line grid
+            above — a "major/minor gridline" pairing, same idea a real
+            technical drawing or oscilloscope readout uses, instead of one
+            uniform pattern at a single scale. */}
+        <Background variant={BackgroundVariant.Dots} gap={126} size={2} color="var(--color-border-hover)" />
         <Controls
           className="!border-none !shadow-none [&>button]:!border-border [&>button]:!bg-bg-elevated [&>button]:!text-text-muted [&>button]:hover:!bg-bg-panel"
         />
@@ -118,6 +143,8 @@ function CanvasInner() {
           </div>
         </FlowPanel>
       </ReactFlow>
+
+      <CornerBrackets />
 
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

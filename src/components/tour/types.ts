@@ -31,4 +31,12 @@ export interface TourStep {
   requiresAck?: boolean;
   /** Overrides the default "Next" label — e.g. "Got it", "Continue". */
   primaryLabel?: string;
+  /**
+   * True for steps whose `getTarget` points into ComponentSidebar's
+   * catalog list ("Drag or click X to add it") — that list only exists in
+   * the DOM while the panel is open (ComponentSidebar.tsx: on-demand, not
+   * a permanent dock). TutorialRunner force-opens it whenever the current
+   * step carries this flag, otherwise the step would spotlight nothing.
+   */
+  requiresComponentsPanel?: boolean;
 }

@@ -31,21 +31,28 @@ export interface PanelHeaderProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   title: ReactNode;
   action?: ReactNode;
+  /** "Polish" Workshop-style craft pass (see WorkshopStyleProvider): a
+   *  signal-colored leading tick + tinted bottom rule instead of the plain
+   *  hairline, so a panel header reads as instrumented rather than just
+   *  labeled. Off by default — every existing call site is unaffected. */
+  accent?: boolean;
 }
 
 function PanelHeader({
   title,
   action,
+  accent = false,
   className = "",
   ...props
 }: PanelHeaderProps) {
   return (
     <div
-      className={`flex h-9 shrink-0 items-center justify-between border-b border-border px-3 ${className}`}
+      className={`flex h-9 shrink-0 items-center justify-between border-b px-3 ${accent ? "border-signal/40" : "border-border"} ${className}`}
       {...props}
     >
-      <h2 className="truncate text-xs font-medium uppercase tracking-wide text-text-muted">
-        {title}
+      <h2 className="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium uppercase tracking-wide text-text-muted">
+        {accent && <span className="size-1.5 shrink-0 bg-signal" aria-hidden />}
+        <span className="truncate">{title}</span>
       </h2>
       {action}
     </div>

@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { DiagramBox } from "../primitives";
+import { DiagramBox, svgResponsiveProps } from "../primitives";
 import { FilledDiamondMarker, HollowDiamondMarker, HollowTriangleMarker, OpenArrowMarker } from "../UmlMarkers";
 import type { UmlRelationship } from "@/content/shared/lesson";
 
@@ -25,7 +25,8 @@ export function UmlDiagram({ relationships }: { relationships: UmlRelationship[]
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${height}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(WIDTH, height)}
+      className="text-text-muted"
       role="img"
       aria-label={`UML relationships: ${relationships.map((r) => `${r.from} ${r.kind} ${r.to}`).join("; ")}.`}
     >

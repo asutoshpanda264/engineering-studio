@@ -22,13 +22,22 @@ import { getScenario } from "@/scenarios";
  * here permanently, not conditionally — they're inert plain DOM attributes
  * when no tour is running, so there's no reason to fork this layout for
  * the two routes.
+ *
+ * `forceComponentsList`: `/tutorial` (TutorialRunner) passes this so
+ * ComponentSidebar always renders the plain docked list, even in
+ * night-ops — the guided tour's steps spotlight specific catalog cards
+ * (`data-tour-id="sidebar-component-<type>"`), which only exist in the
+ * list, not in WeaponWheel's SVG wedges. `/workshop` never passes it, so
+ * Batman Mode still gets the wheel there.
  */
 export function WorkshopShell({
   projectName = "Untitled Architecture",
   overlay,
+  forceComponentsList = false,
 }: {
   projectName?: string;
   overlay?: ReactNode;
+  forceComponentsList?: boolean;
 }) {
   const isSimulating = useWorkshopStore((s) => s.isSimulating);
   const runSimulation = useWorkshopStore((s) => s.runSimulation);
@@ -48,7 +57,7 @@ export function WorkshopShell({
         onClear={clearCanvas}
       />
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        <ComponentSidebar />
+        <ComponentSidebar forceListMode={forceComponentsList} />
         <ArchitectureCanvas />
         <ScenarioCompletionToast />
         <InspectorPanel />

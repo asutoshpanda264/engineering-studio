@@ -2,6 +2,12 @@ import type { ComponentType } from "react";
 import type { EntityType } from "@/simulation/types";
 import { RateLimiterTokenBucketDiagram } from "./RateLimiterTokenBucketDiagram";
 import { CircuitBreakerStateMachineDiagram } from "./CircuitBreakerStateMachineDiagram";
+import { CacheEvictionDiagram } from "./CacheEvictionDiagram";
+import { LoadBalancerRoutingDiagram } from "./LoadBalancerRoutingDiagram";
+import { CDNEdgeCacheDiagram } from "./CDNEdgeCacheDiagram";
+import { MessageQueueDeliveryModeDiagram } from "./MessageQueueDeliveryModeDiagram";
+import { KafkaPartitionDiagram } from "./KafkaPartitionDiagram";
+import { ReplicaPoolRoutingDiagram } from "./ReplicaPoolRoutingDiagram";
 
 /**
  * Animated "how it works" mechanism diagrams for `/entities/[slug]` — one
@@ -20,4 +26,10 @@ import { CircuitBreakerStateMachineDiagram } from "./CircuitBreakerStateMachineD
 export const ENTITY_MECHANISM_REGISTRY: Partial<Record<EntityType, ComponentType>> = {
   rate_limiter: RateLimiterTokenBucketDiagram,
   circuit_breaker: CircuitBreakerStateMachineDiagram,
+  load_balancer: LoadBalancerRoutingDiagram,
+  cache: CacheEvictionDiagram,
+  cdn: CDNEdgeCacheDiagram,
+  message_queue: MessageQueueDeliveryModeDiagram,
+  kafka: KafkaPartitionDiagram,
+  replica_pool: ReplicaPoolRoutingDiagram,
 };

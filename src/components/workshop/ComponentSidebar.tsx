@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DragEvent, KeyboardEvent } from "react";
+import { LayoutGrid, Swords, X } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
@@ -7,6 +8,8 @@ import type { EntityType } from "@/simulation/types";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import type { EntityCatalogItem } from "@/lib/entityCatalog";
 import { useWorkshopStore } from "@/store/workshopStore";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { WeaponWheel } from "@/components/workshop/WeaponWheel";
 
 export const ENTITY_DRAG_MIME_TYPE = "application/x-engineering-studio-entity";
 
@@ -24,23 +27,104 @@ function nextClickPosition(nodeCount: number) {
   };
 }
 
-export function ComponentSidebar() {
-  return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-bg-elevated">
-      <Panel.Header title="Components" />
-      <ComponentsTab />
-    </aside>
-  );
-}
-
-function ComponentsTab() {
-  const [query, setQuery] = useState("");
+/**
+ * The palette is on-demand, not a permanent dock (feedback: the fixed
+ * left+right slabs made the workshop feel cluttered) — this renders only
+ * a small trigger floating over the canvas's top-left corner; the actual
+ * picker mounts on top of the canvas when opened instead of pushing it,
+ * so the default view is canvas-first. What the trigger opens depends on
+ * theme: `night-ops` ("Batman Mode") gets the WeaponWheel, a radial pick
+ * matching that theme's HUD styling — light/dark get a plain docked list,
+ * which is the better tool for scanning 12 items outside that theme.
+ * `nodes`/`addNode` live here (not inside the list/wheel) since both
+ * selection paths funnel through the same `handleSelectComponent`.
+ *
+ * `forceListMode`: set by `/tutorial` (via `WorkshopShell`'s
+ * `forceComponentsList`) to keep the plain list even in night-ops — the
+ * guided tour's steps spotlight specific catalog cards by DOM id, which
+ * WeaponWheel's wedges don't carry. `/workshop` never sets it, so Batman
+ * Mode still gets the wheel there.
+ */
+export function ComponentSidebar({ forceListMode = false }: { forceListMode?: boolean }) {
+  const { theme } = useTheme();
+  const isBatman = theme === "night-ops" && !forceListMode;
+  // Store-backed, not local state — the guided tour (TutorialRunner) needs
+  // to force this open for steps that point at the real catalog list (see
+  // tutorialPlanner.ts's `requiresComponentsPanel`).
+  const open = useWorkshopStore((s) => s.componentsPanelOpen);
+  const setOpen = useWorkshopStore((s) => s.setComponentsPanelOpen);
+  const [wheelOpen, setWheelOpen] = useState(false);
   const nodes = useWorkshopStore((s) => s.nodes);
   const addNode = useWorkshopStore((s) => s.addNode);
 
   const handleSelectComponent = (type: EntityType) => {
     addNode(type, nextClickPosition(nodes.length));
   };
+
+  return (
+    <>
+      <div className="absolute left-3 top-3 z-30">
+        {isBatman ? (
+          <button
+            type="button"
+            onClick={() => setWheelOpen(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-signal/40 bg-bg-elevated px-3 text-xs font-medium uppercase tracking-wide text-text shadow-elevated transition-colors duration-fast ease-standard hover:border-signal hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          >
+            <Swords className="size-4 text-signal" aria-hidden />
+            Choose Weapon
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 text-xs font-medium text-text-muted shadow-elevated transition-colors duration-fast ease-standard hover:border-border-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          >
+            <LayoutGrid className="size-4" aria-hidden />
+            {open ? "Hide Components" : "Show Components"}
+          </button>
+        )}
+      </div>
+
+      {open && !isBatman && (
+        <aside className="absolute left-3 top-14 z-30 flex max-h-[calc(100%-4rem)] w-72 flex-col overflow-hidden rounded-lg border border-border bg-bg-elevated shadow-elevated">
+          <Panel.Header
+            title="Components"
+            accent
+            action={
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close components panel"
+                className="text-text-subtle transition-colors duration-fast ease-standard hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            }
+          />
+          <ComponentsTab onSelectComponent={handleSelectComponent} />
+        </aside>
+      )}
+
+      {isBatman && wheelOpen && (
+        <WeaponWheel
+          onClose={() => setWheelOpen(false)}
+          onSelect={(type) => {
+            handleSelectComponent(type);
+            setWheelOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function ComponentsTab({
+  onSelectComponent,
+}: {
+  onSelectComponent: (type: EntityType) => void;
+}) {
+  const [query, setQuery] = useState("");
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = normalizedQuery
@@ -68,14 +152,14 @@ function ComponentsTab() {
           <ComponentGroup
             label="Core"
             items={core}
-            onSelectComponent={handleSelectComponent}
+            onSelectComponent={onSelectComponent}
           />
         )}
         {modules.length > 0 && (
           <ComponentGroup
             label="Modules"
             items={modules}
-            onSelectComponent={handleSelectComponent}
+            onSelectComponent={onSelectComponent}
           />
         )}
         {filtered.length === 0 && (

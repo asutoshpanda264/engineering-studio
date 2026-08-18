@@ -36,6 +36,7 @@ export function AnimatedEdge({
   targetPosition,
   style,
   data,
+  markerEnd,
 }: EdgeProps<ArchitectureEdge>) {
   const prefersReducedMotion = useReducedMotion();
   const pathRef = useRef<SVGPathElement>(null);
@@ -64,7 +65,8 @@ export function AnimatedEdge({
     setPoints(sampled);
   }, [edgePath]);
 
-  const packets = (data as AnimatedEdgeData | undefined)?.packets;
+  const edgeData = data as AnimatedEdgeData | undefined;
+  const packets = edgeData?.packets;
 
   const items = useMemo(() => {
     if (!packets) return [];
@@ -86,6 +88,7 @@ export function AnimatedEdge({
         fill="none"
         className="react-flow__edge-path"
         style={style}
+        markerEnd={markerEnd}
       />
       {points.length > 0 &&
         items.map((item) => (

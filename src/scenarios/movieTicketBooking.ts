@@ -73,6 +73,9 @@ export const movieTicketBooking: Scenario = {
   id: "movie-ticket-booking",
   title: "Movie Ticket Booking",
   difficulty: 2,
+  // "Calculate the ceiling correctly, then cache" (see header) — the
+  // reference "given + budget" capstone.
+  topics: ["caching", "system-design"],
   story:
     "A movie theater chain is about to open ticket sales for a blockbuster release. " +
     "Thousands of fans will hit the booking page the instant sales go live, all trying " +
@@ -88,8 +91,25 @@ export const movieTicketBooking: Scenario = {
       position: { x: 80, y: 200 },
       config: { requestRate: 370 },
     },
+    {
+      id: "api",
+      type: "api",
+      label: "API Server",
+      position: { x: 400, y: 200 },
+      config: {},
+    },
+    {
+      id: "db",
+      type: "database",
+      label: "Database",
+      position: { x: 720, y: 200 },
+      config: {},
+    },
   ],
-  startingConnections: [],
+  startingConnections: [
+    { source: "client", target: "api" },
+    { source: "api", target: "db" },
+  ],
   // Only the demand itself is fixed. Everything downstream — how many
   // components, what kind, how they're sized — is the student's design,
   // not something the scenario hands them (see this file's header comment).
@@ -165,6 +185,23 @@ export const movieTicketBooking: Scenario = {
       "A cache sized to hold the Client's entire key pool — so nearly every request is " +
       "answered without ever reaching the database — in front of a minimally-sized pool " +
       "underneath it.",
+    editorial: [
+      "Left completely unconfigured, this architecture doesn't fail on cost — it fails on " +
+        "raw capacity. A default API Server and Database can only push about 333 requests " +
+        "per second through them; the traffic this scenario hands you is higher than that. " +
+        "No amount of budget saves an architecture that can't physically keep up.",
+      "The fix isn't 'turn every dial up' — that clears the capacity bar but blows the " +
+        "budget by more than 2x. Sizing the API Server and Database properly (not maximally) " +
+        "already gets you a passing, 2-star build for a fraction of the cost.",
+      "The real lever is a Cache in front of the Database, sized to hold the Client's whole " +
+        "key pool. Once nearly every request can be answered from cache, the Database barely " +
+        "needs to be touched at all — its own sizing (and its cost) collapses along with the " +
+        "traffic actually reaching it. That's the 3-star shape: not bigger components, fewer " +
+        "requests reaching the expensive one.",
+      "A common near-miss: sizing the cache too small. If it can't hold the full key pool, a " +
+        "meaningful slice of traffic still falls through to the database on every run, and " +
+        "you're back to paying for capacity you thought the cache had already solved.",
+    ],
     entities: [
       {
         id: "client",

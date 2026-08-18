@@ -89,7 +89,7 @@ export default async function EntityDeepDivePage({
   return (
     <main className="flex min-h-screen flex-col bg-bg">
       <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
           <Link
             href="/entities"
             className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
@@ -106,10 +106,10 @@ export default async function EntityDeepDivePage({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-5xl items-start gap-12 px-6 py-16">
+      <div className="mx-auto flex w-full max-w-7xl items-start gap-20 px-6 py-16">
         <EntityTableOfContents sections={tocSections} />
 
-        <article className="flex min-w-0 max-w-2xl flex-1 flex-col gap-14">
+        <article className="flex min-w-0 max-w-5xl flex-1 flex-col gap-14">
           {/* Hero */}
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">

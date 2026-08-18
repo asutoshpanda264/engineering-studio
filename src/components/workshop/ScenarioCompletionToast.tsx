@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PartyPopper, Trophy, X } from "lucide-react";
 import { useWorkshopStore } from "@/store/workshopStore";
 import { getScenario } from "@/scenarios";
 import { scoreScenario } from "@/lib/scenarioScoring";
 import type { SimulationResult } from "@/simulation/types";
+import { recordSolved } from "@/lib/problemProgress";
+import { timeLimitMsFor } from "@/lib/timedChallenge";
 
 /**
  * A brief, self-dismissing banner the moment a run newly clears every gate
@@ -22,14 +24,16 @@ import type { SimulationResult } from "@/simulation/types";
 export function ScenarioCompletionToast() {
   const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
+  const timedModeStartedAt = useWorkshopStore((s) => s.timedModeStartedAt);
   const nodes = useWorkshopStore((s) => s.nodes);
   const edges = useWorkshopStore((s) => s.edges);
+  const budgetCheckingEnabled = useWorkshopStore((s) => s.budgetCheckingEnabled);
   const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
 
   const score = useMemo(() => {
     if (!scenario || !simulationResult) return null;
-    return scoreScenario(scenario, simulationResult, nodes, edges);
-  }, [scenario, simulationResult, nodes, edges]);
+    return scoreScenario(scenario, simulationResult, nodes, edges, !budgetCheckingEnabled);
+  }, [scenario, simulationResult, nodes, edges, budgetCheckingEnabled]);
 
   // Holds whichever *specific* result has already been dismissed (by the
   // close button or the timeout below) — not a boolean flag. A genuinely
@@ -50,6 +54,29 @@ export function ScenarioCompletionToast() {
     const timeout = setTimeout(() => setDismissedResult(simulationResult), legendary ? 8000 : 6000);
     return () => clearTimeout(timeout);
   }, [visible, simulationResult, legendary]);
+
+  // Persist "solved" the moment this toast newly becomes visible — same
+  // gate as the toast itself (score.gatesPassed, a genuinely new
+  // simulationResult), so this fires exactly once per passing run, not
+  // once per render while the toast is on screen. `recordedResult` (a
+  // ref, not state) tracks which result reference has already been
+  // written, independent of `dismissedResult` — dismissing the toast
+  // early must not cause a re-record on the next unrelated rerender.
+  //
+  // "Beat the clock" is judged against wall-clock time right now, not
+  // anything in `simulationResult` — the simulation itself computes
+  // instantly (SIMULATION-ENGINE.md: "instant simulation, separate
+  // playback"), so `Date.now()` at the moment a passing result appears is
+  // effectively when the student finished the attempt.
+  const recordedResult = useRef<SimulationResult | null>(null);
+  useEffect(() => {
+    if (!visible || !scenario || !simulationResult) return;
+    if (recordedResult.current === simulationResult) return;
+    recordedResult.current = simulationResult;
+    const underTime =
+      timedModeStartedAt !== null && Date.now() - timedModeStartedAt <= timeLimitMsFor(scenario);
+    recordSolved(scenario.id, stars, underTime);
+  }, [visible, scenario, simulationResult, stars, timedModeStartedAt]);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center">

@@ -52,6 +52,42 @@ export type ScenarioMetric =
 export type Comparator = "lt" | "lte" | "gt" | "gte";
 
 /**
+ * What a scenario is *about*, for browsing/filtering the growing catalogue
+ * (a "Problems" list, LeetCode-tag-style) — orthogonal to `difficulty`,
+ * which is how hard it is, not what it teaches. One entity type each,
+ * except `system-design`: a scenario that's a genuine multi-entity
+ * capstone (the four "given + budget" scenarios today) rather than one
+ * mechanism applied in isolation. A scenario can carry several — most
+ * naturally touch more than one concept — so `Scenario.topics` is an
+ * array, unlike `LLDCategory` (`src/content/lld/types.ts`), which is
+ * singular because each LLD lesson sits in exactly one interview phase.
+ */
+export type ScenarioTopic =
+  | "load-balancing"
+  | "caching"
+  | "cdn"
+  | "rate-limiting"
+  | "circuit-breakers"
+  | "message-queues"
+  | "kafka"
+  | "replication"
+  | "reverse-proxy"
+  | "system-design";
+
+export const SCENARIO_TOPIC_LABEL: Record<ScenarioTopic, string> = {
+  "load-balancing": "Load Balancing",
+  caching: "Caching",
+  cdn: "CDN",
+  "rate-limiting": "Rate Limiting",
+  "circuit-breakers": "Circuit Breakers",
+  "message-queues": "Message Queues",
+  kafka: "Kafka",
+  replication: "Replication",
+  "reverse-proxy": "Reverse Proxy",
+  "system-design": "System Design",
+};
+
+/**
  * A single success criterion. Kept as declarative data (metric +
  * comparator + threshold) rather than a predicate closure — per
  * TECHNICAL-SPECIFICATION.md, "configuration should remain declarative,
@@ -117,6 +153,15 @@ export interface ScenarioReflection {
 export interface OptimalSolution {
   /** One or two sentences on the key idea — shown before it's revealed, so the reveal itself isn't the first hint of what to look for. */
   summary: string;
+  /**
+   * The full walkthrough for the `/problems/[id]/solution` editorial page
+   * — one paragraph per idea (why this shape, what each entity buys,
+   * the common wrong answer), student-facing prose distilled from the
+   * same reasoning already verified against the real engine in this
+   * scenario file's own header comment. Not shown until a student has
+   * at least attempted the scenario (see the catalogue's own gating).
+   */
+  editorial: string[];
   entities: ScenarioEntity[];
   connections: ConnectionConfig[];
 }
@@ -125,6 +170,14 @@ export interface Scenario {
   id: string;
   title: string;
   difficulty: 1 | 2 | 3 | 4 | 5;
+  /** What this scenario is about, for the Problems catalogue's topic filter — see `ScenarioTopic`'s own doc. */
+  topics: ScenarioTopic[];
+  /**
+   * Suggested countdown for Timed Challenge mode, in minutes. Optional —
+   * when absent, the UI falls back to a difficulty-based default rather
+   * than every scenario needing to pick a number up front.
+   */
+  suggestedTimeLimitMinutes?: number;
   /** The business problem (SCENARIOS.md §1 — "Story"). Technology-free. */
   story: string;
   /**

@@ -1,4 +1,4 @@
-import { ArrowMarker, DiagramArrow, DiagramBox } from "./primitives";
+import { ArrowMarker, DiagramArrow, DiagramBox, svgResponsiveProps } from "./primitives";
 
 /**
  * DNS failover, before and after — two small topologies side by side
@@ -80,7 +80,8 @@ export function DnsFailoverDiagram() {
   return (
     <svg
       viewBox="0 0 660 200"
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(660, 200)}
+      className="text-text-muted"
       role="img"
       aria-label="DNS failover: before, DNS points clients at the healthy primary; after the primary fails, a health check flips the DNS record to the backup, and TTL=60 means clients pick it up within about a minute."
     >

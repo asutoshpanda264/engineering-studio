@@ -232,9 +232,9 @@ export const REDIS_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "master-replica-master", label: "Redis Master", sublabel: "read+write — all writes go here", col: 1, row: 0 },
-            { id: "master-replica-r1", label: "Replica 1", sublabel: "read", col: 0, row: 1 },
-            { id: "master-replica-r2", label: "Replica 2", sublabel: "read", col: 2, row: 1 },
+            { id: "master-replica-master", label: "Redis Master", sublabel: "read+write — all writes go here", col: 1, row: 0, entityType: "cache" },
+            { id: "master-replica-r1", label: "Replica 1", sublabel: "read", col: 0, row: 1, entityType: "cache" },
+            { id: "master-replica-r2", label: "Replica 2", sublabel: "read", col: 2, row: 1, entityType: "cache" },
           ],
           edges: [
             { from: "master-replica-master", to: "master-replica-r1", label: "async replication" },
@@ -249,15 +249,15 @@ export const REDIS_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "master-a", label: "Node 1 — Master A", sublabel: "hash slots 0-5460", col: 0, row: 0 },
-            { id: "master-a-r1", label: "Replica A1", col: 0, row: 1 },
-            { id: "master-a-r2", label: "Replica A2", col: 1, row: 1 },
-            { id: "master-b", label: "Node 2 — Master B", sublabel: "hash slots 5461-10922", col: 3, row: 0 },
-            { id: "master-b-r1", label: "Replica B1", col: 3, row: 1 },
-            { id: "master-b-r2", label: "Replica B2", col: 4, row: 1 },
-            { id: "master-c", label: "Node 3 — Master C", sublabel: "hash slots 10923-16383", col: 6, row: 0 },
-            { id: "master-c-r1", label: "Replica C1", col: 6, row: 1 },
-            { id: "master-c-r2", label: "Replica C2", col: 7, row: 1 },
+            { id: "master-a", label: "Node 1 — Master A", sublabel: "hash slots 0-5460", col: 0, row: 0, entityType: "cache" },
+            { id: "master-a-r1", label: "Replica A1", col: 0, row: 1, entityType: "cache" },
+            { id: "master-a-r2", label: "Replica A2", col: 1, row: 1, entityType: "cache" },
+            { id: "master-b", label: "Node 2 — Master B", sublabel: "hash slots 5461-10922", col: 3, row: 0, entityType: "cache" },
+            { id: "master-b-r1", label: "Replica B1", col: 3, row: 1, entityType: "cache" },
+            { id: "master-b-r2", label: "Replica B2", col: 4, row: 1, entityType: "cache" },
+            { id: "master-c", label: "Node 3 — Master C", sublabel: "hash slots 10923-16383", col: 6, row: 0, entityType: "cache" },
+            { id: "master-c-r1", label: "Replica C1", col: 6, row: 1, entityType: "cache" },
+            { id: "master-c-r2", label: "Replica C2", col: 7, row: 1, entityType: "cache" },
           ],
           edges: [
             { from: "master-a", to: "master-a-r1" },
@@ -296,8 +296,8 @@ export const REDIS_DEEP_DIVE: FoundationLesson = {
             { id: "sentinel-1", label: "Sentinel 1", col: 0, row: 0 },
             { id: "sentinel-2", label: "Sentinel 2", col: 1, row: 0 },
             { id: "sentinel-3", label: "Sentinel 3", col: 2, row: 0 },
-            { id: "sentinel-master", label: "Master", col: 0, row: 1 },
-            { id: "sentinel-replica", label: "Replica", col: 2, row: 1 },
+            { id: "sentinel-master", label: "Master", col: 0, row: 1, entityType: "cache" },
+            { id: "sentinel-replica", label: "Replica", col: 2, row: 1, entityType: "cache" },
           ],
           edges: [
             { from: "sentinel-1", to: "sentinel-master", label: "monitor" },

@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { HeroDiagram } from "@/components/landing/HeroDiagram";
 import { SCENARIOS } from "@/scenarios";
+import { difficultyColorClass, difficultyMeter } from "@/lib/difficultyDisplay";
 
 const GITHUB_URL = "https://github.com/asutoshpanda264/engineering-studio";
 
@@ -63,21 +64,6 @@ const PROCESS_STEPS = [
     body: "Change one thing. Run it again. Distributed systems intuition is built by watching consequences, not by reading about them.",
   },
 ];
-
-/** Bracket meter, not star glyphs — reads as an instrument readout rather
-    than a review-site rating widget. */
-function difficultyMeter(difficulty: number): string {
-  return "▮".repeat(difficulty) + "▯".repeat(5 - difficulty);
-}
-
-/** Difficulty is a real property of the scenario, not decoration — color it
-    with the same status vocabulary the simulation itself uses for real
-    node health, so low/medium/high reads as green/amber/red on sight. */
-function difficultyColorClass(difficulty: number): string {
-  if (difficulty <= 2) return "text-status-healthy";
-  if (difficulty === 3) return "text-status-degraded";
-  return "text-status-critical";
-}
 
 export default function Home() {
   return (
@@ -172,15 +158,27 @@ export default function Home() {
         id="scenarios"
         className="mx-auto w-full max-w-5xl scroll-mt-14 border-t border-border px-6 py-24"
       >
-        <div className="mb-8 flex flex-col gap-2">
-          <Kicker>Pick a problem to solve</Kicker>
-          <p className="max-w-xl text-sm text-text-muted">
-            Every scenario hands you an intentionally imperfect architecture and a business
-            problem, not a technical one. Your job is to figure out why it&apos;s failing.
-          </p>
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <Kicker>Pick a problem to solve</Kicker>
+            <p className="max-w-xl text-sm text-text-muted">
+              Every scenario hands you an intentionally imperfect architecture and a business
+              problem, not a technical one. Your job is to figure out why it&apos;s failing.
+            </p>
+          </div>
+          <Link
+            href="/problems"
+            className="group flex shrink-0 items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+          >
+            See all {SCENARIOS.length} problems
+            <ArrowRight
+              className="size-3.5 transition-transform duration-fast ease-standard group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {SCENARIOS.map((scenario, i) => (
+          {SCENARIOS.slice(0, 4).map((scenario, i) => (
             <Link
               key={scenario.id}
               href={`/workshop?scenario=${scenario.id}`}

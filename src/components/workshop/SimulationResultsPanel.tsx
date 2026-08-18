@@ -164,7 +164,8 @@ function ScenarioScoreStat({
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
 }) {
-  const score = scoreScenario(scenario, result, nodes, edges);
+  const budgetCheckingEnabled = useWorkshopStore((s) => s.budgetCheckingEnabled);
+  const score = scoreScenario(scenario, result, nodes, edges, !budgetCheckingEnabled);
   const color = score.legendary
     ? "text-signal"
     : score.gatesPassed

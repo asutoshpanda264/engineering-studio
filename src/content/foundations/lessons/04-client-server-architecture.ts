@@ -115,8 +115,8 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "client-app", label: "Client App", col: 0, row: 0 },
-            { id: "database-server", label: "Database Server", col: 1, row: 0 },
+            { id: "client-app", label: "Client App", col: 0, row: 0, entityType: "client" },
+            { id: "database-server", label: "Database Server", col: 1, row: 0, entityType: "database" },
           ],
           edges: [{ from: "client-app", to: "database-server" }],
         },
@@ -125,9 +125,9 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "client-tier", label: "Client", sublabel: "Tier 1 — Presentation", col: 0, row: 0 },
-            { id: "app-tier", label: "Application Server", sublabel: "Tier 2 — Business Logic", col: 1, row: 0 },
-            { id: "db-tier", label: "Database", sublabel: "Tier 3 — Data", col: 2, row: 0 },
+            { id: "client-tier", label: "Client", sublabel: "Tier 1 — Presentation", col: 0, row: 0, entityType: "client" },
+            { id: "app-tier", label: "Application Server", sublabel: "Tier 2 — Business Logic", col: 1, row: 0, entityType: "api" },
+            { id: "db-tier", label: "Database", sublabel: "Tier 3 — Data", col: 2, row: 0, entityType: "database" },
           ],
           edges: [
             { from: "client-tier", to: "app-tier" },
@@ -156,16 +156,16 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "client-n", label: "Client", col: 1, row: 0 },
+            { id: "client-n", label: "Client", col: 1, row: 0, entityType: "client" },
             { id: "gateway", label: "API Gateway", col: 1, row: 1 },
-            { id: "auth-svc", label: "Auth Service", col: 0, row: 2 },
-            { id: "order-svc", label: "Order Service", col: 1, row: 2 },
-            { id: "payment-svc", label: "Payment Service", col: 2, row: 2 },
-            { id: "notification-svc", label: "Notification Service", col: 3, row: 2 },
-            { id: "user-db", label: "User DB", col: 0, row: 3 },
-            { id: "order-db", label: "Order DB", col: 1, row: 3 },
-            { id: "payment-db", label: "Payment DB", col: 2, row: 3 },
-            { id: "kafka-queue", label: "Kafka Queue", col: 3, row: 3 },
+            { id: "auth-svc", label: "Auth Service", col: 0, row: 2, entityType: "api" },
+            { id: "order-svc", label: "Order Service", col: 1, row: 2, entityType: "api" },
+            { id: "payment-svc", label: "Payment Service", col: 2, row: 2, entityType: "api" },
+            { id: "notification-svc", label: "Notification Service", col: 3, row: 2, entityType: "api" },
+            { id: "user-db", label: "User DB", col: 0, row: 3, entityType: "database" },
+            { id: "order-db", label: "Order DB", col: 1, row: 3, entityType: "database" },
+            { id: "payment-db", label: "Payment DB", col: 2, row: 3, entityType: "database" },
+            { id: "kafka-queue", label: "Kafka Queue", col: 3, row: 3, entityType: "kafka" },
           ],
           edges: [
             { from: "client-n", to: "gateway" },
@@ -251,9 +251,9 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "server-a", label: "Server A", col: 0, row: 0 },
-            { id: "redis-store", label: "Redis", sublabel: "session store", col: 1, row: 0 },
-            { id: "server-b", label: "Server B", col: 2, row: 0 },
+            { id: "server-a", label: "Server A", col: 0, row: 0, entityType: "api" },
+            { id: "redis-store", label: "Redis", sublabel: "session store", col: 1, row: 0, entityType: "cache" },
+            { id: "server-b", label: "Server B", col: 2, row: 0, entityType: "api" },
           ],
           edges: [
             { from: "server-a", to: "redis-store" },
@@ -293,8 +293,8 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
             {
               title: "Client-Server",
               nodes: [
-                { id: "cs-client", label: "Client", col: 0, row: 0 },
-                { id: "cs-server", label: "Server", col: 1, row: 0 },
+                { id: "cs-client", label: "Client", col: 0, row: 0, entityType: "client" },
+                { id: "cs-server", label: "Server", col: 1, row: 0, entityType: "api" },
               ],
               edges: [{ from: "cs-client", to: "cs-server" }],
             },

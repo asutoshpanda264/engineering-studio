@@ -1,5 +1,6 @@
 import type { DiagramId } from "@/components/content/diagrams/registry";
 import type { BoxTone } from "@/components/content/diagrams/primitives";
+import type { EntityType } from "@/simulation/types";
 
 /**
  * Lesson content primitives shared by every long-form reading-room module
@@ -55,7 +56,24 @@ export type LessonBlock =
       transitionLabel?: string[];
     }
   /** LLD only — UML class-relationship notation. */
-  | { kind: "uml"; relationships: UmlRelationship[] };
+  | { kind: "uml"; relationships: UmlRelationship[] }
+  /** Proportional horizontal bars for a sequence of durations — "which step
+   * actually costs the most time," not just a table of numbers the reader
+   * has to compare mentally. Bar length scales by `sqrt(ms)` rather than
+   * `ms` directly so a 1ms step and a 300ms step can both still render as a
+   * visible bar in the same chart. */
+  | { kind: "timeline"; steps: TimelineStep[] }
+  /** Two overlapping-circle Venn diagrams, one per panel — SQL JOIN
+   * semantics (which region of A/B ends up in the result) are exactly a
+   * set-membership question, and a shaded region reads faster than the
+   * equivalent "A ∩ B" notation. */
+  | { kind: "venn"; panels: VennPanel[] }
+  /** A real node-and-edge graph (not a grid/tree) — for content that's
+   * actually graph-shaped (graph databases, social graphs), where an
+   * `architecture` block's rigid col/row grid would misrepresent the
+   * relationships as more linear/hierarchical than they are. Nodes are
+   * hand-placed by x/y (not col/row) since a graph's layout is organic. */
+  | { kind: "graph"; nodes: GraphDiagramNode[]; edges: GraphDiagramEdge[] };
 
 export interface FlowStep {
   title: string;
@@ -95,6 +113,15 @@ export interface ArchNode {
   row: number; // 0-indexed grid row
   tone?: BoxTone;
   dashed?: boolean;
+  /**
+   * Which `ENTITY_CATALOG` entity this box represents, if any — draws its
+   * catalog icon (see `DiagramBox`'s own `icon` prop). Optional and opt-in:
+   * only set it when the label unambiguously matches one real entity, same
+   * judgment call the entity flagship diagrams already make (e.g. a CDN's
+   * "Origin" box deliberately has no catalog entity of its own). Untagged
+   * nodes render exactly as before — zero regression risk.
+   */
+  entityType?: EntityType;
 }
 
 export interface ArchEdge {
@@ -128,6 +155,45 @@ export interface UmlRelationship {
   toMultiplicity?: string;
   /** The verb, e.g. "has", "teaches". */
   label?: string;
+}
+
+export interface TimelineStep {
+  label: string;
+  /** Representative value (the range's midpoint, typically) the bar length is scaled from — not itself displayed. */
+  ms: number;
+  /** What's actually shown next to the bar, e.g. "~20-120ms". */
+  rangeLabel: string;
+  /** Calls the bar out in `signal` — reserve for the one step content actually wants the reader's eye drawn to. */
+  tone?: BoxTone;
+}
+
+export interface VennPanel {
+  title: string;
+  subtitle?: string;
+  leftLabel: string;
+  rightLabel: string;
+  /** Which region(s) of the two circles render filled. */
+  highlight: "left" | "right" | "overlap" | "all";
+}
+
+export interface GraphDiagramNode {
+  id: string;
+  label: string;
+  /** Small tag under the label, e.g. a graph database's node type — "User", "Product". */
+  typeLabel?: string;
+  /** Hand-placed pixel position within the diagram's viewBox (a graph's layout is organic, not a grid — see the `graph` block's own comment). */
+  x: number;
+  y: number;
+  tone?: BoxTone;
+}
+
+export interface GraphDiagramEdge {
+  from: string; // GraphDiagramNode id
+  to: string; // GraphDiagramNode id
+  /** The relationship type, e.g. "FRIENDS_WITH" — rendered on the edge the way a graph database itself would label it. */
+  label: string;
+  /** A property on the relationship itself, e.g. "since: 2020" — graph edges can carry properties same as nodes can. */
+  propertyLabel?: string;
 }
 
 export interface LessonSection {

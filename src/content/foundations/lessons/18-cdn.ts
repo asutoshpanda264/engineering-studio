@@ -82,7 +82,7 @@ export const CDN: FoundationLesson = {
             {
               title: "Without CDN",
               nodes: [
-                { id: "no-cdn-user", label: "User in Chennai", col: 0, row: 0 },
+                { id: "no-cdn-user", label: "User in Chennai", col: 0, row: 0, entityType: "client" },
                 {
                   id: "no-cdn-origin",
                   label: "Origin Server in Mumbai",
@@ -96,7 +96,7 @@ export const CDN: FoundationLesson = {
             {
               title: "With CDN",
               nodes: [
-                { id: "cdn-user", label: "User in Chennai", col: 0, row: 0 },
+                { id: "cdn-user", label: "User in Chennai", col: 0, row: 0, entityType: "client" },
                 {
                   id: "cdn-edge",
                   label: "CDN Edge Node in Chennai",
@@ -104,6 +104,7 @@ export const CDN: FoundationLesson = {
                   col: 1,
                   row: 0,
                   tone: "healthy",
+                  entityType: "cdn",
                 },
               ],
               edges: [{ from: "cdn-user", to: "cdn-edge", tone: "healthy" }],
@@ -117,8 +118,8 @@ export const CDN: FoundationLesson = {
             {
               title: "First request (cache miss)",
               nodes: [
-                { id: "flow-miss-user", label: "User", col: 0, row: 0 },
-                { id: "flow-miss-edge", label: "CDN Edge Node", col: 1, row: 0 },
+                { id: "flow-miss-user", label: "User", col: 0, row: 0, entityType: "client" },
+                { id: "flow-miss-edge", label: "CDN Edge Node", col: 1, row: 0, entityType: "cdn" },
                 { id: "flow-miss-origin", label: "Origin Server", col: 2, row: 0 },
               ],
               edges: [
@@ -131,8 +132,8 @@ export const CDN: FoundationLesson = {
             {
               title: "Subsequent requests (cache hit)",
               nodes: [
-                { id: "flow-hit-user", label: "User", col: 0, row: 0 },
-                { id: "flow-hit-edge", label: "CDN Edge Node", col: 1, row: 0, tone: "healthy" },
+                { id: "flow-hit-user", label: "User", col: 0, row: 0, entityType: "client" },
+                { id: "flow-hit-edge", label: "CDN Edge Node", col: 1, row: 0, tone: "healthy", entityType: "cdn" },
               ],
               edges: [
                 { from: "flow-hit-user", to: "flow-hit-edge", label: "\"Have it!\"", tone: "healthy" },
@@ -285,17 +286,6 @@ export const CDN: FoundationLesson = {
       id: "netflix-open-connect",
       heading: "CDN for video streaming — Netflix deep dive",
       blocks: [
-        { kind: "paragraph", text: "Netflix is the most sophisticated CDN use case in the world." },
-        { kind: "paragraph", text: "Netflix built their own CDN — Open Connect — instead of using AWS CloudFront or Akamai." },
-        {
-          kind: "paragraph",
-          text: "Open Connect Appliances (OCAs): physical servers Netflix installs inside ISPs (Jio, Airtel, BSNL). Scale: 17,000+ servers, 100+ countries, storing ~1 petabyte of content per major location.",
-        },
-        {
-          kind: "paragraph",
-          text: "Why build their own CDN? Cost: CDN providers charge per GB transferred, and Netflix transfers hundreds of petabytes/day — a third-party CDN would cost billions of dollars/year, while their own CDN is much cheaper at scale. Control: they can optimize specifically for video streaming with custom hardware, custom protocols, and deep integration with the recommendation system.",
-        },
-        { kind: "paragraph", text: "Netflix Content Pre-positioning:" },
         {
           kind: "flow",
           steps: [
@@ -307,6 +297,18 @@ export const CDN: FoundationLesson = {
             { title: "User presses play in morning", detail: "content already there", tone: "healthy" },
             { title: "Instant start", tone: "healthy" },
           ],
+        },
+        {
+          kind: "paragraph",
+          text: "Netflix is the most sophisticated CDN use case in the world — instead of using AWS CloudFront or Akamai, they built their own: Open Connect.",
+        },
+        {
+          kind: "paragraph",
+          text: "Open Connect Appliances (OCAs): physical servers Netflix installs inside ISPs (Jio, Airtel, BSNL). Scale: 17,000+ servers, 100+ countries, storing ~1 petabyte of content per major location.",
+        },
+        {
+          kind: "paragraph",
+          text: "Why build their own CDN? Cost: CDN providers charge per GB transferred, and Netflix transfers hundreds of petabytes/day — a third-party CDN would cost billions of dollars/year, while their own CDN is much cheaper at scale. Control: they can optimize specifically for video streaming with custom hardware, custom protocols, and deep integration with the recommendation system.",
         },
         { kind: "paragraph", text: "Adaptive Bitrate Streaming — video is stored in multiple qualities:" },
         {
@@ -356,8 +358,8 @@ export const CDN: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "tls-user", label: "User", col: 0, row: 0 },
-            { id: "tls-edge", label: "CDN Edge", sublabel: "HTTPS terminates here", col: 1, row: 0 },
+            { id: "tls-user", label: "User", col: 0, row: 0, entityType: "client" },
+            { id: "tls-edge", label: "CDN Edge", sublabel: "HTTPS terminates here", col: 1, row: 0, entityType: "cdn" },
             { id: "tls-origin", label: "Origin", sublabel: "HTTP or HTTPS", col: 2, row: 0 },
           ],
           edges: [
@@ -398,8 +400,8 @@ export const CDN: FoundationLesson = {
               title: "Normal operation",
               nodes: [
                 { id: "multicdn-traffic-1", label: "Traffic", col: 0, row: 1 },
-                { id: "multicdn-cloudflare-1", label: "Cloudflare", sublabel: "primary, best performance", col: 1, row: 0, tone: "healthy" },
-                { id: "multicdn-cloudfront-1", label: "AWS CloudFront", sublabel: "secondary", col: 1, row: 1 },
+                { id: "multicdn-cloudflare-1", label: "Cloudflare", sublabel: "primary, best performance", col: 1, row: 0, tone: "healthy", entityType: "cdn" },
+                { id: "multicdn-cloudfront-1", label: "AWS CloudFront", sublabel: "secondary", col: 1, row: 1, entityType: "cdn" },
               ],
               edges: [
                 { from: "multicdn-traffic-1", to: "multicdn-cloudflare-1", label: "70%", tone: "healthy" },
@@ -410,8 +412,8 @@ export const CDN: FoundationLesson = {
               title: "Cloudflare outage — automatic failover",
               nodes: [
                 { id: "multicdn-traffic-2", label: "Traffic", col: 0, row: 1 },
-                { id: "multicdn-cloudflare-2", label: "Cloudflare", sublabel: "down", col: 1, row: 0, tone: "critical", dashed: true },
-                { id: "multicdn-cloudfront-2", label: "AWS CloudFront", sublabel: "100% traffic", col: 1, row: 1, tone: "healthy" },
+                { id: "multicdn-cloudflare-2", label: "Cloudflare", sublabel: "down", col: 1, row: 0, tone: "critical", dashed: true, entityType: "cdn" },
+                { id: "multicdn-cloudfront-2", label: "AWS CloudFront", sublabel: "100% traffic", col: 1, row: 1, tone: "healthy", entityType: "cdn" },
               ],
               edges: [
                 { from: "multicdn-traffic-2", to: "multicdn-cloudflare-2", label: "✕ down", dashed: true, tone: "critical" },
@@ -429,10 +431,10 @@ export const CDN: FoundationLesson = {
             {
               title: "Without Origin Shield",
               nodes: [
-                { id: "shield-off-mumbai", label: "Edge: Mumbai", col: 0, row: 0 },
-                { id: "shield-off-delhi", label: "Edge: Delhi", col: 0, row: 1 },
-                { id: "shield-off-chennai", label: "Edge: Chennai", col: 0, row: 2 },
-                { id: "shield-off-kolkata", label: "Edge: Kolkata", col: 0, row: 3 },
+                { id: "shield-off-mumbai", label: "Edge: Mumbai", col: 0, row: 0, entityType: "cdn" },
+                { id: "shield-off-delhi", label: "Edge: Delhi", col: 0, row: 1, entityType: "cdn" },
+                { id: "shield-off-chennai", label: "Edge: Chennai", col: 0, row: 2, entityType: "cdn" },
+                { id: "shield-off-kolkata", label: "Edge: Kolkata", col: 0, row: 3, entityType: "cdn" },
                 { id: "shield-off-origin", label: "Origin: US-East", col: 1, row: 1, tone: "critical" },
               ],
               edges: [
@@ -445,11 +447,11 @@ export const CDN: FoundationLesson = {
             {
               title: "With Origin Shield",
               nodes: [
-                { id: "shield-on-mumbai", label: "Edge: Mumbai", col: 0, row: 0 },
-                { id: "shield-on-delhi", label: "Edge: Delhi", col: 0, row: 1 },
-                { id: "shield-on-chennai", label: "Edge: Chennai", col: 0, row: 2 },
-                { id: "shield-on-kolkata", label: "Edge: Kolkata", col: 0, row: 3 },
-                { id: "shield-on-shield", label: "Origin Shield: Singapore", col: 1, row: 1, tone: "healthy" },
+                { id: "shield-on-mumbai", label: "Edge: Mumbai", col: 0, row: 0, entityType: "cdn" },
+                { id: "shield-on-delhi", label: "Edge: Delhi", col: 0, row: 1, entityType: "cdn" },
+                { id: "shield-on-chennai", label: "Edge: Chennai", col: 0, row: 2, entityType: "cdn" },
+                { id: "shield-on-kolkata", label: "Edge: Kolkata", col: 0, row: 3, entityType: "cdn" },
+                { id: "shield-on-shield", label: "Origin Shield: Singapore", col: 1, row: 1, tone: "healthy", entityType: "cdn" },
                 { id: "shield-on-origin", label: "Origin: US-East", col: 2, row: 1, tone: "healthy" },
               ],
               edges: [

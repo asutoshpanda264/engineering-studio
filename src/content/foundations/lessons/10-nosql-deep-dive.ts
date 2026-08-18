@@ -277,15 +277,15 @@ export const NOSQL_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "dc1-n1", label: "Node 1", sublabel: "DC1 — Mumbai", col: 0, row: 0 },
-            { id: "dc1-n2", label: "Node 2", sublabel: "DC1 — Mumbai", col: 1, row: 0 },
-            { id: "dc1-n3", label: "Node 3", sublabel: "DC1 — Mumbai", col: 2, row: 0 },
-            { id: "dc2-n1", label: "Node 4", sublabel: "DC2 — Delhi", col: 0, row: 1 },
-            { id: "dc2-n2", label: "Node 5", sublabel: "DC2 — Delhi", col: 1, row: 1 },
-            { id: "dc2-n3", label: "Node 6", sublabel: "DC2 — Delhi", col: 2, row: 1 },
-            { id: "dc3-n1", label: "Node 7", sublabel: "DC3 — Singapore", col: 0, row: 2 },
-            { id: "dc3-n2", label: "Node 8", sublabel: "DC3 — Singapore", col: 1, row: 2 },
-            { id: "dc3-n3", label: "Node 9", sublabel: "DC3 — Singapore", col: 2, row: 2 },
+            { id: "dc1-n1", label: "Node 1", sublabel: "DC1 — Mumbai", col: 0, row: 0, entityType: "database" },
+            { id: "dc1-n2", label: "Node 2", sublabel: "DC1 — Mumbai", col: 1, row: 0, entityType: "database" },
+            { id: "dc1-n3", label: "Node 3", sublabel: "DC1 — Mumbai", col: 2, row: 0, entityType: "database" },
+            { id: "dc2-n1", label: "Node 4", sublabel: "DC2 — Delhi", col: 0, row: 1, entityType: "database" },
+            { id: "dc2-n2", label: "Node 5", sublabel: "DC2 — Delhi", col: 1, row: 1, entityType: "database" },
+            { id: "dc2-n3", label: "Node 6", sublabel: "DC2 — Delhi", col: 2, row: 1, entityType: "database" },
+            { id: "dc3-n1", label: "Node 7", sublabel: "DC3 — Singapore", col: 0, row: 2, entityType: "database" },
+            { id: "dc3-n2", label: "Node 8", sublabel: "DC3 — Singapore", col: 1, row: 2, entityType: "database" },
+            { id: "dc3-n3", label: "Node 9", sublabel: "DC3 — Singapore", col: 2, row: 2, entityType: "database" },
           ],
           edges: [],
         },
@@ -358,6 +358,20 @@ export const NOSQL_DEEP_DIVE: FoundationLesson = {
         {
           kind: "paragraph",
           text: "Graph database concepts: Nodes = entities (User, Product, Company); Edges = relationships (FRIENDS_WITH, PURCHASED, WORKS_AT); Properties = attributes on nodes and edges.",
+        },
+        {
+          kind: "graph",
+          nodes: [
+            { id: "priya", label: "Priya", typeLabel: "User", x: 80, y: 110, tone: "signal" },
+            { id: "rahul", label: "Rahul", typeLabel: "User", x: 260, y: 50 },
+            { id: "iphone", label: "iPhone", typeLabel: "Product", x: 280, y: 110 },
+            { id: "google", label: "Google", typeLabel: "Company", x: 260, y: 175 },
+          ],
+          edges: [
+            { from: "priya", to: "rahul", label: "FRIENDS_WITH", propertyLabel: "since: 2020" },
+            { from: "priya", to: "iphone", label: "PURCHASED", propertyLabel: "on: 2024-01-15" },
+            { from: "priya", to: "google", label: "WORKS_AT", propertyLabel: "role: Engineer" },
+          ],
         },
         {
           kind: "list",

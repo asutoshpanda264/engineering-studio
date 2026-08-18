@@ -29,10 +29,11 @@ export function SuggestionsPanel() {
   const [open, setOpen] = useState(false);
   const result = useWorkshopStore((s) => s.simulationResult);
   const nodes = useWorkshopStore((s) => s.nodes);
+  const edges = useWorkshopStore((s) => s.edges);
 
   if (!result) return null;
 
-  const suggestions = getSuggestions(result, nodes);
+  const suggestions = getSuggestions(result, nodes, edges);
   const criticalCount = suggestions.filter((s) => s.severity === "critical").length;
 
   return (

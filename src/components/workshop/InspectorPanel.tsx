@@ -13,6 +13,7 @@ import { ENTITY_CONFIG_SCHEMA, formatBenchmarkValue } from "@/lib/entityConfigSc
 import type { ConfigFieldSchema, NumericFieldSchema } from "@/lib/entityConfigSchema";
 import { getEntityEducation } from "@/lib/entityEducation";
 import { slugFromEntityType } from "@/lib/entityDeepDive";
+import { difficultyColorClass, difficultyMeter } from "@/lib/difficultyDisplay";
 import { evaluateScenario, getScenario, resolveReflection } from "@/scenarios";
 import type { CapacityEstimate, ConstraintResult, Scenario, ScenarioConstraint } from "@/scenarios";
 import type { ArchitectureNode } from "@/store/workshopStore";
@@ -260,12 +261,14 @@ function ScenarioInspector() {
   const connectionLatencyMs = useWorkshopStore((s) => s.connectionLatencyMs);
   const setScenarioDurationMs = useWorkshopStore((s) => s.setScenarioDurationMs);
   const setConnectionLatencyMs = useWorkshopStore((s) => s.setConnectionLatencyMs);
+  const budgetCheckingEnabled = useWorkshopStore((s) => s.budgetCheckingEnabled);
+  const setBudgetCheckingEnabled = useWorkshopStore((s) => s.setBudgetCheckingEnabled);
   const activeScenarioId = useWorkshopStore((s) => s.activeScenarioId);
   const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
 
   return (
     <>
-      <Panel.Header title="Scenario" />
+      <Panel.Header title="Scenario" accent />
       <Panel.Body className="flex flex-col gap-5">
         {scenario ? (
           <ScenarioBriefing scenario={scenario} />
@@ -294,6 +297,27 @@ function ScenarioInspector() {
             value={connectionLatencyMs}
             onChange={(e) => setConnectionLatencyMs(Number(e.target.value))}
           />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              Budget Checking
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={budgetCheckingEnabled}
+              onClick={() => setBudgetCheckingEnabled(!budgetCheckingEnabled)}
+              className={`flex h-9 items-center justify-between rounded-md border px-3 text-xs transition-colors duration-fast ease-standard ${
+                budgetCheckingEnabled
+                  ? "border-border text-text hover:border-border-hover"
+                  : "border-signal/50 bg-signal/10 text-signal"
+              }`}
+            >
+              <span>{budgetCheckingEnabled ? "On — cost counts toward scoring" : "Off — build freely, no cost pressure"}</span>
+              <span className="font-mono text-[10px] uppercase tracking-wide">
+                {budgetCheckingEnabled ? "On" : "Off"}
+              </span>
+            </button>
+          </div>
         </section>
       </Panel.Body>
     </>
@@ -302,6 +326,8 @@ function ScenarioInspector() {
 
 function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
   const loadScenario = useWorkshopStore((s) => s.loadScenario);
+  const startTimedChallenge = useWorkshopStore((s) => s.startTimedChallenge);
+  const wasTimedChallenge = useWorkshopStore((s) => s.timedModeStartedAt !== null);
   const nodes = useWorkshopStore((s) => s.nodes);
   const edges = useWorkshopStore((s) => s.edges);
   // playbackMetrics reflects wherever the playback cursor currently is —
@@ -309,11 +335,12 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
   // tally from the immutable result instead (SIMULATION-ENGINE.md §11:
   // simulation is history, judged once it's finished).
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
+  const budgetCheckingEnabled = useWorkshopStore((s) => s.budgetCheckingEnabled);
   const evaluation = simulationResult
     ? evaluateScenario(scenario, simulationResult.metrics)
     : null;
   const score: ScenarioScore | null = simulationResult
-    ? scoreScenario(scenario, simulationResult, nodes, edges)
+    ? scoreScenario(scenario, simulationResult, nodes, edges, !budgetCheckingEnabled)
     : null;
   const projectedCost = estimateCost(simulationResult, nodes).totalMonthlyCost;
 
@@ -322,16 +349,23 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-medium text-text">{scenario.title}</h3>
-          <p className="text-[11px] text-text-subtle">
-            {"★".repeat(scenario.difficulty)}
-            {"☆".repeat(5 - scenario.difficulty)}
+          <p className={`text-[11px] tracking-wide ${difficultyColorClass(scenario.difficulty)}`}>
+            {difficultyMeter(scenario.difficulty)}
           </p>
         </div>
         <Button
           variant="ghost"
           size="sm"
           icon={<RotateCcw className="size-3.5" aria-hidden />}
-          onClick={() => loadScenario(scenario.id)}
+          onClick={() => {
+            loadScenario(scenario.id);
+            // loadScenario() always clears timed mode (see its own
+            // comment) — re-enter it immediately, with a fresh full
+            // countdown, if this restart happened mid-challenge. Restart
+            // reads as "fresh clock," never as a silent way to exit timed
+            // mode.
+            if (wasTimedChallenge) startTimedChallenge();
+          }}
           aria-label="Restart scenario"
         >
           Restart
@@ -355,9 +389,16 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
             result={evaluation?.results.find((r) => r.constraint.id === constraint.id) ?? null}
           />
         ))}
-        {scenario.budgetUsd !== undefined && (
+        {scenario.budgetUsd !== undefined && budgetCheckingEnabled && (
           <BudgetRow budgetUsd={scenario.budgetUsd} actualUsd={projectedCost} hasRun={simulationResult !== null} />
         )}
+        {/* Architecture validity (a real service layer between Client and
+            backend) is a structural check, not a cost one — it's still
+            enforced in `gatesPassed` regardless of budgetCheckingEnabled,
+            so its visibility shouldn't hinge on that toggle. Kept behind
+            `scenario.budgetUsd !== undefined` only because that's how
+            every budget-gated scenario happens to be authored today, not
+            because the two are conceptually coupled. */}
         {scenario.budgetUsd !== undefined && score && (
           <ArchitectureGateRow architectureValid={score.architectureValid} />
         )}
@@ -432,6 +473,14 @@ function ReferenceSolutionSection({ scenario }: { scenario: Scenario }) {
           See a reference solution
         </button>
       )}
+      <Link
+        href={`/problems/${scenario.id}/solution`}
+        target="_blank"
+        rel="noreferrer"
+        className="self-start text-[11px] text-text-subtle hover:text-signal hover:underline"
+      >
+        Read the full walkthrough →
+      </Link>
     </section>
   );
 }
@@ -669,7 +718,7 @@ function NodeInspector({ node }: { node: ArchitectureNode }) {
 
   return (
     <>
-      <Panel.Header title="Inspector" />
+      <Panel.Header title="Inspector" accent />
       <Panel.Body className="flex flex-col gap-5">
         <div className="flex items-center gap-2.5">
           <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />

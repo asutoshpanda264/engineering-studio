@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowMarker } from "../primitives";
+import { ArrowMarker, svgResponsiveProps } from "../primitives";
 import type { FlowStep } from "@/content/shared/lesson";
 
 /**
@@ -71,7 +71,8 @@ export function FlowDiagram({ steps, animated = false }: { steps: FlowStep[]; an
   return (
     <svg
       viewBox={`0 0 680 ${height}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(680, height)}
+      className="text-text-muted"
       role="img"
       aria-label={`Step-by-step flow: ${steps.map((step) => step.title).join(", then ")}.`}
     >

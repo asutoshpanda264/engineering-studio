@@ -189,6 +189,7 @@ export function computeCurrentStep({
             : `Drag or click ${label(type)} to add it — it ${lowercaseFirst(catalogItem.description)}.`,
         getTarget: () => byTourId(`sidebar-component-${type}`),
         placement: "right",
+        requiresComponentsPanel: true,
       };
     }
     if (prevType) {
@@ -232,6 +233,7 @@ export function computeCurrentStep({
         body: `In production, ${targetLabel} always sits in front of more than one ${followLabel} — with only one, there's nothing behind it to actually spread work across. Drag or click ${followLabel} again to add a second one.`,
         getTarget: () => byTourId(`sidebar-component-${fanOutType}`),
         placement: "right",
+        requiresComponentsPanel: true,
       };
     }
   }

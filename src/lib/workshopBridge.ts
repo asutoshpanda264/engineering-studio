@@ -12,17 +12,14 @@
  */
 
 import type { ArchitectureEdge, ArchitectureNode } from "@/store/workshopStore";
-import type { SimulationConfig } from "@/simulation/types";
+import type { SimulationConfig, TrafficPattern } from "@/simulation/types";
 import { ENTITY_CONFIG_SCHEMA } from "@/lib/entityConfigSchema";
 import { findCycle, findUnreachableNodes } from "@/lib/graphValidation";
 
 // Used when no scenario is active (a freeform architecture) — an active
 // scenario supplies its own seed via ScenarioOptions.seed so runs stay
 // reproducible against the numbers it was tuned/tested with (see
-// scenarios/movieTicketBooking.ts). Duration and connection latency are
-// adjustable from the Inspector's Scenario panel; traffic rate comes from
-// the Client node's own config. Only the traffic pattern *shape*
-// (constant vs burst/ramp) is still hardcoded.
+// scenarios/movieTicketBooking.ts).
 const DEFAULT_SEED = 42;
 
 const requestRateField = ENTITY_CONFIG_SCHEMA.client?.find(
@@ -38,6 +35,27 @@ export interface ScenarioOptions {
   connectionLatencyMs: number;
   /** Active scenario's seed, if one is loaded — falls back to DEFAULT_SEED otherwise. */
   seed?: number;
+  /**
+   * Active scenario's own traffic shape, if one is loaded — burst/ramp,
+   * not just constant. Falls back to `{ type: "constant", rate:
+   * <Client node's own requestRate config> }` when absent (free-play, no
+   * scenario), same as before this field existed.
+   *
+   * Every "given + budget" scenario shipped so far happens to declare a
+   * constant pattern whose `rate` already matches its given Client's
+   * locked `requestRate` exactly — by construction, `scoreScenario`'s own
+   * `computeOptimalScore` already re-simulates the reference build with
+   * `scenario.trafficPattern`, so an optimalSolution's Client `config`
+   * and its scenario's `trafficPattern` were always meant to agree. That
+   * makes wiring this in a no-op for every existing scenario and the only
+   * thing it actually changes is finally letting a *future* burst/ramp
+   * scenario reach the student for real, instead of silently downgrading
+   * to constant-rate traffic the way `buildSimulationConfig` used to
+   * (`scenario.trafficPattern` was previously read only for scoring the
+   * optimal solution, never for the student's own live run — see
+   * docs/BROWSER-CHECKS.md's note on this fix for the full story).
+   */
+  trafficPattern?: TrafficPattern;
 }
 
 export type BuildConfigResult =
@@ -108,10 +126,15 @@ export function buildSimulationConfig(
         ]
       : [];
 
-  const requestRate =
-    typeof clientNode.data.config.requestRate === "number"
-      ? clientNode.data.config.requestRate
-      : CLIENT_REQUEST_RATE_DEFAULT;
+  const trafficPattern: TrafficPattern =
+    scenarioOptions.trafficPattern ??
+    {
+      type: "constant",
+      rate:
+        typeof clientNode.data.config.requestRate === "number"
+          ? clientNode.data.config.requestRate
+          : CLIENT_REQUEST_RATE_DEFAULT,
+    };
 
   const config: SimulationConfig = {
     entities: nodes.map((node) => ({
@@ -128,7 +151,7 @@ export function buildSimulationConfig(
     scenario: {
       id: "default-constant-load",
       title: "Default Load",
-      trafficPattern: { type: "constant", rate: requestRate },
+      trafficPattern,
       durationMs: scenarioOptions.durationMs,
     },
     options: { seed: scenarioOptions.seed ?? DEFAULT_SEED },

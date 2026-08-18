@@ -92,7 +92,7 @@ export const CACHING: FoundationLesson = {
               title: "Cache HIT",
               nodes: [
                 { id: "hit-request", label: "Request", col: 0, row: 0 },
-                { id: "hit-cache", label: "Cache", col: 1, row: 0, tone: "healthy" },
+                { id: "hit-cache", label: "Cache", col: 1, row: 0, tone: "healthy", entityType: "cache" },
                 { id: "hit-return", label: "Return data", sublabel: "microseconds, DB not touched", col: 2, row: 0, tone: "healthy" },
               ],
               edges: [
@@ -104,8 +104,8 @@ export const CACHING: FoundationLesson = {
               title: "Cache MISS",
               nodes: [
                 { id: "miss-request", label: "Request", col: 0, row: 0 },
-                { id: "miss-cache", label: "Cache", col: 1, row: 0 },
-                { id: "miss-db", label: "Database", col: 2, row: 0 },
+                { id: "miss-cache", label: "Cache", col: 1, row: 0, entityType: "cache" },
+                { id: "miss-db", label: "Database", col: 2, row: 0, entityType: "database" },
                 { id: "miss-return", label: "Return data", sublabel: "milliseconds, only happens once", col: 3, row: 0 },
               ],
               edges: [

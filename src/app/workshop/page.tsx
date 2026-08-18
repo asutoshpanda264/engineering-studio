@@ -23,11 +23,19 @@ function ScenarioDeepLink() {
   const searchParams = useSearchParams();
   const loadScenario = useWorkshopStore((s) => s.loadScenario);
   const reset = useWorkshopStore((s) => s.reset);
+  const startTimedChallenge = useWorkshopStore((s) => s.startTimedChallenge);
 
   useEffect(() => {
     const id = searchParams.get("scenario");
-    if (id) loadScenario(id);
-    else reset();
+    if (id) {
+      loadScenario(id);
+      // `/problems`' "Start Timed Challenge" action links here with
+      // `&timed=1` — loadScenario() itself always clears timed mode (see
+      // its own comment), so this has to run after, not be folded into it.
+      if (searchParams.get("timed") === "1") startTimedChallenge();
+    } else {
+      reset();
+    }
     // Only ever consult the URL on the initial load — once a user starts
     // editing, re-running this on an unrelated param change would silently
     // blow away their work.

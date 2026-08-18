@@ -1,4 +1,4 @@
-import { ArrowMarker } from "./primitives";
+import { ArrowMarker, svgResponsiveProps } from "./primitives";
 
 /**
  * The step-by-step "you type swiggy.com" resolution journey from
@@ -42,7 +42,8 @@ export function DnsResolutionFlowDiagram() {
   return (
     <svg
       viewBox={`0 0 680 ${height}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(680, height)}
+      className="text-text-muted"
       role="img"
       aria-label="DNS resolution step by step: browser cache, OS cache, recursive resolver, root server, TLD server, authoritative server, then connect."
     >

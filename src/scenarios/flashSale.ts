@@ -93,6 +93,9 @@ export const flashSale: Scenario = {
   id: "flash-sale",
   title: "Flash Sale",
   difficulty: 3,
+  // The lesson is a Database `type` (sql/nosql) capacity tradeoff, not
+  // any one dedicated topic in the catalog — a system-design capstone.
+  topics: ["system-design"],
   story:
     "A marketplace is running a site-wide flash sale — thousands of different items across the " +
     "entire catalog are discounted at once, not just one hero product. Checkout requests are " +
@@ -108,8 +111,25 @@ export const flashSale: Scenario = {
       position: { x: 80, y: 200 },
       config: { requestRate: 400, keyPoolSize: 1000 },
     },
+    {
+      id: "api",
+      type: "api",
+      label: "API Server",
+      position: { x: 400, y: 200 },
+      config: {},
+    },
+    {
+      id: "db",
+      type: "database",
+      label: "Database",
+      position: { x: 720, y: 200 },
+      config: {},
+    },
   ],
-  startingConnections: [],
+  startingConnections: [
+    { source: "client", target: "api" },
+    { source: "api", target: "db" },
+  ],
   // Both fields describe the fixed shape of the demand itself: how much
   // traffic arrives, and how spread out across distinct orders it is (see
   // this file's header comment for why keyPoolSize is locked here too —
@@ -184,6 +204,22 @@ export const flashSale: Scenario = {
     summary:
       "A NoSQL-type database, minimally sized — its connection-ceiling and query-time multiplier " +
       "does more with a tiny pool than buying a much larger SQL one ever could, at the same cost.",
+    editorial: [
+      "There's no cache in the intended solution here — checkout writes aren't cacheable, so " +
+        "unlike this catalogue's caching-focused scenarios, the lever isn't cutting the volume " +
+        "of requests reaching the database.",
+      "The real lever is the Database's own `type` field: switching it from SQL to NoSQL " +
+        "applies a real connection-ceiling and query-time multiplier — several times the " +
+        "effective throughput of the same pool size, at no extra cost. Sizing a SQL pool " +
+        "large enough to match that throughput costs meaningfully more for the same result.",
+      "A properly-sized SQL build already passes (2 stars) — the database type switch is what " +
+        "pushes it further (3 stars) for a lower monthly cost, not a different shape of " +
+        "architecture, just a better-chosen technology underneath the same one.",
+      "This scenario locks the Client's key pool size specifically because, at the schema's " +
+        "smaller default pool, a Cache would trivialize the problem — the traffic's own shape " +
+        "is part of what makes the database-type lesson the one worth learning here, not an " +
+        "arbitrary restriction.",
+    ],
     entities: [
       {
         id: "client",

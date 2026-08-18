@@ -1,9 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowMarker, DiagramArrow, DiagramBox } from "../primitives";
+import { ArrowMarker, DiagramArrow, DiagramBox, svgResponsiveProps } from "../primitives";
 import { useSteppedAnimation } from "../useSteppedAnimation";
 import { DiagramCaptionBar } from "../DiagramCaptionBar";
+import { getEntityCatalogItem } from "@/lib/entityCatalog";
+
+const ClientIcon = getEntityCatalogItem("client").icon;
+const ApiIcon = getEntityCatalogItem("api").icon;
+const RateLimiterIcon = getEntityCatalogItem("rate_limiter").icon;
 
 /**
  * The Token Bucket algorithm, animated as what actually happens: a bucket
@@ -84,7 +89,8 @@ export function RateLimiterTokenBucketDiagram() {
   return (
     <svg
       viewBox={`0 0 660 ${VIEWBOX_HEIGHT}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(660, VIEWBOX_HEIGHT)}
+      className="text-text-muted"
       role="img"
       aria-label="Token bucket rate limiting: a burst of requests spends down 5 saved tokens, the next two are rejected instantly once the bucket is empty, then it refills at a steady rate."
     >
@@ -92,12 +98,13 @@ export function RateLimiterTokenBucketDiagram() {
       <DiagramArrow x1={CLIENT.x + CLIENT.w} y1={clientCenter.y} x2={LIMITER.x} y2={clientCenter.y} markerId="rate-limiter-arrow" />
       <DiagramArrow x1={LIMITER.x + LIMITER.w} y1={serverCenter.y} x2={SERVER.x} y2={serverCenter.y} markerId="rate-limiter-arrow" />
 
-      <DiagramBox x={CLIENT.x} y={CLIENT.y} width={CLIENT.w} height={CLIENT.h} lines={["Client"]} />
-      <DiagramBox x={SERVER.x} y={SERVER.y} width={SERVER.w} height={SERVER.h} lines={["API Server"]} />
+      <DiagramBox x={CLIENT.x} y={CLIENT.y} width={CLIENT.w} height={CLIENT.h} lines={["Client"]} icon={ClientIcon} />
+      <DiagramBox x={SERVER.x} y={SERVER.y} width={SERVER.w} height={SERVER.h} lines={["API Server"]} icon={ApiIcon} />
 
       {/* Rate Limiter — a labeled box housing the bucket's 5 token slots. */}
       <rect x={LIMITER.x} y={LIMITER.y} width={LIMITER.w} height={LIMITER.h} rx={2} strokeWidth={1} className="fill-bg-elevated stroke-signal" />
-      <text x={LIMITER.x + 16} y={LIMITER.y + 22} className="fill-signal text-[11px] font-medium">
+      <RateLimiterIcon x={LIMITER.x + 16} y={LIMITER.y + 10} width={11} height={11} strokeWidth={2} className="text-signal" aria-hidden />
+      <text x={LIMITER.x + 33} y={LIMITER.y + 22} className="fill-signal text-[11px] font-medium">
         Rate Limiter
       </text>
       <text x={LIMITER.x + 16} y={LIMITER.y + 38} className="fill-text-subtle text-[9.5px]">

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowMarker, DiagramArrow, DiagramBox } from "./primitives";
+import { ArrowMarker, DiagramArrow, DiagramBox, svgResponsiveProps } from "./primitives";
 import { useSteppedAnimation } from "./useSteppedAnimation";
 import { DiagramCaptionBar } from "./DiagramCaptionBar";
 
@@ -84,7 +84,8 @@ export function DnsRecursiveLookupDiagram() {
   return (
     <svg
       viewBox={`0 0 660 ${VIEWBOX_HEIGHT}`}
-      className="h-auto w-full text-text-muted"
+      {...svgResponsiveProps(660, VIEWBOX_HEIGHT)}
+      className="text-text-muted"
       role="img"
       aria-label="Recursive DNS lookup: the resolver makes four separate round trips — to the root server, the .com TLD server, and swiggy.com's authoritative server — before answering the browser, resolving one step closer to the final IP at each hop."
     >

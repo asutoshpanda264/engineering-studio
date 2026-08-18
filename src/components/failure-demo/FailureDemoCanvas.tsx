@@ -46,7 +46,7 @@ function CanvasInner() {
   const onConnect = useFailureDemoStore((s) => s.onConnect);
   const addNode = useFailureDemoStore((s) => s.addNode);
   const setSelectedNode = useFailureDemoStore((s) => s.setSelectedNode);
-  const { theme } = useTheme();
+  const { colorMode } = useTheme();
 
   const { screenToFlowPosition, fitView } = useReactFlow();
 
@@ -100,7 +100,7 @@ function CanvasInner() {
         onNodeClick={(_, node) => setSelectedNode(node.id)}
         onPaneClick={() => setSelectedNode(null)}
         deleteKeyCode={["Backspace", "Delete"]}
-        colorMode={theme}
+        colorMode={colorMode}
         connectionRadius={32}
         fitView
       >

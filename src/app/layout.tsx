@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { NightOpsAtmosphere } from "@/components/theme/NightOpsAtmosphere";
+import { LockInGuard } from "@/components/lockIn/LockInGuard";
 import "./globals.css";
 
 // "Trace" design language: two voices split strictly by role. Serif for
@@ -28,16 +30,19 @@ export const metadata: Metadata = {
     "Build. Simulate. Break. Learn. An interactive sandbox for learning distributed systems.",
 };
 
-// Sets `data-theme="light"` on <html> before first paint if that's what
-// was saved last time — dark stays the default (no attribute) so a
-// first-time visitor sees exactly what they always have. Runs via
-// `beforeInteractive` specifically to avoid a flash of the wrong theme;
-// ThemeProvider only reconciles React state with whatever this already
-// did, it doesn't make the initial choice itself.
+// Sets `data-theme` on <html> before first paint to whatever was saved
+// last time — dark stays the default (no attribute) so a first-time
+// visitor sees exactly what they always have. Runs via `beforeInteractive`
+// specifically to avoid a flash of the wrong theme; ThemeProvider only
+// reconciles React state with whatever this already did, it doesn't make
+// the initial choice itself. "night-ops" is the preview third theme (see
+// globals.css) — kept in sync with ThemeProvider's Theme type by hand
+// since this string can't import it.
 const THEME_INIT_SCRIPT = `(function () {
   try {
-    if (localStorage.getItem("theme") === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
+    var saved = localStorage.getItem("theme");
+    if (saved === "light" || saved === "night-ops") {
+      document.documentElement.setAttribute("data-theme", saved);
     }
   } catch (e) {}
 })();`;
@@ -57,7 +62,10 @@ export default function RootLayout({
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}
         </Script>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <NightOpsAtmosphere>{children}</NightOpsAtmosphere>
+          <LockInGuard />
+        </ThemeProvider>
       </body>
     </html>
   );

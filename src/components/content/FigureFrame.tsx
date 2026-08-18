@@ -12,12 +12,13 @@ import { Modal } from "@/components/ui/Modal";
  * several diagram kinds still reads as one visual language (bordered
  * `bg-bg-panel` box) and gets the same zoom affordance for free.
  *
- * Diagrams are hand-drawn SVG sized for a fixed viewBox and then shrunk to
- * fit an ~600px article column (`min-w-[420px]` + `overflow-x-auto` on the
- * inline copy) — legible enough to read the shape, too small on a dense
- * figure to comfortably read every label. The magnifying-glass button
- * reopens the exact same `children` inside a wide `Modal`; the SVG's own
- * `w-full` does the enlarging for free, no per-diagram zoom prop needed.
+ * Diagrams are hand-drawn SVGs sized for a fixed viewBox that grow to fill
+ * the (now ~1024px) article column and only fall back to `overflow-x-auto`
+ * + `min-w-[420px]` for the handful of dynamically-wide figures (multi-column
+ * `compare`/`architecture` diagrams) whose native width still exceeds even
+ * that. The magnifying-glass button reopens the exact same `children` inside
+ * a wide `Modal`; the SVG's own responsive width does the enlarging for
+ * free, no per-diagram zoom prop needed.
  */
 export function FigureFrame({ children, caption }: { children: ReactNode; caption?: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -45,7 +46,7 @@ export function FigureFrame({ children, caption }: { children: ReactNode; captio
         open={open}
         onClose={() => setOpen(false)}
         title={typeof caption === "string" ? caption : "Diagram"}
-        maxWidthClassName="max-w-5xl"
+        maxWidthClassName="max-w-7xl"
       >
         <div className="min-w-[420px]">{children}</div>
       </Modal>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WorkshopShell } from "@/components/workshop/WorkshopShell";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TutorialPanel } from "@/app/tutorial/TutorialPanel";
@@ -29,6 +29,7 @@ export function TutorialRunner() {
   const edges = useWorkshopStore((s) => s.edges);
   const selectedNodeId = useWorkshopStore((s) => s.selectedNodeId);
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
+  const setComponentsPanelOpen = useWorkshopStore((s) => s.setComponentsPanelOpen);
 
   const [activeTarget, setActiveTarget] = useState<EntityType | null>(null);
   const [paused, setPaused] = useState(false);
@@ -48,6 +49,14 @@ export function TutorialRunner() {
         : null,
     [activeTarget, nodes, edges, selectedNodeId, simulationResult, acknowledgedIds]
   );
+
+  // ComponentSidebar's catalog list is on-demand now (not a permanent
+  // dock) — a step that spotlights it (see `requiresComponentsPanel`)
+  // would otherwise highlight nothing until the user finds the toggle
+  // themselves, defeating the point of a guided step.
+  useEffect(() => {
+    if (currentStep?.requiresComponentsPanel) setComponentsPanelOpen(true);
+  }, [currentStep, setComponentsPanelOpen]);
 
   const pickTarget = (type: EntityType) => {
     setActiveTarget(type);
@@ -73,6 +82,7 @@ export function TutorialRunner() {
   return (
     <WorkshopShell
       projectName="Tutorial"
+      forceComponentsList
       overlay={
         <>
           {activeTarget && currentStep && !paused && (

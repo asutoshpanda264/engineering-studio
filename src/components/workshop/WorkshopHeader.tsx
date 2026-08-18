@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Compass, Download, Eraser, Play, RotateCcw, Settings } from "lucide-react";
+import { ArrowLeft, BookOpen, Compass, Download, Eraser, ListChecks, Play, RotateCcw, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { ScenariosMenu } from "@/components/workshop/ScenariosMenu";
+import { EnterWorkshopButton } from "@/components/workshop/EnterWorkshopButton";
+import { TimedChallengeBar } from "@/components/workshop/TimedChallengeBar";
 
 export interface WorkshopHeaderProps {
   projectName: string;
@@ -27,7 +28,11 @@ export function WorkshopHeader({
   onOpenSettings,
 }: WorkshopHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-bg-elevated px-4">
+    <header className="relative flex h-14 shrink-0 items-center justify-between border-b border-border bg-bg-elevated px-4">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-signal/70 to-transparent"
+      />
       <div className="flex items-center gap-3">
         <Link
           href="/"
@@ -41,10 +46,11 @@ export function WorkshopHeader({
         <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
         <h1 className="text-sm font-semibold text-text">{projectName}</h1>
         {scenarioName && <Badge variant="primary">{scenarioName}</Badge>}
+        <TimedChallengeBar />
       </div>
 
       <div className="flex items-center gap-2">
-        <ScenariosMenu />
+        <EnterWorkshopButton />
 
         <Link
           href="/tutorial"
@@ -54,6 +60,18 @@ export function WorkshopHeader({
         >
           <Compass className="size-4" aria-hidden />
           Tutorial
+        </Link>
+
+        <Link
+          href="/problems"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          aria-label="Problems — browse the full catalogue of scenarios by topic and difficulty, in a new tab"
+          title="Opens in a new tab — your canvas stays exactly as it is"
+        >
+          <ListChecks className="size-4" aria-hidden />
+          Problems
         </Link>
 
         <Link

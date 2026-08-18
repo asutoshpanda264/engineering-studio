@@ -82,11 +82,12 @@ function computeBaseScore(
   scenario: Scenario,
   result: SimulationResult,
   nodes: ArchitectureNode[],
-  connections: { source: EntityId; target: EntityId }[]
+  connections: { source: EntityId; target: EntityId }[],
+  ignoreBudget: boolean
 ): BaseScore {
   const evaluation = evaluateScenario(scenario, result.metrics);
   const cost = estimateCost(result, nodes);
-  const budgetUsd = scenario.budgetUsd ?? null;
+  const budgetUsd = ignoreBudget ? null : (scenario.budgetUsd ?? null);
   const budgetPassed = budgetUsd === null || cost.totalMonthlyCost <= budgetUsd;
   const architectureValid = !hasUnguardedBackendAccess(nodes, connections);
   const gatesPassed = evaluation.passed && budgetPassed && architectureValid;
@@ -140,17 +141,22 @@ function fakeNode(id: string, type: EntityType, config: Record<string, unknown>)
   } as unknown as ArchitectureNode;
 }
 
-// scenario.id -> the reference build's own BaseScore, computed once. Safe
-// to cache module-wide: an OptimalSolution is static authored data (same
-// entities/connections/seed every time), so its score never changes
-// within a session — recomputing it on every single scoreScenario call
-// (i.e. every playback frame) would mean re-running the simulation engine
-// constantly for no reason.
+// `${scenario.id}:${ignoreBudget}` -> the reference build's own
+// BaseScore, computed once per (scenario, budget-checking-on-or-off)
+// pair. Safe to cache module-wide: an OptimalSolution is static authored
+// data (same entities/connections/seed every time), so its score never
+// changes within a session for a given `ignoreBudget` value —
+// recomputing it on every single scoreScenario call (i.e. every playback
+// frame) would mean re-running the simulation engine constantly for no
+// reason. Keyed by both, not just scenario.id, so toggling budget
+// checking mid-session can't read a stale score computed under the
+// other setting.
 const optimalScoreCache = new Map<string, BaseScore | null>();
 
-function computeOptimalScore(scenario: Scenario): BaseScore | null {
+function computeOptimalScore(scenario: Scenario, ignoreBudget: boolean): BaseScore | null {
   if (!scenario.optimalSolution) return null;
-  const cached = optimalScoreCache.get(scenario.id);
+  const cacheKey = `${scenario.id}:${ignoreBudget}`;
+  const cached = optimalScoreCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   const { entities, connections } = scenario.optimalSolution;
@@ -167,8 +173,8 @@ function computeOptimalScore(scenario: Scenario): BaseScore | null {
   };
   const result = runSimulation(config);
   const nodes = entities.map((e) => fakeNode(e.id, e.type, e.config));
-  const score = computeBaseScore(scenario, result, nodes, connections);
-  optimalScoreCache.set(scenario.id, score);
+  const score = computeBaseScore(scenario, result, nodes, connections, ignoreBudget);
+  optimalScoreCache.set(cacheKey, score);
   return score;
 }
 
@@ -176,10 +182,12 @@ export function scoreScenario(
   scenario: Scenario,
   result: SimulationResult,
   nodes: ArchitectureNode[],
-  connections: { source: EntityId; target: EntityId }[]
+  connections: { source: EntityId; target: EntityId }[],
+  /** When true, `scenario.budgetUsd` is treated as absent for both this build's own gate/composite AND the reference solution's — see workshopStore.ts's `budgetCheckingEnabled`. Defaults false (today's behavior, budget always counted) so every existing call site keeps working unchanged. */
+  ignoreBudget = false
 ): ScenarioScore {
-  const base = computeBaseScore(scenario, result, nodes, connections);
-  const optimal = computeOptimalScore(scenario);
+  const base = computeBaseScore(scenario, result, nodes, connections, ignoreBudget);
+  const optimal = computeOptimalScore(scenario, ignoreBudget);
   const optimalComposite = optimal?.gatesPassed ? optimal.composite : null;
 
   const legendary =

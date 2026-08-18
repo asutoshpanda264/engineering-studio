@@ -43,9 +43,9 @@ export const LOAD_BALANCERS: FoundationLesson = {
               title: "Without a load balancer",
               nodes: [
                 { id: "no-lb-source", label: "1M requests/sec", col: 0, row: 1 },
-                { id: "no-lb-s1", label: "Server 1", sublabel: "💥 overwhelmed", col: 1, row: 0, tone: "critical" },
-                { id: "no-lb-s2", label: "Server 2", sublabel: "😴 idle", col: 1, row: 1 },
-                { id: "no-lb-s3", label: "Server 3", sublabel: "😴 idle", col: 1, row: 2 },
+                { id: "no-lb-s1", label: "Server 1", sublabel: "💥 overwhelmed", col: 1, row: 0, tone: "critical", entityType: "api" },
+                { id: "no-lb-s2", label: "Server 2", sublabel: "😴 idle", col: 1, row: 1, entityType: "api" },
+                { id: "no-lb-s3", label: "Server 3", sublabel: "😴 idle", col: 1, row: 2, entityType: "api" },
               ],
               edges: [{ from: "no-lb-source", to: "no-lb-s1", tone: "critical" }],
             },
@@ -53,10 +53,10 @@ export const LOAD_BALANCERS: FoundationLesson = {
               title: "With a load balancer",
               nodes: [
                 { id: "lb-source", label: "1M requests/sec", col: 0, row: 1 },
-                { id: "lb-node", label: "LB", col: 1, row: 1 },
-                { id: "lb-s1", label: "Server 1", sublabel: "~333K req/sec", col: 2, row: 0, tone: "healthy" },
-                { id: "lb-s2", label: "Server 2", sublabel: "~333K req/sec", col: 2, row: 1, tone: "healthy" },
-                { id: "lb-s3", label: "Server 3", sublabel: "~333K req/sec", col: 2, row: 2, tone: "healthy" },
+                { id: "lb-node", label: "LB", col: 1, row: 1, entityType: "load_balancer" },
+                { id: "lb-s1", label: "Server 1", sublabel: "~333K req/sec", col: 2, row: 0, tone: "healthy", entityType: "api" },
+                { id: "lb-s2", label: "Server 2", sublabel: "~333K req/sec", col: 2, row: 1, tone: "healthy", entityType: "api" },
+                { id: "lb-s3", label: "Server 3", sublabel: "~333K req/sec", col: 2, row: 2, tone: "healthy", entityType: "api" },
               ],
               edges: [
                 { from: "lb-source", to: "lb-node" },
@@ -214,10 +214,10 @@ export const LOAD_BALANCERS: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "active-hc-lb", label: "LB", col: 1, row: 0 },
-            { id: "active-hc-s1", label: "Server 1", col: 0, row: 1, tone: "healthy" },
-            { id: "active-hc-s2", label: "Server 2", col: 1, row: 1, tone: "critical" },
-            { id: "active-hc-s3", label: "Server 3", col: 2, row: 1, tone: "healthy" },
+            { id: "active-hc-lb", label: "LB", col: 1, row: 0, entityType: "load_balancer" },
+            { id: "active-hc-s1", label: "Server 1", col: 0, row: 1, tone: "healthy", entityType: "api" },
+            { id: "active-hc-s2", label: "Server 2", col: 1, row: 1, tone: "critical", entityType: "api" },
+            { id: "active-hc-s3", label: "Server 3", col: 2, row: 1, tone: "healthy", entityType: "api" },
           ],
           edges: [
             { from: "active-hc-lb", to: "active-hc-s1", label: "200 OK", tone: "healthy" },
@@ -300,11 +300,11 @@ export const LOAD_BALANCERS: FoundationLesson = {
             {
               title: "Without SSL termination",
               nodes: [
-                { id: "no-term-client", label: "Client", col: 0, row: 1 },
-                { id: "no-term-lb", label: "LB", col: 1, row: 1 },
-                { id: "no-term-s1", label: "Server 1", sublabel: "HTTPS", col: 2, row: 0 },
-                { id: "no-term-s2", label: "Server 2", sublabel: "HTTPS", col: 2, row: 1 },
-                { id: "no-term-s3", label: "Server 3", sublabel: "HTTPS", col: 2, row: 2 },
+                { id: "no-term-client", label: "Client", col: 0, row: 1, entityType: "client" },
+                { id: "no-term-lb", label: "LB", col: 1, row: 1, entityType: "load_balancer" },
+                { id: "no-term-s1", label: "Server 1", sublabel: "HTTPS", col: 2, row: 0, entityType: "api" },
+                { id: "no-term-s2", label: "Server 2", sublabel: "HTTPS", col: 2, row: 1, entityType: "api" },
+                { id: "no-term-s3", label: "Server 3", sublabel: "HTTPS", col: 2, row: 2, entityType: "api" },
               ],
               edges: [
                 { from: "no-term-client", to: "no-term-lb", label: "HTTPS" },
@@ -316,11 +316,11 @@ export const LOAD_BALANCERS: FoundationLesson = {
             {
               title: "With SSL termination at LB",
               nodes: [
-                { id: "term-client", label: "Client", col: 0, row: 1 },
-                { id: "term-lb", label: "LB", col: 1, row: 1, tone: "healthy" },
-                { id: "term-s1", label: "Server 1", sublabel: "HTTP", col: 2, row: 0, tone: "healthy" },
-                { id: "term-s2", label: "Server 2", sublabel: "HTTP", col: 2, row: 1, tone: "healthy" },
-                { id: "term-s3", label: "Server 3", sublabel: "HTTP", col: 2, row: 2, tone: "healthy" },
+                { id: "term-client", label: "Client", col: 0, row: 1, entityType: "client" },
+                { id: "term-lb", label: "LB", col: 1, row: 1, tone: "healthy", entityType: "load_balancer" },
+                { id: "term-s1", label: "Server 1", sublabel: "HTTP", col: 2, row: 0, tone: "healthy", entityType: "api" },
+                { id: "term-s2", label: "Server 2", sublabel: "HTTP", col: 2, row: 1, tone: "healthy", entityType: "api" },
+                { id: "term-s3", label: "Server 3", sublabel: "HTTP", col: 2, row: 2, tone: "healthy", entityType: "api" },
               ],
               edges: [
                 { from: "term-client", to: "term-lb", label: "HTTPS" },
@@ -387,9 +387,9 @@ export const LOAD_BALANCERS: FoundationLesson = {
           kind: "architecture",
           nodes: [
             { id: "redundancy-dns", label: "DNS", sublabel: "returns 2 IPs", col: 1, row: 0 },
-            { id: "redundancy-lb1", label: "LB 1", sublabel: "active", col: 0, row: 1 },
-            { id: "redundancy-lb2", label: "LB 2", sublabel: "standby", col: 2, row: 1 },
-            { id: "redundancy-pool", label: "Server Pool", sublabel: "S1 S2 S3", col: 1, row: 2 },
+            { id: "redundancy-lb1", label: "LB 1", sublabel: "active", col: 0, row: 1, entityType: "load_balancer" },
+            { id: "redundancy-lb2", label: "LB 2", sublabel: "standby", col: 2, row: 1, entityType: "load_balancer" },
+            { id: "redundancy-pool", label: "Server Pool", sublabel: "S1 S2 S3", col: 1, row: 2, entityType: "api" },
           ],
           edges: [
             { from: "redundancy-dns", to: "redundancy-lb1" },
@@ -445,11 +445,11 @@ export const LOAD_BALANCERS: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "mesh-client", label: "Client", col: 0, row: 0 },
-            { id: "mesh-edge-lb", label: "Edge LB", col: 1, row: 0 },
-            { id: "mesh-order", label: "Order Service", sublabel: "x3 instances", col: 2, row: 0 },
-            { id: "mesh-payment", label: "Payment Service", sublabel: "x5 instances", col: 3, row: 0 },
-            { id: "mesh-notification", label: "Notification Service", sublabel: "x2 instances", col: 4, row: 0 },
+            { id: "mesh-client", label: "Client", col: 0, row: 0, entityType: "client" },
+            { id: "mesh-edge-lb", label: "Edge LB", col: 1, row: 0, entityType: "load_balancer" },
+            { id: "mesh-order", label: "Order Service", sublabel: "x3 instances", col: 2, row: 0, entityType: "api" },
+            { id: "mesh-payment", label: "Payment Service", sublabel: "x5 instances", col: 3, row: 0, entityType: "api" },
+            { id: "mesh-notification", label: "Notification Service", sublabel: "x2 instances", col: 4, row: 0, entityType: "api" },
           ],
           edges: [
             { from: "mesh-client", to: "mesh-edge-lb" },
@@ -466,9 +466,9 @@ export const LOAD_BALANCERS: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "sidecar-order", label: "Order Service", col: 0, row: 0 },
+            { id: "sidecar-order", label: "Order Service", col: 0, row: 0, entityType: "api" },
             { id: "sidecar-envoy", label: "Envoy Sidecar", sublabel: "handles LB, retries, circuit breaking", col: 1, row: 0 },
-            { id: "sidecar-payment", label: "Payment Service", sublabel: "instances", col: 2, row: 0 },
+            { id: "sidecar-payment", label: "Payment Service", sublabel: "instances", col: 2, row: 0, entityType: "api" },
           ],
           edges: [
             { from: "sidecar-order", to: "sidecar-envoy" },

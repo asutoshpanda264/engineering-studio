@@ -84,17 +84,12 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
       heading: "The core Kafka architecture",
       blocks: [
         {
-          kind: "paragraph",
-          text: "Kafka's architecture is radically different from traditional queues. Understanding it is the key to everything else.",
-        },
-        { kind: "paragraph", text: "Kafka Cluster — Topic \"order-events\":" },
-        {
           kind: "architecture",
           nodes: [
             { id: "kafka-producer", label: "Producer", sublabel: "writes to topic", col: 0, row: 1 },
-            { id: "kafka-partition-0", label: "Partition 0", sublabel: "Broker 1", col: 1, row: 0 },
-            { id: "kafka-partition-1", label: "Partition 1", sublabel: "Broker 2", col: 1, row: 1 },
-            { id: "kafka-partition-2", label: "Partition 2", sublabel: "Broker 3", col: 1, row: 2 },
+            { id: "kafka-partition-0", label: "Partition 0", sublabel: "Broker 1", col: 1, row: 0, entityType: "kafka" },
+            { id: "kafka-partition-1", label: "Partition 1", sublabel: "Broker 2", col: 1, row: 1, entityType: "kafka" },
+            { id: "kafka-partition-2", label: "Partition 2", sublabel: "Broker 3", col: 1, row: 2, entityType: "kafka" },
             { id: "kafka-consumer", label: "Consumer", sublabel: "reads from topic", col: 2, row: 1 },
           ],
           edges: [
@@ -108,7 +103,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         },
         {
           kind: "paragraph",
-          text: "Producer writes to the topic, distributed across partitions. Consumer reads from the topic — each consumer reads some partitions.",
+          text: "Kafka's architecture is radically different from traditional queues — understanding it is the key to everything else. Producer writes to the topic (\"order-events\" above), distributed across partitions. Consumer reads from the topic — each consumer reads some partitions.",
         },
         { kind: "paragraph", text: "Let's unpack each component." },
       ],
@@ -172,19 +167,10 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
       id: "producers",
       heading: "Producers — writing to Kafka",
       blocks: [
-        { kind: "paragraph", text: "Producers write messages to topics. They choose which partition using a partitioning strategy." },
-        { kind: "paragraph", text: "By Key (most common) — all events for the same order go to the same partition, guaranteeing ordering for a single order." },
-        {
-          kind: "code",
-          language: "java",
-          code: '// All events for the same order go to same partition\n// Guarantees ordering for a single order\nproducer.send(new ProducerRecord<>(\n    "order-events",\n    orderId,        // key → determines partition\n    orderEventJson  // value\n));\n\n// Kafka hashes the key:\npartition = hash(orderId) % numPartitions\n\n// order_9981 → always Partition 0\n// order_9982 → always Partition 2\n// order_9983 → always Partition 1',
-        },
-        { kind: "paragraph", text: "Why key-based partitioning matters:" },
-        { kind: "paragraph", text: "order_9981 events, in order:" },
         {
           kind: "flow",
           steps: [
-            { title: "ORDER_PLACED" },
+            { title: "ORDER_PLACED", detail: "order_9981" },
             { title: "PAYMENT_SUCCESS" },
             { title: "PREPARING" },
             { title: "DELIVERED", tone: "healthy" },
@@ -192,7 +178,13 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         },
         {
           kind: "paragraph",
-          text: "All must go to the same partition to maintain order. If split across partitions, DELIVERED might be processed before ORDER_PLACED.",
+          text: "That's a single order's event sequence — and it only stays in this order if every one of those events lands on the same partition. Split across partitions, DELIVERED might be processed before ORDER_PLACED. Producers write messages to topics, choosing which partition using a partitioning strategy.",
+        },
+        { kind: "paragraph", text: "By Key (most common) — all events for the same order go to the same partition, guaranteeing ordering for a single order." },
+        {
+          kind: "code",
+          language: "java",
+          code: '// All events for the same order go to same partition\n// Guarantees ordering for a single order\nproducer.send(new ProducerRecord<>(\n    "order-events",\n    orderId,        // key → determines partition\n    orderEventJson  // value\n));\n\n// Kafka hashes the key:\npartition = hash(orderId) % numPartitions\n\n// order_9981 → always Partition 0\n// order_9982 → always Partition 2\n// order_9983 → always Partition 1',
         },
         { kind: "paragraph", text: "Round Robin (when ordering doesn't matter) — maximum throughput, no ordering guarantee:" },
         { kind: "code", language: "java", code: '// No key → round robin across partitions\n// Maximum throughput, no ordering guarantee\nproducer.send(new ProducerRecord<>("metrics", null, metricJson));' },
@@ -257,8 +249,27 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
       id: "brokers-and-replication",
       heading: "Brokers and replication — durability and availability",
       blocks: [
-        { kind: "paragraph", text: "Broker — a Kafka broker is a server in the Kafka cluster. Each broker stores some partitions (as files on disk), handles produce and consume requests, and participates in leader election." },
-        { kind: "paragraph", text: "Kafka Cluster: 3 Brokers." },
+        {
+          kind: "architecture",
+          nodes: [
+            { id: "rf-leader", label: "Broker 1", sublabel: "Partition 0 — LEADER", col: 1, row: 0, tone: "healthy", entityType: "kafka" },
+            { id: "rf-follower-1", label: "Broker 2", sublabel: "Partition 0 — FOLLOWER", col: 0, row: 1, entityType: "kafka" },
+            { id: "rf-follower-2", label: "Broker 3", sublabel: "Partition 0 — FOLLOWER", col: 2, row: 1, entityType: "kafka" },
+          ],
+          edges: [
+            { from: "rf-leader", to: "rf-follower-1", label: "replicates" },
+            { from: "rf-leader", to: "rf-follower-2", label: "replicates" },
+          ],
+        },
+        {
+          kind: "paragraph",
+          text: "That's Partition 0 of the \"order-events\" topic at replication factor 3: one broker holds the LEADER copy, the other two hold FOLLOWER copies. All writes go to the LEADER, followers replicate from it, and producers/consumers only ever talk to the LEADER — every partition has exactly one leader and N-1 such followers.",
+        },
+        {
+          kind: "paragraph",
+          text: "Broker — a Kafka broker is a server in the Kafka cluster. Each broker stores some partitions (as files on disk), handles produce and consume requests, and participates in leader election.",
+        },
+        { kind: "paragraph", text: "The same leader/follower pattern repeats across every partition in the topic. Kafka Cluster: 3 Brokers." },
         {
           kind: "table",
           headers: ["Broker", "Partition", "Role"],
@@ -270,24 +281,6 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
             ["Broker 3", "Partition 2", "leader"],
             ["Broker 3", "Partition 1", "replica"],
           ],
-        },
-        { kind: "paragraph", text: "Replication — every partition has one leader and N-1 replicas (followers)." },
-        { kind: "paragraph", text: "Topic \"order-events\", Partition 0, Replication Factor = 3:" },
-        {
-          kind: "architecture",
-          nodes: [
-            { id: "rf-leader", label: "Broker 1", sublabel: "Partition 0 — LEADER", col: 1, row: 0, tone: "healthy" },
-            { id: "rf-follower-1", label: "Broker 2", sublabel: "Partition 0 — FOLLOWER", col: 0, row: 1 },
-            { id: "rf-follower-2", label: "Broker 3", sublabel: "Partition 0 — FOLLOWER", col: 2, row: 1 },
-          ],
-          edges: [
-            { from: "rf-leader", to: "rf-follower-1", label: "replicates" },
-            { from: "rf-leader", to: "rf-follower-2", label: "replicates" },
-          ],
-        },
-        {
-          kind: "paragraph",
-          text: "All writes go to the LEADER. Followers replicate from the leader. Producers/consumers talk to the LEADER only.",
         },
         { kind: "paragraph", text: "What happens when a broker fails:" },
         {
@@ -335,7 +328,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
               title: "Traditional Queue (RabbitMQ)",
               nodes: [
                 { id: "retention-rmq-outage", label: "Messages during outage", sublabel: "LOST ❌", col: 0, row: 0, tone: "critical" },
-                { id: "retention-rmq-analytics", label: "Analytics", sublabel: "missing 6 hours of data", col: 1, row: 0, tone: "critical" },
+                { id: "retention-rmq-analytics", label: "Analytics", sublabel: "missing 6 hours of data", col: 1, row: 0, tone: "critical", entityType: "api" },
               ],
               edges: [{ from: "retention-rmq-outage", to: "retention-rmq-analytics", tone: "critical" }],
             },
@@ -350,6 +343,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
                   col: 1,
                   row: 0,
                   tone: "healthy",
+                  entityType: "api",
                 },
               ],
               edges: [{ from: "retention-kafka-outage", to: "retention-kafka-analytics", tone: "healthy" }],
@@ -507,11 +501,11 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "uber-topic", label: "driver-locations", sublabel: "Kafka topic — update every 4s", col: 1, row: 0 },
-            { id: "uber-surge", label: "surge-pricing-service", sublabel: "calculates demand, updates multipliers", col: 0, row: 1 },
-            { id: "uber-eta", label: "eta-service", sublabel: "updates driver ETAs", col: 1, row: 1 },
-            { id: "uber-analytics", label: "analytics-service", sublabel: "populates dashboards", col: 2, row: 1 },
-            { id: "uber-fraud", label: "fraud-detection", sublabel: "detects impossible speeds", col: 3, row: 1 },
+            { id: "uber-topic", label: "driver-locations", sublabel: "Kafka topic — update every 4s", col: 1, row: 0, entityType: "kafka" },
+            { id: "uber-surge", label: "surge-pricing-service", sublabel: "calculates demand, updates multipliers", col: 0, row: 1, entityType: "api" },
+            { id: "uber-eta", label: "eta-service", sublabel: "updates driver ETAs", col: 1, row: 1, entityType: "api" },
+            { id: "uber-analytics", label: "analytics-service", sublabel: "populates dashboards", col: 2, row: 1, entityType: "api" },
+            { id: "uber-fraud", label: "fraud-detection", sublabel: "detects impossible speeds", col: 3, row: 1, entityType: "api" },
           ],
           edges: [
             { from: "uber-topic", to: "uber-surge" },
@@ -525,11 +519,11 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "netflix-topic", label: "viewing-events", sublabel: "Kafka topic", col: 1, row: 0 },
-            { id: "netflix-recs", label: "recommendations-pipeline", sublabel: "updates similar-user watch, feeds ML training", col: 0, row: 1 },
-            { id: "netflix-billing", label: "billing-service", sublabel: "tracks watch minutes", col: 1, row: 1 },
-            { id: "netflix-analytics", label: "analytics", sublabel: "content performance dashboards", col: 2, row: 1 },
-            { id: "netflix-resume", label: "resume-playback", sublabel: "stores where user paused", col: 3, row: 1 },
+            { id: "netflix-topic", label: "viewing-events", sublabel: "Kafka topic", col: 1, row: 0, entityType: "kafka" },
+            { id: "netflix-recs", label: "recommendations-pipeline", sublabel: "updates similar-user watch, feeds ML training", col: 0, row: 1, entityType: "api" },
+            { id: "netflix-billing", label: "billing-service", sublabel: "tracks watch minutes", col: 1, row: 1, entityType: "api" },
+            { id: "netflix-analytics", label: "analytics", sublabel: "content performance dashboards", col: 2, row: 1, entityType: "api" },
+            { id: "netflix-resume", label: "resume-playback", sublabel: "stores where user paused", col: 3, row: 1, entityType: "api" },
           ],
           edges: [
             { from: "netflix-topic", to: "netflix-recs" },
@@ -542,11 +536,11 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         {
           kind: "architecture",
           nodes: [
-            { id: "flipkart-topic", label: "order-events", sublabel: "Kafka topic, key = order_id", col: 1, row: 0 },
-            { id: "flipkart-inventory", label: "inventory-service", sublabel: "reserve items, in order per order_id", col: 0, row: 1 },
-            { id: "flipkart-payment", label: "payment-service", sublabel: "initiate payment", col: 1, row: 1 },
-            { id: "flipkart-notification", label: "notification-service", sublabel: "SMS + email", col: 2, row: 1 },
-            { id: "flipkart-analytics", label: "analytics", sublabel: "GMV dashboard, conversion funnel", col: 3, row: 1 },
+            { id: "flipkart-topic", label: "order-events", sublabel: "Kafka topic, key = order_id", col: 1, row: 0, entityType: "kafka" },
+            { id: "flipkart-inventory", label: "inventory-service", sublabel: "reserve items, in order per order_id", col: 0, row: 1, entityType: "api" },
+            { id: "flipkart-payment", label: "payment-service", sublabel: "initiate payment", col: 1, row: 1, entityType: "api" },
+            { id: "flipkart-notification", label: "notification-service", sublabel: "SMS + email", col: 2, row: 1, entityType: "api" },
+            { id: "flipkart-analytics", label: "analytics", sublabel: "GMV dashboard, conversion funnel", col: 3, row: 1, entityType: "api" },
           ],
           edges: [
             { from: "flipkart-topic", to: "flipkart-inventory" },

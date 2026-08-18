@@ -17,6 +17,8 @@ import { REDIS_DEEP_DIVE } from "./lessons/15-redis-deep-dive";
 import { MESSAGE_QUEUES } from "./lessons/16-message-queues";
 import { KAFKA_DEEP_DIVE } from "./lessons/17-kafka-deep-dive";
 import { CDN } from "./lessons/18-cdn";
+import { CONSISTENT_HASHING } from "./lessons/19-consistent-hashing";
+import { ESTIMATION_AND_INTERVIEW_FRAMEWORK } from "./lessons/20-estimation-and-interview-framework";
 
 export type { FoundationLesson, LessonBlock, LessonExercise, LessonSection } from "./types";
 
@@ -45,6 +47,8 @@ export const FOUNDATION_LESSONS: FoundationLesson[] = [
   MESSAGE_QUEUES,
   KAFKA_DEEP_DIVE,
   CDN,
+  CONSISTENT_HASHING,
+  ESTIMATION_AND_INTERVIEW_FRAMEWORK,
 ];
 
 export function getFoundationLesson(slug: string): FoundationLesson | undefined {

@@ -3,6 +3,7 @@ import { DnsHierarchyDiagram } from "./DnsHierarchyDiagram";
 import { DnsResolutionFlowDiagram } from "./DnsResolutionFlowDiagram";
 import { DnsRecursiveLookupDiagram } from "./DnsRecursiveLookupDiagram";
 import { DnsFailoverDiagram } from "./DnsFailoverDiagram";
+import { MqDeadLetterQueueDiagram } from "./MqDeadLetterQueueDiagram";
 
 /**
  * Every real SVG figure a `LessonBlock` of kind `"figure"` can point to,
@@ -21,6 +22,7 @@ export const DIAGRAM_REGISTRY = {
   "dns-resolution-flow": DnsResolutionFlowDiagram,
   "dns-recursive-lookup": DnsRecursiveLookupDiagram,
   "dns-failover": DnsFailoverDiagram,
+  "mq-dead-letter-queue": MqDeadLetterQueueDiagram,
 } satisfies Record<string, ComponentType>;
 
 export type DiagramId = keyof typeof DIAGRAM_REGISTRY;
