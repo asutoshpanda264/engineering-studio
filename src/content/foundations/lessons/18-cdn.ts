@@ -243,7 +243,7 @@ export const CDN: FoundationLesson = {
           kind: "compare",
           panels: [
             {
-              title: "❌ Invalidation approach",
+              title: "Invalidation approach",
               nodes: [
                 { id: "invalidation-css", label: "styles.css", sublabel: "CDN caches", col: 0, row: 0 },
                 { id: "invalidation-change", label: "code changes", sublabel: "must invalidate globally", col: 1, row: 0, tone: "critical" },
@@ -251,7 +251,7 @@ export const CDN: FoundationLesson = {
               edges: [{ from: "invalidation-css", to: "invalidation-change", tone: "critical" }],
             },
             {
-              title: "✅ Versioning approach",
+              title: "Versioning approach",
               nodes: [
                 { id: "versioning-v1", label: "styles.abc123.css", sublabel: "CDN caches forever", col: 0, row: 0 },
                 {
@@ -416,7 +416,7 @@ export const CDN: FoundationLesson = {
                 { id: "multicdn-cloudfront-2", label: "AWS CloudFront", sublabel: "100% traffic", col: 1, row: 1, tone: "healthy", entityType: "cdn" },
               ],
               edges: [
-                { from: "multicdn-traffic-2", to: "multicdn-cloudflare-2", label: "✕ down", dashed: true, tone: "critical" },
+                { from: "multicdn-traffic-2", to: "multicdn-cloudflare-2", label: "down", dashed: true, tone: "critical" },
                 { from: "multicdn-traffic-2", to: "multicdn-cloudfront-2", label: "100%", tone: "healthy" },
               ],
             },
@@ -477,13 +477,13 @@ export const CDN: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "❌ Highly personalized content: user-specific dashboards, private data — a CDN would serve user A's data to user B.",
-            "❌ Real-time data: live stock prices, live sports scores — cached data is immediately stale.",
-            "❌ Small user base in a single region: 10,000 users all in Mumbai — CDN overhead isn't worth it, serve from one server.",
-            "❌ Private API responses: requires authentication, and a CDN can't serve without compromising security (unless you implement edge auth).",
+            { text: "Highly personalized content: user-specific dashboards, private data — a CDN would serve user A's data to user B.", tone: "critical" },
+            { text: "Real-time data: live stock prices, live sports scores — cached data is immediately stale.", tone: "critical" },
+            { text: "Small user base in a single region: 10,000 users all in Mumbai — CDN overhead isn't worth it, serve from one server.", tone: "critical" },
+            { text: "Private API responses: requires authentication, and a CDN can't serve without compromising security (unless you implement edge auth).", tone: "critical" },
           ],
         },
-        { kind: "paragraph", text: "✅ Use a CDN for: any static asset (images, CSS, JS, fonts), large files (videos, software downloads), high-traffic public content, a global user base, and DDoS protection." },
+        { kind: "paragraph", text: "Use a CDN for: any static asset (images, CSS, JS, fonts), large files (videos, software downloads), high-traffic public content, a global user base, and DDoS protection." },
       ],
     },
     {
@@ -529,4 +529,5 @@ export const CDN: FoundationLesson = {
       "You're the infrastructure lead at Hotstar preparing for the ICC Cricket World Cup Final — expected to be the most-watched streaming event in history with 100 million concurrent viewers (beating their own IPL record). Content to serve: live video stream (5 Mbps per viewer × 100M viewers = 500 Tbps); static assets (app UI — JS, CSS, images — loaded by all viewers); player assets (video player JavaScript, 2MB, loaded once); thumbnail images (10,000 match-related images); API responses (match score updates every ball, ~30 seconds). For the live video stream — should you use Pull CDN or Push CDN? How does adaptive bitrate streaming help with the 500 Tbps requirement? For static assets (JS, CSS) — what caching strategy gives you both long cache lifetime AND the ability to deploy updates instantly? The match score API (GET /matches/current/score) updates every 30 seconds — should it go through CDN? If yes, what TTL, and what's the worst-case staleness a user could experience? During the match, Hotstar wants to serve a personalized \"Watch with Friends\" widget showing which of your friends are watching — can this go through CDN? Why or why not, and what's the alternative?",
   },
   relatedEntitySlugs: ["cdn"],
+  prerequisites: ["load-balancers", "caching"],
 };

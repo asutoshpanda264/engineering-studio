@@ -435,4 +435,5 @@ export const REDIS_DEEP_DIVE: FoundationLesson = {
       "You're building the backend for Dream11 — India's largest fantasy sports platform. During IPL, Dream11 has: 10 million concurrent users; users creating teams and joining contests; a live leaderboard updating every over (every ~4 minutes); user notifications when they move up/down in rank. Design the Redis layer for these 4 features: Feature 1 — user session management (10M concurrent users, sessions expire after 24 hours); Feature 2 — live contest leaderboard (1 contest can have 5M participants, scores update every over); Feature 3 — rate limiting on team creation (max 10 teams per user per day); Feature 4 — real-time rank change notifications (notify a user when their rank changes by more than 10 positions). For each feature: which Redis data structure? What's the key naming convention? Any TTL needed? What Redis command(s) power the core operation?",
   },
   relatedEntitySlugs: ["cache"],
+  prerequisites: ["caching"],
 };

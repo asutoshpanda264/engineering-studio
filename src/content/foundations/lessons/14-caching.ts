@@ -68,15 +68,15 @@ export const CACHING: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "✅ Read frequently, written rarely (product details, user profiles, configuration)",
-            "✅ Expensive to compute or fetch (complex database queries, external API calls)",
-            "✅ Acceptable to serve slightly stale (news feed, product recommendations)",
-            "✅ Same result for many users (homepage, trending items, public data)",
+            { text: "Read frequently, written rarely (product details, user profiles, configuration)", tone: "healthy" },
+            { text: "Expensive to compute or fetch (complex database queries, external API calls)", tone: "healthy" },
+            { text: "Acceptable to serve slightly stale (news feed, product recommendations)", tone: "healthy" },
+            { text: "Same result for many users (homepage, trending items, public data)", tone: "healthy" },
           ],
         },
         {
           kind: "paragraph",
-          text: "❌ Never cache: user-specific sensitive data (bank balance); data that must be real-time accurate (stock prices); frequently changing data with zero tolerance for staleness; data that's cheap to fetch and rarely requested.",
+          text: "Never cache: user-specific sensitive data (bank balance); data that must be real-time accurate (stock prices); frequently changing data with zero tolerance for staleness; data that's cheap to fetch and rarely requested.",
         },
       ],
     },
@@ -251,7 +251,7 @@ export const CACHING: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "Invalidate product cache ✅ obvious",
+            "Invalidate product cache — obvious",
             "Invalidate search results cache? maybe",
             "Invalidate recommendation cache? maybe",
             "Invalidate homepage featured cache? maybe",
@@ -472,4 +472,5 @@ export const CACHING: FoundationLesson = {
       "You're the lead engineer at Hotstar during IPL season. Scale: 50 million concurrent viewers during peak, 10 million requests/second at peak, current DB is PostgreSQL and getting hammered. Most frequent requests (in order): (1) GET /matches/current — live match details (score, overs, etc.); (2) GET /users/{id}/subscription — is this user premium?; (3) GET /videos/{id}/stream-url — get CDN URL for video; (4) GET /leaderboard/fantasy — top 100 fantasy players; (5) GET /matches/{id}/comments — latest 50 comments. For each of the 5 endpoints: should it be cached (yes/no and why)? What TTL, justified by how often the data changes? What cache key would you use? What invalidation strategy — TTL only, or event-based? Bonus: endpoint 1 (live match details) is updated every ball — roughly every 30 seconds — and 50 million users are requesting it constantly. What specific cache problem are you most worried about here, and how do you prevent it?",
   },
   relatedEntitySlugs: ["cache", "cdn"],
+  prerequisites: ["vertical-vs-horizontal-scaling"],
 };

@@ -43,9 +43,9 @@ export const LOAD_BALANCERS: FoundationLesson = {
               title: "Without a load balancer",
               nodes: [
                 { id: "no-lb-source", label: "1M requests/sec", col: 0, row: 1 },
-                { id: "no-lb-s1", label: "Server 1", sublabel: "💥 overwhelmed", col: 1, row: 0, tone: "critical", entityType: "api" },
-                { id: "no-lb-s2", label: "Server 2", sublabel: "😴 idle", col: 1, row: 1, entityType: "api" },
-                { id: "no-lb-s3", label: "Server 3", sublabel: "😴 idle", col: 1, row: 2, entityType: "api" },
+                { id: "no-lb-s1", label: "Server 1", sublabel: "overwhelmed", col: 1, row: 0, tone: "critical", entityType: "api" },
+                { id: "no-lb-s2", label: "Server 2", sublabel: "idle", col: 1, row: 1, entityType: "api" },
+                { id: "no-lb-s3", label: "Server 3", sublabel: "idle", col: 1, row: 2, entityType: "api" },
               ],
               edges: [{ from: "no-lb-source", to: "no-lb-s1", tone: "critical" }],
             },
@@ -234,7 +234,7 @@ export const LOAD_BALANCERS: FoundationLesson = {
         },
         {
           kind: "insight",
-          text: "A good health check doesn't just verify the server is running — it verifies the server can actually do its job (connect to DB, connect to cache, etc.).",
+          text: "A good health check doesn't just verify the server is running — it verifies the server can actually do its job (connect to DB, connect to cache, etc.). Lesson 23 (Circuit Breakers) covers the entity-level version of this same instinct — detecting one struggling target and stopping traffic to it — as its own dedicated pattern rather than logic built into the load balancer itself.",
         },
       ],
     },
@@ -518,4 +518,5 @@ export const LOAD_BALANCERS: FoundationLesson = {
       "You're designing the infrastructure for PhonePe — a payments app processing 10 million transactions/day with strict reliability requirements. Current setup: 1 load balancer (Nginx), 5 application servers, 1 PostgreSQL primary + 2 read replicas, traffic is 70% reads/30% writes, peak traffic is 10x normal during salary days (1st-5th of month). Three problems have been reported: Problem 1 — the Nginx load balancer went down for 8 minutes last month, causing a complete outage with zero transactions during that window. Problem 2 — on salary day, 3 of 5 servers get overloaded while 2 sit idle; investigation shows heavy transaction-processing requests always land on the same servers (Round Robin is in use currently). Problem 3 — the SSL certificate on the LB expired and required updating on every application server individually (5 servers, 45 minutes of work). How do you fix Problem 1? Draw the architecture. Which load balancing algorithm fixes Problem 2 — and why specifically? Problem 3 reveals an architectural mistake — what is it, and how does SSL termination at the load balancer fix it?",
   },
   relatedEntitySlugs: ["load-balancer", "reverse-proxy"],
+  prerequisites: ["vertical-vs-horizontal-scaling"],
 };

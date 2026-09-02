@@ -26,6 +26,11 @@ import { apiGatewaySlowdown } from "./apiGatewaySlowdown";
 import { wildfireAlertBroadcast } from "./wildfireAlertBroadcast";
 import { trendingProductSearch } from "./trendingProductSearch";
 import { publicTransitTrackerApi } from "./publicTransitTrackerApi";
+import { customerSupportAgent } from "./customerSupportAgent";
+import { codingAgent } from "./codingAgent";
+import { researchAssistant } from "./researchAssistant";
+import { autonomousOpsAgent } from "./autonomousOpsAgent";
+import { costConstrainedEdgeAssistant } from "./costConstrainedEdgeAssistant";
 
 export type {
   CapacityEstimate,
@@ -70,6 +75,12 @@ export const SCENARIOS: Scenario[] = [
   trendingProductSearch,
   globalLeaderboardUpdates,
   wildfireAlertBroadcast,
+  // docs/Agentic_AI.md Part 4 — the agentic domain's own scenario set.
+  customerSupportAgent,
+  codingAgent,
+  researchAssistant,
+  autonomousOpsAgent,
+  costConstrainedEdgeAssistant,
 ];
 
 export function getScenario(id: string): Scenario | undefined {

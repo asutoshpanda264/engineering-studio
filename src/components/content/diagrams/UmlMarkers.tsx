@@ -9,14 +9,12 @@ import type { BoxTone } from "./primitives";
  */
 
 function classesFor(tone: BoxTone) {
-  const fill =
-    tone === "signal"
-      ? "fill-signal"
-      : tone === "healthy"
-        ? "fill-status-healthy"
-        : tone === "critical"
-          ? "fill-status-critical"
-          : "fill-bg-elevated";
+  // Hollow markers (diamond/triangle outlines) must stay hollow — matching
+  // the canvas background — no matter the tone; only their stroke should
+  // pick up the tone's color. A tone-colored `fill` here would make a
+  // selected aggregation/inheritance edge render as a solid shape,
+  // indistinguishable from composition's genuinely filled diamond.
+  const fill = "fill-bg-elevated";
   const solidFill =
     tone === "signal"
       ? "fill-signal"

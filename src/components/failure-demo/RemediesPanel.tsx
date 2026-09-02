@@ -73,7 +73,7 @@ function BaselineCard({ active, onSelect }: { active: boolean; onSelect: () => v
     <button
       type="button"
       onClick={onSelect}
-      className={`flex flex-col gap-1.5 rounded-md border p-3 text-left transition-colors duration-fast ease-standard
+      className={`flex flex-col gap-1.5 border p-3 text-left transition-colors duration-fast ease-standard
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated
         ${
           active
@@ -152,7 +152,7 @@ function RemedyCard({
 
   return (
     <div
-      className={`flex flex-col gap-2 rounded-md border p-3 transition-colors duration-fast ease-standard
+      className={`flex flex-col gap-2 border p-3 transition-colors duration-fast ease-standard
         ${active ? "border-status-healthy/40 bg-status-healthy/10" : "border-border bg-bg-panel"}`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -162,7 +162,7 @@ function RemedyCard({
       <p className="text-xs leading-relaxed text-text-muted">{remedy.description}</p>
 
       {isArchitecture && active && (
-        <div className="flex flex-col gap-2 rounded-md bg-bg-elevated p-2.5">
+        <div className="flex flex-col gap-2 bg-bg-elevated p-2.5">
           <ol className="flex list-decimal flex-col gap-1 pl-4 text-[11px] leading-relaxed text-text-muted">
             {remedy.instructions.map((step, index) => (
               <li key={index}>{step}</li>
@@ -262,7 +262,7 @@ function ArchitectureRemedyPalette({
   const addNode = useFailureDemoStore((s) => s.addNode);
 
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-dashed border-border-hover p-2">
+    <div className="flex flex-col gap-1 border border-dashed border-border-hover p-2">
       <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-text-subtle">
         Drag onto the canvas
       </p>
@@ -308,7 +308,7 @@ function PaletteCard({ type, onSelect }: { type: EntityType; onSelect: () => voi
       onDragStart={handleDragStart}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
-      className="group flex cursor-grab items-center gap-2 rounded-md border border-transparent p-1.5 text-left
+      className="group flex cursor-grab items-center gap-2 border border-transparent p-1.5 text-left
         transition-colors duration-fast ease-standard active:cursor-grabbing
         hover:border-border-hover hover:bg-bg-panel
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"

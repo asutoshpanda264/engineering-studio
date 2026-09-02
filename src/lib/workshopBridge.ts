@@ -30,6 +30,34 @@ const CLIENT_REQUEST_RATE_DEFAULT =
     ? requestRateField.default
     : 20;
 
+/**
+ * A single representative rate for whatever traffic shape is currently
+ * driving the canvas — the active scenario's own pattern if one's loaded
+ * (constant/burst read directly, ramp averaged over its climb), else the
+ * freeform Client's configured Request Rate. Exists so a villain attack
+ * (see content/workshop/villainAttacks.ts) can scale itself relative to
+ * "whatever's already here" instead of a fixed absolute number that would
+ * read as trivial on a heavily-built scenario and as overkill on a bare
+ * one-node sandbox.
+ */
+export function baselineRequestRate(
+  pattern: TrafficPattern | undefined,
+  clientRequestRateConfig: unknown
+): number {
+  if (pattern) {
+    switch (pattern.type) {
+      case "constant":
+      case "burst":
+        return pattern.rate;
+      case "ramp":
+        return (pattern.startRate + pattern.endRate) / 2;
+    }
+  }
+  return typeof clientRequestRateConfig === "number"
+    ? clientRequestRateConfig
+    : CLIENT_REQUEST_RATE_DEFAULT;
+}
+
 export interface ScenarioOptions {
   durationMs: number;
   connectionLatencyMs: number;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSimulationConfig } from "../workshopBridge";
+import { baselineRequestRate, buildSimulationConfig } from "../workshopBridge";
 import type { ArchitectureEdge, ArchitectureNode } from "@/store/workshopStore";
 import type { EntityType } from "@/simulation/types";
 
@@ -143,5 +143,31 @@ describe("buildSimulationConfig", () => {
       expect(result.warnings[0]).toContain("Orphan Database");
       expect(result.config.entities).toHaveLength(3);
     }
+  });
+});
+
+describe("baselineRequestRate", () => {
+  it("falls back to the Client's configured requestRate when there's no pattern", () => {
+    expect(baselineRequestRate(undefined, 77)).toBe(77);
+  });
+
+  it("falls back to the schema default when there's neither a pattern nor a numeric config", () => {
+    expect(baselineRequestRate(undefined, undefined)).toBeGreaterThan(0);
+  });
+
+  it("reads the rate straight off a constant pattern", () => {
+    expect(baselineRequestRate({ type: "constant", rate: 400 }, 20)).toBe(400);
+  });
+
+  it("reads the rate straight off a burst pattern", () => {
+    expect(
+      baselineRequestRate({ type: "burst", rate: 350, interval: 5000, duration: 250 }, 20)
+    ).toBe(350);
+  });
+
+  it("averages a ramp pattern's start and end rates", () => {
+    expect(
+      baselineRequestRate({ type: "ramp", startRate: 100, endRate: 300, duration: 10_000 }, 20)
+    ).toBe(200);
   });
 });

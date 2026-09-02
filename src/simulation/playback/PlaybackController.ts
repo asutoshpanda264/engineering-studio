@@ -103,7 +103,9 @@ export class PlaybackController {
       this.getVisibleEvents(),
       this.entityIds,
       this.currentTime,
-      this.result.clientIds
+      this.result.clientIds,
+      this.result.agentOrchestratorIds,
+      this.result.guardrailValidatorIds
     );
   }
 

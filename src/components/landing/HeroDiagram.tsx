@@ -101,7 +101,7 @@ function NodeCard({ id }: { id: NodeId }) {
   const Icon = catalogItem.icon;
   return (
     <div
-      className="absolute top-1/2 flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 rounded-lg border border-border bg-bg-panel px-2 py-3 shadow-elevated sm:w-28"
+      className="absolute top-1/2 flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 border border-border bg-bg-panel px-2 py-3 shadow-elevated sm:w-28"
       style={{ left: `${POSITION[id]}%` }}
     >
       <Icon className="size-4 text-text-muted" aria-hidden />

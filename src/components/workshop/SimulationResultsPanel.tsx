@@ -131,6 +131,17 @@ export function SimulationResultsPanel() {
           value={`$${cost.totalMonthlyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo`}
         />
       )}
+      {/* Only present with an Agent Orchestrator on canvas — docs/Agentic_AI.md §2.5's loop/iteration count, surfacing failure modes #5/#6 directly. */}
+      {typeof metrics.totalIterations === "number" && (
+        <Stat label="Iterations" value={String(metrics.totalIterations)} />
+      )}
+      {/* Only present with a Guardrail Validator on canvas — §2.5's guardrail rejection rate. */}
+      {typeof metrics.guardrailRejectionRate === "number" && (
+        <Stat
+          label="Guardrail rejections"
+          value={`${(metrics.guardrailRejectionRate * 100).toFixed(1)}%`}
+        />
+      )}
       {warnings.length > 0 && (
         <div
           className="ml-auto flex shrink-0 items-center gap-1.5 text-status-degraded"

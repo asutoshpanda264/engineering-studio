@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, BookOpen, FlaskConical } from "lucide-react";
 import { ArticleSection as Section } from "@/components/ui/ArticleSection";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { EntityTableOfContents } from "@/components/entities/EntityTableOfContents";
 import type { TocSection } from "@/components/entities/EntityTableOfContents";
@@ -88,23 +89,18 @@ export default async function EntityDeepDivePage({
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
-          <Link
-            href="/entities"
-            className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            All entities
-          </Link>
-          <div className="flex items-center gap-3">
+      <AppHeader
+        back={{ href: "/entities", label: "All entities" }}
+        maxWidthClassName="max-w-7xl"
+        right={
+          <>
             <ThemeToggle />
             <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
               Open Workshop
             </LinkButton>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="mx-auto flex w-full max-w-7xl items-start gap-20 px-6 py-16">
         <EntityTableOfContents sections={tocSections} />
@@ -169,7 +165,7 @@ export default async function EntityDeepDivePage({
                 <DefinitionList items={deepDive.usage.extremes} numbered />
               </div>
 
-              <div className="border border-border bg-bg-panel p-5">
+              <div className="bg-bg-panel p-5">
                 <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Edge cases to try in the Workshop
                 </h3>
@@ -201,7 +197,7 @@ export default async function EntityDeepDivePage({
               What this simulation&rsquo;s version of {catalogItem.name} gets right,
               and where it simplifies the real thing.
             </p>
-            <div className="grid gap-6 border border-border bg-bg-panel p-5 sm:grid-cols-2">
+            <div className="grid gap-6 bg-bg-panel p-5 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Captures well
@@ -240,7 +236,7 @@ export default async function EntityDeepDivePage({
               {deepDive.failureModes.map((mode, i) => (
                 <div
                   key={mode.name}
-                  className="flex flex-col gap-4 border border-border bg-bg-panel p-5"
+                  className="flex flex-col gap-4 bg-bg-panel p-5"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="flex items-baseline gap-2.5 text-base font-medium text-text">
@@ -310,7 +306,7 @@ export default async function EntityDeepDivePage({
               it breaks; the linked lesson(s) teach the concept itself,
               simulator-independent. */}
           {relatedLessons.length > 0 && (
-            <div className="border border-border bg-bg-panel p-5">
+            <div className="bg-bg-panel p-5">
               <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Read the theory
               </h3>

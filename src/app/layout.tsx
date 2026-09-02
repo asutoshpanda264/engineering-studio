@@ -35,13 +35,13 @@ export const metadata: Metadata = {
 // visitor sees exactly what they always have. Runs via `beforeInteractive`
 // specifically to avoid a flash of the wrong theme; ThemeProvider only
 // reconciles React state with whatever this already did, it doesn't make
-// the initial choice itself. "night-ops" is the preview third theme (see
-// globals.css) — kept in sync with ThemeProvider's Theme type by hand
-// since this string can't import it.
+// the initial choice itself. "light" and "night-ops" are the two preview
+// themes (see globals.css) — kept in sync with ThemeProvider's Theme type
+// by hand since this string can't import it.
 const THEME_INIT_SCRIPT = `(function () {
   try {
     var saved = localStorage.getItem("theme");
-    if (saved === "light" || saved === "night-ops") {
+    if (saved === "night-ops" || saved === "light") {
       document.documentElement.setAttribute("data-theme", saved);
     }
   } catch (e) {}

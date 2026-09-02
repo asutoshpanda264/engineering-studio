@@ -54,7 +54,7 @@ export function CostPanel() {
   return (
     <div className="flex flex-col items-end gap-2">
       {open && (
-        <div className="max-h-96 w-80 overflow-auto rounded-lg border border-border bg-bg-elevated shadow-dropdown">
+        <div className="max-h-96 w-80 overflow-auto border border-border bg-bg-elevated shadow-dropdown">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <div>
               <p className="text-xs font-medium text-text">Estimated Cost</p>
@@ -103,7 +103,7 @@ function EntityCostCard({ entity }: { entity: EntityCostEstimate }) {
 
   return (
     <div
-      className={`rounded-md border-l-2 bg-bg-panel py-1.5 pl-2.5 pr-2 ${SEVERITY_CLASSES[entity.severity]}`}
+      className={`border-l-2 bg-bg-panel py-1.5 pl-2.5 pr-2 ${SEVERITY_CLASSES[entity.severity]}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">

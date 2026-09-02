@@ -419,4 +419,5 @@ export const DATABASES_THE_BIG_PICTURE: FoundationLesson = {
       "You're the lead engineer designing the data layer for Hotstar — India's largest OTT platform. Here are the data requirements: (1) User accounts (name, email, subscription plan, payment history); (2) Video metadata (title, description, cast, duration, genre tags); (3) Watch history (user X watched video Y at timestamp Z, up to 80% completion); (4) Real-time view count (currently 11 million watching this video); (5) User sessions (login tokens, expiry); (6) Search (find videos by title, actor name, genre). For each of the 6 data requirements above, choose a database type (SQL, Document, Column-Family, Key-Value, or search engine) and justify your choice in one sentence. There's no single correct answer — but your reasoning must reflect the trade-offs you learned today.",
   },
   relatedEntitySlugs: ["database"],
+  prerequisites: ["what-is-system-design"],
 };

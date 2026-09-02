@@ -143,7 +143,7 @@ export const HTTP_AND_HTTPS: FoundationLesson = {
             ["204 No Content", "Success, no body", "DELETE succeeded"],
           ],
         },
-        { kind: "paragraph", text: "3xx — Redirection 🔀" },
+        { kind: "paragraph", text: "3xx — Redirection" },
         {
           kind: "table",
           headers: ["Code", "Meaning", "When used"],
@@ -153,7 +153,7 @@ export const HTTP_AND_HTTPS: FoundationLesson = {
             ["304 Not Modified", "Use your cached version", "Browser caching optimization"],
           ],
         },
-        { kind: "paragraph", text: "4xx — Client Errors ❌ (you did something wrong)" },
+        { kind: "paragraph", text: "4xx — Client Errors (you did something wrong)" },
         {
           kind: "table",
           headers: ["Code", "Meaning", "When used"],
@@ -167,7 +167,7 @@ export const HTTP_AND_HTTPS: FoundationLesson = {
             ["429 Too Many Requests", "Rate limited", "Too many API calls"],
           ],
         },
-        { kind: "paragraph", text: "5xx — Server Errors 💥 (server did something wrong)" },
+        { kind: "paragraph", text: "5xx — Server Errors (server did something wrong)" },
         {
           kind: "table",
           headers: ["Code", "Meaning", "When used"],
@@ -270,7 +270,7 @@ export const HTTP_AND_HTTPS: FoundationLesson = {
           messages: [
             { from: "browser", to: "server", label: "\"Hello, I support TLS 1.3\"" },
             { from: "server", to: "browser", label: "\"Here's my certificate\" (signed by trusted CA)", dashed: true },
-            { from: "browser", to: "server", label: "Verified — DigiCert is trusted, this IS Flipkart ✅. Generating shared secret key.", tone: "healthy" },
+            { from: "browser", to: "server", label: "Verified — DigiCert is trusted, this IS Flipkart. Generating shared secret key.", tone: "healthy" },
             { from: "server", to: "browser", label: "All further communication encrypted", dashed: true, tone: "healthy" },
           ],
         },
@@ -412,4 +412,5 @@ export const HTTP_AND_HTTPS: FoundationLesson = {
       "You're building the Flipkart checkout API. Three things need to work correctly: a user double-taps \"Pay Now\" and two identical requests hit your server within 500ms; a user's payment goes through but the response never reaches their app (network drop), so they tap \"Pay Now\" again; your server processes the payment but crashes before sending the response. Which HTTP method should POST /payments use — and why does idempotency matter here specifically? What mechanism would you use to prevent the user from being charged twice in all three scenarios above? What HTTP status code should you return if the payment is declined by the bank — and why not 500?",
   },
   relatedEntitySlugs: ["load-balancer"],
+  prerequisites: ["client-server-architecture"],
 };

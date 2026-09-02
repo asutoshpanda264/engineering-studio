@@ -49,7 +49,7 @@ export function VictoryScreen() {
           <p className="text-text-muted">Batman Mode — all three chapters complete.</p>
         </div>
 
-        <div className="flex w-full flex-col gap-3 border border-border bg-bg-panel p-5 text-left">
+        <div className="flex w-full flex-col gap-3 bg-bg-panel p-5 text-left">
           {VILLAIN_SEQUENCE.map((villain) => (
             <div key={villain.id} className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-status-healthy" aria-hidden />

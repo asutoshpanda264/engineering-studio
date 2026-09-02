@@ -87,7 +87,7 @@ export function ScenarioCompletionToast() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className={`pointer-events-auto flex items-center gap-3 rounded-lg border bg-bg-elevated px-4 py-2.5 shadow-dropdown ${
+            className={`pointer-events-auto flex items-center gap-3 border bg-bg-elevated px-4 py-2.5 shadow-dropdown ${
               legendary ? "border-signal" : "border-signal/40"
             }`}
           >

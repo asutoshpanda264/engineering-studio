@@ -43,4 +43,16 @@ export interface FoundationLesson {
   exercise: LessonExercise;
   /** Slugs of /entities/[slug] pages this lesson's concept has a hands-on simulation of, if any. */
   relatedEntitySlugs?: string[];
+  /**
+   * Slugs of other `FoundationLesson`s this one conceptually builds on —
+   * the edges of the `/foundations` map's forest (`FoundationsMap`,
+   * `getLessonStatus`). Separate from `number`/array order (the "read in
+   * this sequence" default) and from real access control: a locked node
+   * only *dims and hides itself as a link* on the map — visiting
+   * `/foundations/[slug]` directly still works regardless, same
+   * "browsing is always free" philosophy `number`'s own comment states.
+   * Omitted or `[]` means the lesson has no prerequisite (a root/entry
+   * point, always `available`).
+   */
+  prerequisites?: string[];
 }

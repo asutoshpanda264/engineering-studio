@@ -23,7 +23,7 @@ export function CDNImpactComparison({
   return (
     <div className="flex flex-col gap-3">
       <div
-        className={`rounded-md border px-3 py-2 text-xs font-medium ${
+        className={`border px-3 py-2 text-xs font-medium ${
           helping
             ? "border-status-healthy/30 bg-status-healthy/10 text-status-healthy"
             : "border-status-degraded/30 bg-status-degraded/10 text-status-degraded"
@@ -69,9 +69,9 @@ function LatencyBar({
         <span>{label}</span>
         <span className="font-medium text-text">{valueMs.toFixed(1)} ms</span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-bg-panel">
+      <div className="h-2 w-full overflow-hidden bg-bg-panel">
         <div
-          className={`h-full rounded-full transition-[width] duration-normal ease-standard ${barClassName}`}
+          className={`h-full transition-[width] duration-normal ease-standard ${barClassName}`}
           style={{ width: `${widthPercent}%` }}
         />
       </div>

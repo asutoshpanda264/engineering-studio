@@ -66,9 +66,20 @@ function configNumber(node: ArchitectureNode, key: string, fallback: number): nu
   return typeof raw === "number" ? raw : fallback;
 }
 
+/** Select-field counterpart of configNumber — for the string-valued dials (tier, quantization, deploymentTarget, ...). */
+function configString(node: ArchitectureNode, key: string, fallback: string): string {
+  const raw = node.data.config[key];
+  return typeof raw === "string" ? raw : fallback;
+}
+
 function defaultFor(entityType: EntityType, key: string): number {
   const field = ENTITY_CONFIG_SCHEMA[entityType]?.find((f) => f.key === key);
   return field && field.type !== "select" ? field.default : 0;
+}
+
+function defaultSelectFor(entityType: EntityType, key: string): string {
+  const field = ENTITY_CONFIG_SCHEMA[entityType]?.find((f) => f.key === key);
+  return field && field.type === "select" ? field.default : "";
 }
 
 /** requests/sec observed in the run, extrapolated to a monthly volume. */
@@ -98,6 +109,9 @@ const SEVERITY_THRESHOLDS: Record<string, SeverityThresholds> = {
   cdn: { elevated: 300, high: 1500 },
   load_balancer: { elevated: 100, high: 400 },
   message_queue: { elevated: 150, high: 600 },
+  llm_call: { elevated: 500, high: 2000 },
+  tool_call: { elevated: 200, high: 800 },
+  retriever: { elevated: 400, high: 1500 },
 };
 
 function severityFor(entityType: string, monthlyTotalCost: number): CostSeverity {
@@ -263,6 +277,129 @@ const messageQueuePricing: PricingModel = (node, result) => {
   };
 };
 
+/**
+ * LlmCall — usage-only, like CDN/Message Queue: real LLM inference APIs
+ * bill per-token, not per-provisioned-instance, so there's no base cost
+ * (see §1.13's caching/cost-economics research this is grounded in).
+ * $/1M-token rates vary by Model Tier (an SLM is dramatically cheaper —
+ * §1.10's "90% of functionality at 10% of the cost") and are further
+ * scaled by Quantization's cost multiplier (§1.11 — FP8/INT8/INT4 each
+ * cut cost further, same direction as their latency win). Deployment
+ * Target "edge" zeroes usage cost entirely: on-device inference has no
+ * per-token API bill, you already own the hardware — the real economic
+ * argument for edge deployment, not just the latency one.
+ *
+ * ASSUMED_TOKENS_PER_REQUEST stands in for this simulator having no real
+ * token-count concept, same idiom CDN.ts's assumed 20KB response size
+ * uses — illustrative, not measured. requestCount carries the same ~2x
+ * over-count APIServer's does (both the request leg and the response leg
+ * route through the one BoundedProcessor) — see apiPricing's comment;
+ * accepted here for the same reason, not worth a fragile per-leg fix.
+ */
+const LLM_TIER_COST_PER_MILLION_TOKENS: Record<string, number> = {
+  slm: 0.15,
+  llm: 2.5,
+};
+const LLM_QUANTIZATION_COST_MULTIPLIER: Record<string, number> = {
+  none: 1,
+  fp8: 0.5,
+  int8: 0.35,
+  int4: 0.2,
+};
+const ASSUMED_TOKENS_PER_REQUEST = 800;
+
+/**
+ * docs/Agentic_AI.md §2.9's prompt caching — a provider caching a
+ * previously-seen prompt prefix bills the cached portion at roughly this
+ * fraction of the normal rate. Distinct from Cache.ts's semantic caching
+ * (which skips the call entirely): this only discounts a call that still
+ * happens. Applied as a blend — Prompt Cache Hit Rate's share of tokens
+ * at the discount, the rest at full price — not an all-or-nothing switch.
+ */
+const PROMPT_CACHE_DISCOUNT = 0.1;
+
+const llmCallPricing: PricingModel = (node, result) => {
+  const requestCount = result?.metrics.entityMetrics[node.id]?.requestCount ?? 0;
+  const volume = monthlyVolume(requestCount, result?.duration ?? 0);
+  const deploymentTarget = configString(node, "deploymentTarget", defaultSelectFor("llm_call", "deploymentTarget"));
+
+  if (deploymentTarget === "edge") {
+    return { monthlyBaseCost: 0, monthlyUsageCost: 0, monthlyRequestVolume: volume };
+  }
+
+  const tier = configString(node, "tier", defaultSelectFor("llm_call", "tier"));
+  const quantization = configString(node, "quantization", defaultSelectFor("llm_call", "quantization"));
+  const promptCacheHitRate = configNumber(
+    node,
+    "promptCacheHitRate",
+    defaultFor("llm_call", "promptCacheHitRate")
+  );
+  const promptCacheMultiplier = 1 - promptCacheHitRate * (1 - PROMPT_CACHE_DISCOUNT);
+  const ratePerMillion =
+    (LLM_TIER_COST_PER_MILLION_TOKENS[tier] ?? LLM_TIER_COST_PER_MILLION_TOKENS.llm) *
+    (LLM_QUANTIZATION_COST_MULTIPLIER[quantization] ?? 1) *
+    promptCacheMultiplier;
+  const monthlyTokens = volume * ASSUMED_TOKENS_PER_REQUEST;
+
+  return {
+    monthlyBaseCost: 0,
+    monthlyUsageCost: (monthlyTokens / 1_000_000) * ratePerMillion,
+    monthlyRequestVolume: volume,
+  };
+};
+
+/**
+ * ToolCall — usage-only, priced directly off the node's own configured
+ * Cost / Call (perCallCostUsd) — the flat-per-call shape real metered
+ * third-party APIs actually bill under, unlike a provisioned-instance
+ * cost.
+ */
+const toolCallPricing: PricingModel = (node, result) => {
+  const perCallCostUsd = configNumber(node, "perCallCostUsd", defaultFor("tool_call", "perCallCostUsd"));
+  const requestCount = result?.metrics.entityMetrics[node.id]?.requestCount ?? 0;
+  const volume = monthlyVolume(requestCount, result?.duration ?? 0);
+
+  return {
+    monthlyBaseCost: 0,
+    monthlyUsageCost: volume * perCallCostUsd,
+    monthlyRequestVolume: volume,
+  };
+};
+
+/**
+ * Retriever — usage-only, like llm_call/tool_call: retrieval APIs bill
+ * per-query, not per-provisioned-instance. Priced off the node's own
+ * Cost / Query, scaled by a fixed per-mode multiplier: Agentic pays it
+ * roughly once per attempt on average (a request that needed 2-3 tries
+ * costs 2-3x a single Pipeline query); GraphRAG pays a flat premium
+ * (graph traversal queries typically cost more per query than vector
+ * search); Adaptive blends the two, weighted by an assumed relationship-
+ * query fraction — illustrative, since a PricingModel only sees this one
+ * node, not the Client's own Relationship Query Rate, same "a fixed
+ * assumption stands in for something this simulator doesn't track
+ * precisely" spirit as llmCallPricing's ASSUMED_TOKENS_PER_REQUEST.
+ */
+const RETRIEVER_MODE_COST_MULTIPLIER: Record<string, number> = {
+  pipeline: 1,
+  agentic: 1.8,
+  graphrag: 2.5,
+  adaptive: 1.3,
+};
+
+const retrieverPricing: PricingModel = (node, result) => {
+  const requestCount = result?.metrics.entityMetrics[node.id]?.requestCount ?? 0;
+  const volume = monthlyVolume(requestCount, result?.duration ?? 0);
+  const mode = configString(node, "mode", defaultSelectFor("retriever", "mode"));
+  const costPerQueryUsd = configNumber(node, "costPerQueryUsd", defaultFor("retriever", "costPerQueryUsd"));
+  const multiplier = RETRIEVER_MODE_COST_MULTIPLIER[mode] ?? 1;
+
+  return {
+    monthlyBaseCost: 0,
+    monthlyUsageCost: volume * costPerQueryUsd * multiplier,
+    monthlyRequestVolume: volume,
+  };
+};
+
 const PRICING_MODELS: Partial<Record<EntityType, PricingModel>> = {
   api: apiPricing,
   database: databasePricing,
@@ -270,6 +407,9 @@ const PRICING_MODELS: Partial<Record<EntityType, PricingModel>> = {
   cdn: cdnPricing,
   load_balancer: loadBalancerPricing,
   message_queue: messageQueuePricing,
+  llm_call: llmCallPricing,
+  tool_call: toolCallPricing,
+  retriever: retrieverPricing,
 };
 
 /**

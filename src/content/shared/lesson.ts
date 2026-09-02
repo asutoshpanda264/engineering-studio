@@ -32,7 +32,15 @@ export type LessonBlock =
   | { kind: "code"; language?: string; code: string }
   /** A "here's the actual lesson" callout tying a mechanism back to a trade-off or principle. */
   | { kind: "insight"; label?: string; text: string }
-  | { kind: "list"; items: string[]; ordered?: boolean }
+  /**
+   * An item is a plain string for a neutral list, or `{ text, tone }` when
+   * the point is specifically a good/bad fit judgment ("cache this",
+   * "never cache this") — `tone` colors the bullet the same
+   * healthy/critical a diagram's status dot would use instead of an inline
+   * ✅/❌ glyph in the text itself. Mixed lists (some plain, some toned)
+   * are fine; `ordered` lists don't use tone.
+   */
+  | { kind: "list"; items: (string | { text: string; tone?: BoxTone })[]; ordered?: boolean }
   /** Interview-perspective Q&A pairs. */
   | { kind: "qa"; question: string; answer: string }
   /** Numbered vertical sequence — "you type X, then Y happens" step-by-step.
@@ -73,13 +81,54 @@ export type LessonBlock =
    * `architecture` block's rigid col/row grid would misrepresent the
    * relationships as more linear/hierarchical than they are. Nodes are
    * hand-placed by x/y (not col/row) since a graph's layout is organic. */
-  | { kind: "graph"; nodes: GraphDiagramNode[]; edges: GraphDiagramEdge[] };
+  | { kind: "graph"; nodes: GraphDiagramNode[]; edges: GraphDiagramEdge[] }
+  /**
+   * A big-icon, minimal-text horizontal chain for a system's top-level
+   * topology — "Client → Embedding → Vector DB → ... → LLM Call". The
+   * main `nodes` render strictly left-to-right in request order; optional
+   * `sideNodes` (e.g. a knowledge base indexed ahead of time, feeding a
+   * Vector DB a live query searches against) hang off one main node from
+   * above via their own short arrow, for an input that isn't itself part
+   * of the request's own sequence. Deliberately minimal per node — one
+   * icon, a short label, an optional one-line sublabel, nothing else.
+   * Real explanation belongs in the surrounding `paragraph`/`list`
+   * blocks, not crammed into diagram text (the `architecture`/`flow`
+   * blocks both allow more per-node text, and are the right choice once
+   * a topology needs an actual grid or per-step narration this has no
+   * room for).
+   */
+  | {
+      kind: "pipeline";
+      nodes: PipelineNode[];
+      edgeLabels?: (string | undefined)[];
+      sideNodes?: PipelineSideNode[];
+      /**
+       * `"minimal"` (default) is `PipelineDiagram`'s one-accent, big-icon
+       * chain, per its own doc comment. `"phase"` renders via
+       * `PipelinePhaseDiagram` instead — a two-row loop layout that colors
+       * each node by what kind of machinery it is (embedding, retrieval,
+       * generation, plain plumbing), for the one topology where that
+       * distinction is the actual lesson (see `globals.css`'s
+       * `--color-rag-*` tokens). Reach for it deliberately, not by default.
+       */
+      variant?: "minimal" | "phase";
+      /**
+       * A signal-colored dot travels the main chain once per loop, pulsing
+       * each node's ring as it's reached — same declarative keyframe
+       * pattern (and same "static under `prefers-reduced-motion`, opt-in
+       * rather than default" rule) the `flow` block's own `animated` uses.
+       * Only `"phase"` currently renders it; harmless no-op on `"minimal"`.
+       */
+      animated?: boolean;
+    };
 
 export interface FlowStep {
   title: string;
   detail?: string;
   /** e.g. "critical" on a final crash/failure step. */
   tone?: BoxTone;
+  /** Which `ENTITY_CATALOG` entity this step represents, if any — draws its catalog icon on the step, same opt-in shape `ArchNode.entityType` already uses. */
+  entityType?: EntityType;
 }
 
 export interface SequenceActor {
@@ -94,6 +143,40 @@ export interface SequenceMessage {
   /** Conventionally: response/return messages. */
   dashed?: boolean;
   tone?: BoxTone;
+}
+
+/**
+ * A `pipeline` node's icon for a concept that isn't a simulated entity —
+ * "Embedding," "Vector DB," assembling retrieved chunks with the original
+ * query — and so has no `ENTITY_CATALOG` entry to draw from. A small
+ * fixed set, resolved to a real icon component inside `PipelineDiagram`
+ * itself (content stays plain data — no JSX/icon imports in content
+ * files, same reasoning `figure`'s `DiagramId` lookup already follows).
+ */
+export type PipelineIconId = "embedding" | "vector-db" | "data-source" | "combine" | "output";
+
+export interface PipelineNode {
+  label: string;
+  sublabel?: string;
+  tone?: BoxTone;
+  /** Which `ENTITY_CATALOG` entity this node represents, if any — draws its catalog icon large and centered, same opt-in shape `ArchNode.entityType` already uses. Mutually exclusive with `icon`; set at most one. */
+  entityType?: EntityType;
+  /** A conceptual (non-entity) icon, for a pipeline step that doesn't correspond to one real simulated entity. */
+  icon?: PipelineIconId;
+}
+
+/**
+ * A `pipeline` node drawn off the main chain, feeding into one main node
+ * from above with its own short arrow — for a genuinely separate input
+ * (a knowledge base indexed ahead of time, feeding the Vector DB a live
+ * query searches against) that isn't itself a step the request flows
+ * through in sequence.
+ */
+export interface PipelineSideNode extends PipelineNode {
+  /** Index (into the main `nodes` array) of the node this feeds into. */
+  intoIndex: number;
+  /** Label on the short arrow from this node down into the main chain, e.g. "indexed ahead of time". */
+  edgeLabel?: string;
 }
 
 export interface TreeNode {

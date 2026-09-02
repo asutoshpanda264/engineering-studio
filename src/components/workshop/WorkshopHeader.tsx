@@ -33,7 +33,7 @@ export function WorkshopHeader({
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-signal/70 to-transparent"
       />
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <Link
           href="/"
           className="flex shrink-0 items-center gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-text-muted transition-colors duration-fast ease-standard hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
@@ -44,51 +44,56 @@ export function WorkshopHeader({
           Engineering Studio
         </Link>
         <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
-        <h1 className="text-sm font-semibold text-text">{projectName}</h1>
+        <h1 className="min-w-0 truncate text-sm font-semibold text-text">{projectName}</h1>
         {scenarioName && <Badge variant="primary">{scenarioName}</Badge>}
         <TimedChallengeBar />
       </div>
 
+      {/* Below `xl` (1280px), Tutorial/Problems/Learn/Clear/Reset all drop
+          to icon-only — this row needed ~1335px with zero breakpoints to
+          avoid overflowing. Each still carries its full label via
+          `aria-label`/`title` (already present for the tooltip), so
+          collapsing the *visible* text loses nothing but redundant width. */}
       <div className="flex items-center gap-2">
         <EnterWorkshopButton />
 
         <Link
           href="/tutorial"
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          className="inline-flex h-8 items-center justify-center gap-1.5 px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           aria-label="Tutorial — a guided walkthrough of the Workshop, on a fresh canvas"
           title="Guided walkthrough on a fresh canvas"
         >
-          <Compass className="size-4" aria-hidden />
-          Tutorial
+          <Compass className="size-4 shrink-0" aria-hidden />
+          <span className="hidden xl:inline">Tutorial</span>
         </Link>
 
         <Link
           href="/problems"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          className="inline-flex h-8 items-center justify-center gap-1.5 px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           aria-label="Problems — browse the full catalogue of scenarios by topic and difficulty, in a new tab"
           title="Opens in a new tab — your canvas stays exactly as it is"
         >
-          <ListChecks className="size-4" aria-hidden />
-          Problems
+          <ListChecks className="size-4 shrink-0" aria-hidden />
+          <span className="hidden xl:inline">Problems</span>
         </Link>
 
         <Link
           href="/learn"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          className="inline-flex h-8 items-center justify-center gap-1.5 px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           aria-label="Learn — open Foundations and the entity reference in a new tab"
           title="Opens in a new tab — your canvas stays exactly as it is"
         >
-          <BookOpen className="size-4" aria-hidden />
-          Learn
+          <BookOpen className="size-4 shrink-0" aria-hidden />
+          <span className="hidden xl:inline">Learn</span>
         </Link>
 
         <ThemeToggle />
 
-        <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+        <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
 
         <Button
           variant="ghost"
@@ -105,7 +110,7 @@ export function WorkshopHeader({
           aria-label="Settings"
         />
 
-        <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+        <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
 
         <Button
           variant="ghost"
@@ -115,16 +120,17 @@ export function WorkshopHeader({
           aria-label="Clear canvas"
           title="Remove every component and start from a blank canvas"
         >
-          Clear
+          <span className="hidden xl:inline">Clear</span>
         </Button>
         <Button
           variant="secondary"
           size="sm"
           icon={<RotateCcw className="size-4" aria-hidden />}
           onClick={onReset}
+          aria-label="Reset"
           title="Re-run-ready: clears simulation results, keeps your architecture"
         >
-          Reset
+          <span className="hidden xl:inline">Reset</span>
         </Button>
         <Button
           data-tour-id="run-simulation"

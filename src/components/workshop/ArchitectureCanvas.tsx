@@ -1,8 +1,9 @@
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import type { DragEvent } from "react";
 import {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   MarkerType,
   Panel as FlowPanel,
@@ -42,23 +43,17 @@ function CanvasInner() {
   const setSelectedNode = useWorkshopStore((s) => s.setSelectedNode);
   const { colorMode } = useTheme();
 
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition } = useReactFlow();
 
-  // React Flow's `fitView` prop below only fits once, on the canvas's
-  // initial mount — it never re-runs on its own. Every bulk change after
-  // that (loading a scenario, revealing the reference solution, adding
-  // components one at a time from the sidebar's 4-column grid layout, see
-  // ComponentSidebar.tsx's `nextClickPosition`) left the viewport wherever
-  // it was, so new content silently landed outside the visible area
-  // instead of coming into view. Re-fitting whenever the node *count*
-  // changes covers every one of those cases while leaving ordinary
-  // dragging alone (a drag changes positions, not count, so it never
-  // fires this).
-  useEffect(() => {
-    if (nodes.length === 0) return;
-    fitView({ padding: 0.2, duration: 300 });
-  }, [nodes.length, fitView]);
-
+  // `fitView` used to re-run on every node-*count* change (loading a
+  // scenario, revealing the reference solution, adding components one at a
+  // time), on the theory that it'd keep new content in view. In practice it
+  // re-centered the whole viewport on every single add, which is
+  // disorienting mid-build and — combined with the palette panel floating
+  // over the canvas's left edge (ComponentSidebar.tsx) — could re-center a
+  // freshly-added node directly behind it. `fitView` now only runs once, on
+  // mount (the `fitView` prop below); after that the viewport stays put
+  // until the user asks for it via Controls' own "fit view" button.
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
@@ -113,6 +108,13 @@ function CanvasInner() {
         deleteKeyCode={["Backspace", "Delete"]}
         colorMode={colorMode}
         connectionRadius={32}
+        // ComponentNode now exposes 4 handles per node (top/right/bottom/
+        // left) so an edge can take the short way to a node in any
+        // direction instead of only ever entering on the left and leaving
+        // on the right. "loose" is what makes every one of those handles
+        // usable as either end of a drag, regardless of the `type` it was
+        // declared with.
+        connectionMode={ConnectionMode.Loose}
         fitView
       >
         <Background

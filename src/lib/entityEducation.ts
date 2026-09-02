@@ -177,6 +177,118 @@ export const ENTITY_EDUCATION: Record<EntityType, EntityEducation> = {
       "Fan-out",
     ],
   },
+  llm_call: {
+    truth: "I have real cost, real latency, and a real chance of being confidently wrong.",
+    whatAmI:
+      "I'm the reasoning/generation step every agent pattern is built from — a call to a model, standing in for anything from a one-line classification to a long chain-of-thought answer. Model Tier (SLM vs LLM), Quantization (None/FP8/INT8/INT4), and Deployment Target (Cloud vs Edge) each independently shift my speed, cost, and reliability — cheaper and faster is a real trade-off against how often I hallucinate, not a free win. I use the same bounded-concurrency admit-queue-reject mechanism API Server does, so my own latency rises under concurrent load the same way real inference serving's does.",
+    learningGoal:
+      "A model call isn't a black box the interesting engineering happens around — it's a primitive with measurable properties, the same way a Database query is. Output tokens cost several times what input tokens cost in real inference pricing, so a call that reasons verbosely pays a structurally different price than one that reads a lot of context and answers briefly. And a hallucination usually looks like clean success, not an error — which is why the accuracy cost of a cheaper tier or heavier quantization has to be something you measure by running it, not something you take on faith.",
+    relatedConcepts: [
+      "Context Window",
+      "Quantization",
+      "Continuous Batching",
+      "Hallucination",
+      "Inference Cost",
+    ],
+  },
+  tool_call: {
+    truth: "I'm what makes 'Tool Use' more than a model talking to itself.",
+    whatAmI:
+      "I stand in for a real external action — a function, an API, an MCP tool — the thing an llm_call reaches for when generating text alone isn't enough. Together, `llm_call → tool_call` is the simplest of the six canonical agent patterns: Tool Use. I use the same bounded-concurrency shape as every other entity here, and I can fail two independent ways — the external call itself failing, or its response not matching the shape the calling model expected.",
+    learningGoal:
+      "The boundary where a model's text output becomes a real, structured call is exactly where two of the most common documented agent failure modes live: schema violations and hallucinated tool invocations. Both can look like clean, well-formed success in a trace while being simply wrong — a trace showing a tool call that executed is proof it executed, not proof it was valid. Least privilege — only wiring up the tools an agent actually needs — is the practical containment for what a compromised or confused model might otherwise be tricked into calling.",
+    relatedConcepts: [
+      "Tool Use",
+      "MCP",
+      "Schema Validation",
+      "Prompt Injection",
+      "Least Privilege",
+    ],
+  },
+  agent_orchestrator: {
+    truth: "I hold the loop — which makes me the site where a loop can run away.",
+    whatAmI:
+      "I route, plan, and loop across whatever's wired downstream of me. Sequential mode dispatches to each target one at a time, in order — Planning: an ordered sequence of subtasks. Parallel mode dispatches to every target at once and waits for all of them — Orchestrator-Worker: independent work fanned out, then synthesized. Either way, I hold a session for as long as I'm coordinating — every step, every worker, every retry — not just one hop, the way most other entities here do.",
+    learningGoal:
+      "A failed step doesn't have to mean the whole thing fails immediately — I retry it in place, up to Max Iterations, before giving up. That's also exactly where an infinite retry loop lives if nothing bounds it: a failed call retried identically, forever, with no recognition it keeps failing the same way. Set Max Iterations very high against a consistently-failing target and watch that target's own request count balloon far past what one logical request should ever cause — the failure mode made visible, not asserted. Orchestrator-Worker's parallel fan-out is also a real trade-off, not a free speedup: it's overkill for a linear, dependent workflow, and only earns its extra concurrent-call cost when the work it's fanning out to is genuinely independent.",
+    relatedConcepts: [
+      "Planning",
+      "Orchestrator-Worker",
+      "Iteration Limits",
+      "Infinite Retry Loop",
+      "Invoke Agent Span",
+    ],
+  },
+  memory_context_store: {
+    truth: "I don't fail loudly when I'm full — I just quietly decide what gets forgotten.",
+    whatAmI:
+      "I'm the context window a long-running agent session lives in. Every turn that passes through me adds to a running size; once it exceeds Capacity, my Compaction Policy decides what happens next — None truncates the oldest content for free, Summarization compresses it at the cost of extra latency, Scratchpad writes it to a file outside the window at the cost of a re-read on every later turn. All three keep the session going. Only some of them keep what actually mattered.",
+    learningGoal:
+      "Context that isn't managed doesn't error — it rots: attention to relevant information degrades as irrelevant tokens accumulate, and a session can look completely healthy in every metric except the one that matters, whether the model still knows the thing it was told at the start. None is the fastest, cheapest policy right up until the moment it silently drops that original constraint forever — the failure doesn't show up as a crash, it shows up later as request after request quietly going wrong for no visible reason. That's failure mode #3, context truncation, made observable instead of asserted: compare all three policies over the same long session and watch when, or whether, the thing you told it at the start survives to the last turn.",
+    relatedConcepts: [
+      "Context Engineering",
+      "Context Window",
+      "Compaction",
+      "Context Rot",
+      "Short-Term Memory",
+    ],
+  },
+  retriever: {
+    truth: "I have four different personalities, and picking the wrong one costs you real accuracy, not just speed.",
+    whatAmI:
+      "I'm the knowledge-lookup step — RAG, which fractured into three real architectures pretending to be one thing, plus a fourth that routes between them. Pipeline is the fast, cheap, one-shot baseline. Agentic turns me into a bounded loop that retrieves, critiques, and re-retrieves. GraphRAG trades chunk similarity for graph traversal — slower on an ordinary lookup, but it's the only one of the four that can actually answer a genuinely relational question. Adaptive routes each query to whichever of Pipeline or GraphRAG can answer it, reusing their real behavior instead of inventing a fifth.",
+    learningGoal:
+      "Chunk-similarity search has a structural ceiling, not just an accuracy dial — no amount of tuning Pipeline's Miss Rate down makes it good at 'which vendors does our highest-risk supplier also share with?', because that answer was never sitting in one similar-looking chunk. That's what Relationship Query traffic and GraphRAG's Relationship Bonus are for: a real, measurable case where a fundamentally different retrieval architecture wins, not a better-tuned version of the same one. And Agentic's retry loop isn't a free accuracy upgrade either — the same research this is grounded in names the real risk directly: without redundancy, an unresolved retrieval loop can self-correct into a more elaborate hallucination instead of just failing honestly.",
+    relatedConcepts: [
+      "Pipeline RAG",
+      "Agentic RAG",
+      "GraphRAG",
+      "Adaptive RAG",
+      "Retrieval Loop",
+    ],
+  },
+  guardrail_validator: {
+    truth: "I don't create the retry loop — I'm just what finally makes it mean something.",
+    whatAmI:
+      "I'm an inline check, wired downstream of an llm_call: Gate mode asks a binary question (good enough to ship?), Scorer mode asks a graded one (how good, on some scale, against a threshold?). Wire me inside a Sequential Agent Orchestrator and a failure here propagates back through the llm_call to the orchestrator's own existing retry — no new loop mechanism needed, just a real pass/fail decision driving a mechanism that already existed. That's Reflection (Gate) or Evaluator-Optimizer (Scorer).",
+    learningGoal:
+      "The gap between 'blind retry' and 'self-critique' isn't a bigger loop — it's whether something actually decides the result is good enough, and why. Scorer mode's Verification Method makes the sharpest lesson here real instead of asserted: Execution-based grounding (a real test passing, a database's real end state) never drifts, however many times you retry the identical request. Judge-based grounding — another model judging the output — measurably does: the same underlying answer gets graded more leniently on each retry without actually improving. That's not a hypothetical risk, it's Judge Drift / Attempt, a dial you can turn up and watch a loop 'pass' for the wrong reason.",
+    relatedConcepts: [
+      "Reflection",
+      "Evaluator-Optimizer",
+      "Execution-Based Verification",
+      "Judge-Based Scoring",
+      "Self-Correction Risk",
+    ],
+  },
+  model_router: {
+    truth: "I don't make either model smarter — I just decide which one is worth paying for, per request.",
+    whatAmI:
+      "I'm the SLM/LLM cascade — wire an SLM-tier llm_call as my first downstream connection and an LLM-tier one as my second, and I decide, per request, which one actually handles it. Always-LLM and Always-SLM are the two baselines with no routing logic at all. Confidence-cascade escalates to the LLM only when a per-request confidence signal falls below a threshold. Cost-optimized-cascade adds a real budget on top: once too much traffic has already escalated, further escalations get suppressed even when confidence alone called for one.",
+    learningGoal:
+      "The 90/10 rule — an SLM delivers roughly 90% of an LLM's functionality at roughly 10% of the cost — isn't an argument for picking one model tier forever. It's an argument for routing: send the easy majority to the cheap tier, reserve the expensive one for what actually needs it. Confidence-cascade versus Cost-optimized-cascade is the sharpest version of that lesson: a stateless per-request threshold can be individually reasonable on every single decision while still blowing through a real monthly budget, because it never looks at the running total. A budget-aware cap is what actually enforces the '75-85% cost cut' claim instead of just hoping for it.",
+    relatedConcepts: [
+      "SLM/LLM Cascade",
+      "Model Routing",
+      "90/10 Rule",
+      "Confidence Threshold",
+      "Cost-Optimized Routing",
+    ],
+  },
+  human_in_loop_gate: {
+    truth: "I don't make the decision better — I just make sure a human sees it before it's irreversible.",
+    whatAmI:
+      "I'm an approval branch, wired directly in front of whatever tool_call actually performs an action that can't be undone. Every request pays my Approval Latency first — a real human review delay, not an instant check — then Denial Rate decides the outcome. Approved requests forward on exactly like they passed any other check; denied ones fail with reason human_denied_approval, a distinct signal from a guardrail rejection or a tool failure: a human looked at this and said no.",
+    learningGoal:
+      "Not every action deserves the same gate. A reversible action can fail fast and retry; an irreversible one — a refund, a production deploy, a destructive delete — deserves a harder, explicit checkpoint. That's reversibility-weighted risk, the same principle Claude Code's own layered validation is built on: because the check sits outside the model's own reasoning, a compromised or hallucinated decision still has to clear a real human before anything unrecoverable happens.",
+    relatedConcepts: [
+      "Reversibility-Weighted Risk",
+      "Escalation Path",
+      "Defense in Depth",
+      "Human-in-the-Loop",
+      "Irreversible Actions",
+    ],
+  },
 };
 
 export function getEntityEducation(type: EntityType): EntityEducation {

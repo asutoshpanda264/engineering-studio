@@ -2,14 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Lightbulb, Search, Timer } from "lucide-react";
+import { ArrowRight, Building2, Lightbulb, Search, Timer } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import { DifficultyMeter } from "@/components/ui/DifficultyMeter";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { SCENARIOS, SCENARIO_TOPIC_LABEL } from "@/scenarios";
 import type { ScenarioTopic } from "@/scenarios";
-import { difficultyBorderColorClass, difficultyColorClass, difficultyMeter } from "@/lib/difficultyDisplay";
+import { difficultyBorderColorClass } from "@/lib/difficultyDisplay";
 import { useProblemProgress } from "@/lib/problemProgress";
 import type { ProblemStatus } from "@/lib/problemProgress";
 
@@ -69,28 +71,30 @@ export default function ProblemsPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Engineering Studio
-          </Link>
-          <div className="flex items-center gap-3">
+      <AppHeader
+        back={{ href: "/", label: "Engineering Studio" }}
+        maxWidthClassName="max-w-5xl"
+        right={
+          <>
+            <Link
+              href="/interview-questions"
+              className="hidden items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal sm:inline-flex"
+            >
+              <Building2 className="size-4" aria-hidden />
+              Interviews
+            </Link>
             <ThemeToggle />
             <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
               Enter Workshop
             </LinkButton>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="mx-auto w-full max-w-5xl px-6 py-12">
         <div className="mb-10 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-text">Problems</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-text sm:text-4xl">Problems</h1>
             <Badge variant={solvedCount > 0 ? "success" : "neutral"}>
               {solvedCount} / {SCENARIOS.length} solved
             </Badge>
@@ -102,13 +106,17 @@ export default function ProblemsPage() {
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="mb-8 flex flex-col gap-5 border border-border bg-bg-panel p-5">
+        {/* Filters — an open toolbar, not a boxed panel: the search field
+            is the one bordered control here (it's actual text input), and
+            topic/difficulty read as pill groups under plain uppercase
+            labels, closed off by a single rule instead of four. */}
+        <div className="mb-8 flex flex-col gap-5 border-b border-border pb-6">
           <Input
             label="Search"
             placeholder="Search by title or story…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="max-w-sm"
           />
 
           <div className="flex flex-col gap-2">
@@ -125,7 +133,7 @@ export default function ProblemsPage() {
                     className={`border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide transition-colors duration-fast ease-standard ${
                       active
                         ? "border-signal/50 bg-signal/10 text-signal"
-                        : "border-border text-text-muted hover:border-border-hover hover:text-text"
+                        : "border-transparent bg-bg-elevated text-text-muted hover:border-border hover:text-text"
                     }`}
                   >
                     {SCENARIO_TOPIC_LABEL[topic]}
@@ -146,13 +154,13 @@ export default function ProblemsPage() {
                     type="button"
                     onClick={() => setDifficulties((prev) => toggle(prev, d))}
                     aria-pressed={active}
-                    className={`border px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors duration-fast ease-standard ${
+                    className={`border px-3 py-1.5 transition-colors duration-fast ease-standard ${
                       active
-                        ? "border-signal/50 bg-signal/10 text-signal"
-                        : `border-border ${difficultyColorClass(d)} hover:border-border-hover`
+                        ? "border-signal/50 bg-signal/10"
+                        : "border-transparent bg-bg-elevated hover:border-border"
                     }`}
                   >
-                    {difficultyMeter(d)} {d}/5
+                    <DifficultyMeter level={d} />
                   </button>
                 );
               })}
@@ -176,7 +184,7 @@ export default function ProblemsPage() {
                 // anchor can't nest another interactive anchor inside it.
                 <div
                   key={scenario.id}
-                  className={`group flex flex-col gap-3 border border-l-[3px] border-border bg-bg-panel p-5 transition-all duration-fast ease-standard hover:border-border-hover hover:bg-bg-elevated hover:shadow-dropdown sm:flex-row sm:items-start sm:justify-between sm:gap-6 ${difficultyBorderColorClass(scenario.difficulty)}`}
+                  className={`group flex flex-col gap-3 border-l-[3px] border-transparent bg-bg-panel p-5 transition-all duration-fast ease-standard hover:bg-bg-hover hover:shadow-dropdown sm:flex-row sm:items-start sm:justify-between sm:gap-6 ${difficultyBorderColorClass(scenario.difficulty)}`}
                 >
                   <Link
                     href={`/workshop?scenario=${scenario.id}`}
@@ -184,7 +192,9 @@ export default function ProblemsPage() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-base font-semibold text-text">{scenario.title}</h3>
-                      <Badge variant={STATUS_BADGE_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
+                      <Badge variant={STATUS_BADGE_VARIANT[status]} dot={status === "solved"}>
+                        {STATUS_LABEL[status]}
+                      </Badge>
                       {progress[scenario.id]?.underTimeAchieved && (
                         <Badge variant="primary">⏱ Beat the clock</Badge>
                       )}
@@ -192,12 +202,8 @@ export default function ProblemsPage() {
                     <p className="line-clamp-2 text-sm leading-relaxed text-text-muted">
                       {scenario.story}
                     </p>
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      <p
-                        className={`font-mono text-[11px] tracking-wide ${difficultyColorClass(scenario.difficulty)}`}
-                      >
-                        {difficultyMeter(scenario.difficulty)} {scenario.difficulty}/5
-                      </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <DifficultyMeter level={scenario.difficulty} />
                       {scenario.topics.map((topic) => (
                         <span
                           key={topic}

@@ -32,7 +32,7 @@ export const WHAT_IS_SYSTEM_DESIGN: FoundationLesson = {
         },
         {
           kind: "paragraph",
-          text: "Now imagine 500 million people use it simultaneously. Your laptop catches fire. 😅",
+          text: "Now imagine 500 million people use it simultaneously. Your laptop catches fire.",
         },
         {
           kind: "paragraph",
@@ -232,4 +232,5 @@ export const WHAT_IS_SYSTEM_DESIGN: FoundationLesson = {
     prompt:
       "You're a new engineer at Flipkart. Your manager says: \"Our product search is slow. Users are complaining. Fix it.\" Without using any technical terms you don't know yet — just using common sense — write down 3 questions you would ask before writing a single line of code or drawing any diagram. Think like an engineer, not a student: what do you need to know before you can solve this?",
   },
+  prerequisites: [],
 };

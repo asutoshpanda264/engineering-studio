@@ -21,7 +21,15 @@ export type EntityType =
   | "circuit_breaker"
   | "replica_pool"
   | "reverse_proxy"
-  | "kafka";
+  | "kafka"
+  | "llm_call"
+  | "tool_call"
+  | "agent_orchestrator"
+  | "memory_context_store"
+  | "retriever"
+  | "guardrail_validator"
+  | "model_router"
+  | "human_in_loop_gate";
 
 /**
  * How the simulation clock reports time.
@@ -53,6 +61,10 @@ export interface SimulationResult {
   metadata: SimulationMetadata;
   /** Ids of Client entities in this run — see MetricsCollector's clientIds param. */
   clientIds: EntityId[];
+  /** Ids of Agent Orchestrator entities in this run — see MetricsCollector's agentOrchestratorIds param (Phase 5, docs/Agentic_AI.md §2.5). */
+  agentOrchestratorIds: EntityId[];
+  /** Ids of Guardrail Validator entities in this run — see MetricsCollector's guardrailValidatorIds param (Phase 5, docs/Agentic_AI.md §2.5). */
+  guardrailValidatorIds: EntityId[];
 }
 
 /**
@@ -77,6 +89,31 @@ export interface MetricsSnapshot {
 
   // Per-entity metrics
   entityMetrics: Record<EntityId, EntityMetrics>;
+
+  /**
+   * `docs/Agentic_AI.md` §2.5's loop/iteration count — surfaces failure
+   * modes #5 (infinite retry loop) and #6 (agent paralysis) directly in
+   * the metrics panel, without inspecting individual entities. Sum, across
+   * every Agent Orchestrator in this run, of "dispatches beyond the
+   * first" per session (a session's own admission accounts for one; every
+   * dispatch past that is a retry or a fan-out worker). A healthy
+   * architecture with no orchestrator, or one whose orchestrators only
+   * ever dispatch once per session, reads 0 — this only grows when a
+   * session genuinely retried or fanned out. `undefined` when this run
+   * has no Agent Orchestrator entities at all, same "absent means not
+   * applicable" convention `cacheHitRate`/`memoryContext`/etc. already use.
+   */
+  totalIterations?: number;
+
+  /**
+   * `docs/Agentic_AI.md` §2.5's guardrail rejection rate — aggregate
+   * rejections / total checks across every Guardrail Validator entity in
+   * this run (gate rejections, scorer threshold misses, and caught
+   * compromises all count as rejections; a check is every attempt the
+   * validator actually ran, pass or fail). `undefined` when this run has
+   * no Guardrail Validator entities.
+   */
+  guardrailRejectionRate?: number;
 }
 
 export interface EntityMetrics {
@@ -102,6 +139,8 @@ export interface EntityMetrics {
   cacheAvalanche?: CacheAvalancheMetrics;
   /** Only present for Kafka — how many messages hashed to each partition. Reuses RoutingTargetMetrics' shape (targetId holds a synthetic "Partition N" label, not a real entity id). */
   kafkaPartitions?: RoutingTargetMetrics[];
+  /** Only present for a MemoryContextStore that compacted at least once. */
+  memoryContext?: MemoryContextMetrics;
 }
 
 export interface RoutingTargetMetrics {
@@ -133,6 +172,21 @@ export interface CacheAvalancheMetrics {
   expiredMisses: number;
   /** The largest number of expiry-driven misses that landed within a 100ms window of each other, anywhere in the run — the quantified size of an avalanche's "wave". */
   peakExpiryBurst: number;
+}
+
+/**
+ * Derived from CONTEXT_COMPACTED events — see MemoryContextStore.ts.
+ * `criticalInfoIntact` is "last one wins" across compactions (same
+ * point-in-time reasoning CircuitBreakerMetrics.state uses), so it
+ * reflects whether the session's original critical info has survived as
+ * of the most recent compaction, not just the first.
+ */
+export interface MemoryContextMetrics {
+  policy: "none" | "summarization" | "scratchpad";
+  compactionCount: number;
+  criticalInfoIntact: boolean;
+  /** Context size, in tokens, immediately after the most recent compaction. */
+  currentContextTokens: number;
 }
 
 export type CircuitBreakerState = "closed" | "open" | "half_open";

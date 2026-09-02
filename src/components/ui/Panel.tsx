@@ -19,7 +19,7 @@ function PanelRoot({
 }: PanelProps) {
   return (
     <div
-      className={`rounded-lg ${variantClasses[variant]} ${className}`}
+      className={`${variantClasses[variant]} ${className}`}
       {...props}
     >
       {children}

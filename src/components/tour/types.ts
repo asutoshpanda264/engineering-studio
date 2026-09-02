@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { ComponentPackId } from "@/lib/entityCatalog";
 
 /**
  * One beat of a guided tour. `getTarget` is a function (not a static
@@ -32,11 +33,13 @@ export interface TourStep {
   /** Overrides the default "Next" label — e.g. "Got it", "Continue". */
   primaryLabel?: string;
   /**
-   * True for steps whose `getTarget` points into ComponentSidebar's
-   * catalog list ("Drag or click X to add it") — that list only exists in
-   * the DOM while the panel is open (ComponentSidebar.tsx: on-demand, not
-   * a permanent dock). TutorialRunner force-opens it whenever the current
-   * step carries this flag, otherwise the step would spotlight nothing.
+   * Set for steps whose `getTarget` points into ComponentSidebar's catalog
+   * list ("Drag or click X to add it") — that list only exists in the DOM
+   * while its pack's panel is open (ComponentSidebar.tsx: on-demand, not a
+   * permanent dock, and the two packs are mutually exclusive). Names which
+   * pack ("distributed" or "ai-flow") the target entity lives in;
+   * TutorialRunner force-opens exactly that pack whenever the current step
+   * carries this field, otherwise the step would spotlight nothing.
    */
-  requiresComponentsPanel?: boolean;
+  requiresComponentsPanel?: ComponentPackId;
 }

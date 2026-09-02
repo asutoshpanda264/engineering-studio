@@ -70,7 +70,7 @@ export function CompareModal({
               </p>
             </>
           ) : configChanges.length > 0 ? (
-            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
+            <div className="flex flex-col divide-y divide-border overflow-hidden border border-border">
               {configChanges.map((change) => (
                 <div
                   key={change.label}
@@ -95,7 +95,7 @@ export function CompareModal({
             <h3 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
               Worst-hit component
             </h3>
-            <div className="flex items-center gap-3 rounded-md border border-border bg-bg-panel px-3 py-2.5">
+            <div className="flex items-center gap-3 border border-border bg-bg-panel px-3 py-2.5">
               <span className="min-w-0 flex-1 truncate text-sm text-text">
                 {before?.label ?? after?.label}
               </span>
@@ -130,7 +130,7 @@ export function CompareModal({
             <h3 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
               Per-component breakdown
             </h3>
-            <div className="overflow-hidden rounded-md border border-border">
+            <div className="overflow-hidden border border-border">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border bg-bg-panel text-left text-xs uppercase tracking-wide text-text-subtle">
@@ -178,7 +178,7 @@ function StatCard({
   improved: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-border bg-bg-panel px-3 py-3">
+    <div className="flex flex-col gap-1.5 border border-border bg-bg-panel px-3 py-3">
       <span className="text-xs uppercase tracking-wide text-text-subtle">{label}</span>
       <div className="flex items-baseline gap-2">
         <span className="text-sm text-text-subtle">{before}</span>

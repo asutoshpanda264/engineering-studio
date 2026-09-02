@@ -39,13 +39,13 @@ function Panel({
       <DiagramBox {...dns} lines={["swiggy.com", "DNS record"]} />
       <DiagramBox
         {...primary}
-        lines={primaryDown ? ["Primary", "✕ down"] : ["Primary", "13.234.156.90"]}
+        lines={primaryDown ? ["Primary", "down"] : ["Primary", "13.234.156.90"]}
         tone={primaryDown ? "critical" : "healthy"}
         dashed={primaryDown}
       />
       <DiagramBox
         {...backup}
-        lines={primaryDown ? ["Backup", "52.66.24.100 ✓"] : ["Backup", "standby"]}
+        lines={primaryDown ? ["Backup", "52.66.24.100"] : ["Backup", "standby"]}
         tone={primaryDown ? "healthy" : "neutral"}
         dashed={!primaryDown}
       />

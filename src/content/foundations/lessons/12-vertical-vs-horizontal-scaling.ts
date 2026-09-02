@@ -86,15 +86,15 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "✅ Simple — no code changes needed",
-            "✅ No distributed systems complexity",
-            "✅ Works immediately",
-            "✅ Good for databases (simpler consistency)",
-            "❌ Has a hard ceiling",
-            "❌ Expensive — high-end hardware costs exponentially more",
-            "❌ Single point of failure — one server dies, everything dies",
-            "❌ Downtime during upgrade",
-            "❌ Can't scale infinitely",
+            { text: "Simple — no code changes needed", tone: "healthy" },
+            { text: "No distributed systems complexity", tone: "healthy" },
+            { text: "Works immediately", tone: "healthy" },
+            { text: "Good for databases (simpler consistency)", tone: "healthy" },
+            { text: "Has a hard ceiling", tone: "critical" },
+            { text: "Expensive — high-end hardware costs exponentially more", tone: "critical" },
+            { text: "Single point of failure — one server dies, everything dies", tone: "critical" },
+            { text: "Downtime during upgrade", tone: "critical" },
+            { text: "Can't scale infinitely", tone: "critical" },
           ],
         },
       ],
@@ -136,15 +136,15 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "✅ No hard ceiling — add servers indefinitely",
-            "✅ No single point of failure — one server dies, others handle traffic",
-            "✅ Cost-efficient — use commodity hardware",
-            "✅ Can scale to internet scale",
-            "❌ Requires code changes — app must be stateless",
-            "❌ Distributed systems complexity — consistency, coordination",
-            "❌ Need a load balancer",
-            "❌ Session/state management is harder",
-            "❌ Debugging is harder across multiple servers",
+            { text: "No hard ceiling — add servers indefinitely", tone: "healthy" },
+            { text: "No single point of failure — one server dies, others handle traffic", tone: "healthy" },
+            { text: "Cost-efficient — use commodity hardware", tone: "healthy" },
+            { text: "Can scale to internet scale", tone: "healthy" },
+            { text: "Requires code changes — app must be stateless", tone: "critical" },
+            { text: "Distributed systems complexity — consistency, coordination", tone: "critical" },
+            { text: "Need a load balancer", tone: "critical" },
+            { text: "Session/state management is harder", tone: "critical" },
+            { text: "Debugging is harder across multiple servers", tone: "critical" },
           ],
         },
       ],
@@ -157,7 +157,7 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
           kind: "paragraph",
           text: "This is the critical prerequisite for horizontal scaling that most people miss. If your application stores state in memory — horizontal scaling breaks.",
         },
-        { kind: "paragraph", text: "❌ Stateful application (can't horizontally scale easily):" },
+        { kind: "paragraph", text: "Stateful application (can't horizontally scale easily):" },
         {
           kind: "flow",
           steps: [
@@ -167,7 +167,7 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
             { title: "User gets logged out", tone: "critical" },
           ],
         },
-        { kind: "paragraph", text: "✅ Stateless application (horizontally scalable): session stored in Redis (a shared store) — any server can handle any request." },
+        { kind: "paragraph", text: "Stateless application (horizontally scalable): session stored in Redis (a shared store) — any server can handle any request." },
         {
           kind: "architecture",
           nodes: [
@@ -196,7 +196,7 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         },
         {
           kind: "paragraph",
-          text: "Why databases are hard to scale horizontally: application servers are stateless → any server handles any request ✅. Databases are stateful → they store data → consistency nightmare ❌.",
+          text: "Why databases are hard to scale horizontally: application servers are stateless → any server handles any request. Databases are stateful → they store data → consistency nightmare.",
         },
         {
           kind: "insight",
@@ -224,7 +224,7 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         },
         {
           kind: "insight",
-          text: "Trade-off: replication lag. A write to Primary takes ~10-100ms to appear on Replicas. During that window, reads from Replicas return stale data. Used by Instagram, Flipkart, and almost every large SQL deployment.",
+          text: "Trade-off: replication lag. A write to Primary takes ~10-100ms to appear on Replicas. During that window, reads from Replicas return stale data. Used by Instagram, Flipkart, and almost every large SQL deployment. Lesson 21 (Database Replication) goes deep on this — synchronous vs. asynchronous replication, what that lag actually breaks, and how failover works when Primary itself dies.",
         },
         { kind: "paragraph", text: "Strategy 2: Sharding (Horizontal Partitioning). Split data across multiple database servers. Each server owns a subset of the data." },
         {
@@ -239,7 +239,7 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
         { kind: "paragraph", text: "Query for user_id = 1,500,432 → routes to Shard 2 automatically." },
         {
           kind: "paragraph",
-          text: "The challenge: what if Shard 1 has all the active users? Uneven load. This is called a hotspot. We'll go deep on sharding strategies in Phase 6.",
+          text: "The challenge: what if Shard 1 has all the active users? Uneven load. This is called a hotspot. We'll go deep on sharding strategies — including how to pick a shard key that avoids this — in Lesson 20 (Database Sharding).",
         },
         { kind: "paragraph", text: "Strategy 3: Caching Layer. Put Redis in front of your database. Most reads never hit the database." },
         {
@@ -427,5 +427,6 @@ export const VERTICAL_VS_HORIZONTAL_SCALING: FoundationLesson = {
     prompt:
       "You're the lead engineer at Meesho — a social commerce platform. Current setup: one EC2 server running App + MySQL database, current load 10,000 users/day. Meesho just went viral — load is expected to jump to 5 million users/day in 2 weeks. Your CTO says: \"Just upgrade to the biggest EC2 instance available.\" At what point does the CTO's suggestion fail — and why specifically? Design a 3-stage scaling plan to handle 5 million users/day — what do you do first, second, third, and why in that order? The database is your biggest concern, and you can't shard yet (too complex for 2 weeks) — what two things do you do to the database immediately?",
   },
-  relatedEntitySlugs: ["load-balancer", "cache", "database"],
+  relatedEntitySlugs: ["load-balancer", "cache", "database", "replica-pool"],
+  prerequisites: ["rest-apis", "dns-deep-dive", "database-indexing-deep-dive"],
 };

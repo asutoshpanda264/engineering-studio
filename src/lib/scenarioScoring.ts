@@ -24,7 +24,7 @@ import { evaluateScenario } from "@/scenarios/validator";
 import type { ScenarioEvaluation } from "@/scenarios/validator";
 import { runSimulation } from "@/simulation/engine/Simulator";
 import { estimateCost } from "@/lib/costEngine";
-import { hasUnguardedBackendAccess } from "@/lib/architectureValidation";
+import { hasUnguardedBackendAccess, hasUnguardedIrreversibleAction } from "@/lib/architectureValidation";
 import type { ArchitectureNode } from "@/store/workshopStore";
 
 export interface ScenarioScore {
@@ -89,7 +89,9 @@ function computeBaseScore(
   const cost = estimateCost(result, nodes);
   const budgetUsd = ignoreBudget ? null : (scenario.budgetUsd ?? null);
   const budgetPassed = budgetUsd === null || cost.totalMonthlyCost <= budgetUsd;
-  const architectureValid = !hasUnguardedBackendAccess(nodes, connections);
+  const architectureValid =
+    !hasUnguardedBackendAccess(nodes, connections) &&
+    (!scenario.requiresGatedToolCalls || !hasUnguardedIrreversibleAction(nodes, connections));
   const gatesPassed = evaluation.passed && budgetPassed && architectureValid;
 
   if (!gatesPassed) {

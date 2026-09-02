@@ -358,3 +358,52 @@ export function createPartitionAssignedEvent(
     { partitionIndex, key }
   );
 }
+
+/**
+ * Creates a context-compaction marker — fires only on the turn a
+ * MemoryContextStore's compaction policy actually triggers. Destination
+ * null, same as CACHE_HIT/MISS/PARTITION_ASSIGNED: a diagnostic marker for
+ * the event log and metrics, never delivered to any entity's handleEvent.
+ */
+export function createContextCompactionEvent(
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  policy: "none" | "summarization" | "scratchpad",
+  contextSizeTokens: number,
+  criticalInfoIntact: boolean
+): SimulationEvent {
+  return createEvent(
+    "CONTEXT_COMPACTED",
+    timestamp,
+    entityId,
+    null,
+    requestId,
+    { policy, contextSizeTokens, criticalInfoIntact }
+  );
+}
+
+/**
+ * Creates a guardrail-evaluated marker — fires on every
+ * GuardrailValidator.evaluate() call, pass or fail. Destination null,
+ * never delivered anywhere, same pattern as CONTEXT_COMPACTED/CACHE_HIT —
+ * see docs/Agentic_AI.md §2.5's guardrailRejectionRate metric and this
+ * EventType's own doc in events/types.ts for why a plain REQUEST_FAILED
+ * sweep can't answer this.
+ */
+export function createGuardrailEvaluatedEvent(
+  timestamp: Timestamp,
+  entityId: EntityId,
+  requestId: RequestId,
+  passed: boolean,
+  reason: string | null
+): SimulationEvent {
+  return createEvent(
+    "GUARDRAIL_EVALUATED",
+    timestamp,
+    entityId,
+    null,
+    requestId,
+    { passed, reason }
+  );
+}

@@ -295,7 +295,7 @@ function PinCoordinateControls({
   onReset: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-2">
+    <div className="flex flex-col gap-2 border border-border bg-bg-elevated p-2">
       <div className="grid grid-cols-2 gap-2">
         <CoordinateField
           label="User X / Y"
@@ -368,7 +368,7 @@ function CoordinateInput({
         const next = clamp(Math.round(Number(e.target.value)) || 0, 0, 100);
         onChange(next);
       }}
-      className="h-7 w-full min-w-0 rounded-md border border-border bg-bg px-1.5 text-center text-xs text-text
+      className="h-7 w-full min-w-0 border border-border bg-bg px-1.5 text-center text-xs text-text
         transition-colors duration-fast ease-standard
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
         hover:border-border-hover"

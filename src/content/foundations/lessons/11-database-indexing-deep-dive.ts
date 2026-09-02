@@ -166,7 +166,7 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
         {
           kind: "code",
           language: "sql",
-          code: "✅ WHERE user_id = 123\n✅ WHERE user_id = 123 AND status = 'delivered'\n✅ WHERE user_id = 123 AND status = 'delivered' ORDER BY created_at\n\n❌ WHERE status = 'delivered'              -- missing leading column\n❌ WHERE status = 'delivered' AND user_id = 123  -- order doesn't matter in WHERE\n                                                   -- but leading column must exist",
+          code: "-- Uses the index:\nWHERE user_id = 123\nWHERE user_id = 123 AND status = 'delivered'\nWHERE user_id = 123 AND status = 'delivered' ORDER BY created_at\n\n-- Does NOT use the index:\nWHERE status = 'delivered'                       -- missing leading column\nWHERE status = 'delivered' AND user_id = 123     -- order doesn't matter in WHERE,\n                                                   -- but leading column must exist",
         },
         {
           kind: "paragraph",
@@ -175,9 +175,9 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "You can look up \"Sharma\" → finds all Sharmas ✅",
-            "You can look up \"Sharma, Priya\" → finds specific person ✅",
-            "You can look up \"Priya\" without a last name → useless, must scan everything ❌",
+            { text: "You can look up \"Sharma\" → finds all Sharmas", tone: "healthy" },
+            { text: "You can look up \"Sharma, Priya\" → finds specific person", tone: "healthy" },
+            { text: "You can look up \"Priya\" without a last name → useless, must scan everything", tone: "critical" },
           ],
         },
         { kind: "paragraph", text: "Column order in composite indexes:" },
@@ -201,8 +201,8 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
           kind: "table",
           headers: ["Column", "Unique values", "Selectivity"],
           rows: [
-            ["user_id", "500 million", "✅ HIGH — great index"],
-            ["status", "5", "❌ LOW — poor index"],
+            ["user_id", "500 million", "HIGH — great index"],
+            ["status", "5", "LOW — poor index"],
             ["city", "500", "MEDIUM"],
           ],
         },
@@ -250,7 +250,7 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
         {
           kind: "code",
           language: "sql",
-          code: "❌ -- Index on created_at is NOT used\nSELECT * FROM orders WHERE YEAR(created_at) = 2024;\n\n✅ -- Index IS used\nSELECT * FROM orders\nWHERE created_at >= '2024-01-01'\nAND created_at < '2025-01-01';",
+          code: "-- Index on created_at is NOT used:\nSELECT * FROM orders WHERE YEAR(created_at) = 2024;\n\n-- Index IS used:\nSELECT * FROM orders\nWHERE created_at >= '2024-01-01'\nAND created_at < '2025-01-01';",
         },
         {
           kind: "paragraph",
@@ -260,13 +260,13 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
         {
           kind: "code",
           language: "sql",
-          code: "❌ -- Index NOT used (leading wildcard)\nSELECT * FROM users WHERE email LIKE '%@gmail.com';\n\n✅ -- Index IS used (trailing wildcard)\nSELECT * FROM users WHERE email LIKE 'priya%';",
+          code: "-- Index NOT used (leading wildcard):\nSELECT * FROM users WHERE email LIKE '%@gmail.com';\n\n-- Index IS used (trailing wildcard):\nSELECT * FROM users WHERE email LIKE 'priya%';",
         },
         { kind: "paragraph", text: "Implicit Type Conversion:" },
         {
           kind: "code",
           language: "sql",
-          code: "-- user_id is BIGINT, but we pass a string\n❌ SELECT * FROM orders WHERE user_id = '123';\n✅ SELECT * FROM orders WHERE user_id = 123;",
+          code: "-- user_id is BIGINT, but we pass a string:\nSELECT * FROM orders WHERE user_id = '123';   -- index NOT used\n\n-- Pass the correct type instead:\nSELECT * FROM orders WHERE user_id = 123;      -- index used",
         },
         {
           kind: "paragraph",
@@ -276,7 +276,7 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
         {
           kind: "code",
           language: "sql",
-          code: "❌ -- Often can't use index efficiently\nSELECT * FROM orders\nWHERE user_id = 123 OR restaurant_id = 42;\n\n✅ -- Use UNION instead\nSELECT * FROM orders WHERE user_id = 123\nUNION\nSELECT * FROM orders WHERE restaurant_id = 42;",
+          code: "-- Often can't use index efficiently:\nSELECT * FROM orders\nWHERE user_id = 123 OR restaurant_id = 42;\n\n-- Use UNION instead:\nSELECT * FROM orders WHERE user_id = 123\nUNION\nSELECT * FROM orders WHERE restaurant_id = 42;",
         },
       ],
     },
@@ -414,4 +414,5 @@ export const DATABASE_INDEXING_DEEP_DIVE: FoundationLesson = {
       "You're a backend engineer at Swiggy. The orders table has 800 million rows: order_id (PK), user_id, restaurant_id, status (enum: pending/preparing/out_for_delivery/delivered/cancelled), total, city, created_at. Three queries are running slowly in production: Query 1 — customer support looks up all orders for a user (SELECT order_id, total, status, created_at FROM orders WHERE user_id = 12345 ORDER BY created_at DESC); Query 2 — finance team runs a nightly revenue report (SELECT city, SUM(total) as revenue, COUNT(*) as order_count FROM orders WHERE created_at >= '2024-01-01' AND created_at < '2024-02-01' AND status = 'delivered' GROUP BY city); Query 3 — restaurant dashboard shows their pending orders (SELECT order_id, total, created_at FROM orders WHERE restaurant_id = 567 AND status IN ('pending', 'preparing') ORDER BY created_at ASC). Your task: for each query, design the optimal index (specify column order and why); for Query 1, could a covering index help — if yes, what would it include?; Query 2 runs once a night on historical data, and someone suggests \"let's just add an index on status since we filter by it\" — what's wrong with this suggestion?",
   },
   relatedEntitySlugs: ["database"],
+  prerequisites: ["sql-deep-dive", "nosql-deep-dive"],
 };

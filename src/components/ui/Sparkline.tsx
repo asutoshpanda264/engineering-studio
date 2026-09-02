@@ -159,7 +159,7 @@ export function Sparkline({
 
       {hoverPoint && (
         <div
-          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-border bg-bg-elevated px-2 py-1 text-[11px] shadow-dropdown"
+          className="pointer-events-none absolute z-10 whitespace-nowrap border border-border bg-bg-elevated px-2 py-1 text-[11px] shadow-dropdown"
           style={{
             left: Math.min(Math.max(xForTime(hoverPoint.time), 28), width - 28),
             top: 0,

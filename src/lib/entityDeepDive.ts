@@ -2373,6 +2373,759 @@ export const ENTITY_DEEP_DIVE: Record<EntityType, EntityDeepDive> = {
       },
     ],
   },
+  llm_call: {
+    tagline: "The reasoning step every agent pattern is built from — with real cost, real latency, and a real chance of being confidently wrong.",
+    summary:
+      "The LLM Call is the atomic unit `docs/Agentic_AI.md` builds every agent pattern from — Tool Use, Reflection, Planning, Orchestrator-Worker, and Evaluator-Optimizer are all compositions of this one primitive, not separate entity types. It uses the exact same bounded-concurrency admit-queue-reject mechanism API Server does (latency genuinely rises under concurrent load, the same way real inference serving's does), plus three dials no other entity here has: Model Tier (SLM vs LLM), Quantization (None/FP8/INT8/INT4), and Deployment Target (Cloud vs Edge) — each independently trading speed and cost against a higher effective Hallucination Rate. No real model call happens anywhere in this simulator; latency, cost, and failure rate are configurable synthetic distributions, same as Database's processing time.",
+    industryExamples: [
+      "OpenAI / Anthropic / Google model APIs",
+      "AWS Bedrock, Azure AI Foundry — managed hosting for third-party and open models",
+      "vLLM, TGI — self-hosted serving stacks (PagedAttention, continuous batching)",
+    ],
+    usage: {
+      whereItGoes:
+        "Wherever a request needs a model's reasoning or generation — directly behind a Client for a simple single-turn agent, or as one repeated hop inside an agent_orchestrator's loop for a multi-step one. Safe to end a chain on (answers directly, same as API Server) or to forward to a tool_call for Tool Use.",
+      typicalTopology: "Client → LLM Call → Tool Call.",
+      normal:
+        "LLM tier, no quantization, cloud deployment as the reliable-but-expensive baseline; Hallucination Rate and Schema Failure Rate left at their small defaults rather than 0, since a real model call is never perfectly reliable.",
+      extremes: [
+        {
+          title: "Model Tier → SLM, Quantization → INT4, Deployment → Edge",
+          description:
+            "The cheapest, fastest configuration reachable — latency drops sharply and the cost readout falls toward zero (Edge has no per-token API bill at all). Watch the Hallucination Rate readout rise in the same run: this is the accuracy cost of the 90/10 SLM rule and INT4's compression, made measurable instead of asserted.",
+        },
+        {
+          title: "Deployment Target → Edge with Model Tier left on LLM",
+          description:
+            "Deliberately not disabled outright — instead this pairing applies a heavy latency penalty, modeling an oversized model straining constrained edge hardware. Compare against the same config with Model Tier switched to SLM to see why Edge deployment caps which tier is actually worth choosing.",
+        },
+      ],
+      edgeCases: [
+        "Hallucination Rate and Schema Failure Rate both at 0 — the node behaves exactly like a plain API Server with a longer Generation Time, useful for isolating whether a downstream problem is really about the model call or about something else in the architecture.",
+        "Max Concurrent set low with sustained traffic above it — watch requests queue and then reject via QUEUE_FULL, the identical admit-queue-reject shape API Server and Database already use, applied to model calls.",
+        "No downstream tool_call connected at all — the call answers directly from whatever it 'knows,' the simplest possible agent: no Tool Use, no orchestration, just a single reasoning step.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Model Tier: SLM vs LLM",
+        description:
+          "SLM is dramatically faster and cheaper — roughly 90% of an LLM's functionality at roughly 10% of the cost, per the 2026 rule of thumb — but its Hallucination Rate multiplier is meaningfully higher. Neither is a strictly better choice; it depends on how much the task can tolerate being occasionally wrong.",
+      },
+      {
+        title: "Quantization: a genuine three-way trade-off, not a toggle",
+        description:
+          "None → FP8 → INT8 → INT4 each step down lowers latency and cost further while raising the effective hallucination rate. FP8/INT8 is production-ready with minimal loss; INT4 is where the accuracy cost starts to bite, and this simulator makes that bite observable rather than theoretical.",
+      },
+    ],
+    pros: [
+      "The one entity in this simulator whose latency, cost, AND reliability all move together as a function of the same config dials — a direct, hands-on version of the accuracy-vs-cost trade-off every real deployment has to make.",
+    ],
+    cons: [
+      "Hallucination is modeled as an explicit failure, observable in metrics and the trace — a real hallucination usually succeeds at the infrastructure level while being simply wrong. Prompt Injection Rate is the dial that DOES get the honest 'succeeds anyway' treatment instead — see its own failure mode below.",
+      "No real token count, prompt caching, or context-window modeling yet — cost is extrapolated from an assumed tokens-per-request figure, and 'what's actually in the context' isn't simulated at all.",
+    ],
+    failureModes: [
+      {
+        name: "Direct Prompt Injection — a Hijacked Output That Still Looks Like Success",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #9: attacker-controlled input overwrites this call's actual instructions, but the request completes exactly like a normal success — no REQUEST_FAILED, no error surface, nothing in the standard metrics. This is 'agent failures often look like success in a trace' made literal, not a metaphor.",
+        reproduce: [
+          "Set Prompt Injection Rate to a high value (e.g. 40%) with Hallucination Rate and Schema Failure Rate both at 0.",
+          "Run with nothing wired downstream of the llm_call, and check the Results bar's success rate.",
+          "Then wire a Guardrail Validator downstream with Compromise Catch Rate at its default and re-run, identical seed.",
+        ],
+        observe:
+          "The first run shows a 100% success rate despite a high injection rate — the compromise is invisible anywhere except by inspecting individual REQUEST_COMPLETED events' metadata for `compromised: true`. The second run's success rate visibly drops instead, now failing with reason direct_prompt_injection — the guardrail catching what the metrics alone never would have shown.",
+        simulated: true,
+      },
+      {
+        name: "The Accuracy Cost of a Cheap Configuration",
+        description:
+          "Model Tier and Quantization each multiply the configured Hallucination Rate — dropping to SLM and INT4 together compounds both multipliers, so a small baseline hallucination rate becomes a real, visible failure rate at the cheapest configuration.",
+        reproduce: [
+          "Set Hallucination Rate to a moderate value (e.g. 5%) and Schema Failure Rate to 0.",
+          "Run once at Model Tier LLM, Quantization None — note the failure count in the Results bar.",
+          "Switch to Model Tier SLM, Quantization INT4 with identical traffic, and compare.",
+        ],
+        observe:
+          "The cheap configuration fails noticeably more often for the identical configured Hallucination Rate — the multiplier stacking made visible, not asserted.",
+        simulated: true,
+      },
+      {
+        name: "Edge + LLM: the Bad Pairing, Simulated Instead of Blocked",
+        description:
+          "Deployment Target Edge caps which model tier is realistically usable — instead of disabling the LLM tier outright when Edge is selected, this pairing is left selectable and applies a heavy latency penalty, so the consequence is something you measure by running it.",
+        reproduce: [
+          "Set Deployment Target to Edge with Model Tier SLM — note the average latency.",
+          "Switch only Model Tier to LLM, everything else unchanged, and re-run.",
+        ],
+        observe:
+          "Average latency jumps sharply for the LLM-tier run despite identical traffic and every other config — the simulated cost of running an oversized model on hardware it doesn't fit.",
+        simulated: true,
+      },
+      {
+        name: "Concurrent-Load Latency Creep",
+        description:
+          "Latency isn't a flat number here — it's a function of concurrent load, the same admit-queue-reject shape API Server and Database already use. Push traffic past Max Concurrent and calls start queueing before they even begin generating.",
+        reproduce: [
+          "Set Max Concurrent low (e.g. 3) with a moderate Generation Time.",
+          "Drive Client Request Rate well above what Max Concurrent can sustain.",
+        ],
+        observe:
+          "Average latency rises well past the configured Generation Time as calls wait in the queue — real inference serving behaves the same way once concurrent requests exceed what continuous batching can absorb.",
+        simulated: true,
+      },
+    ],
+  },
+  tool_call: {
+    tagline: "The action — what turns 'the model said so' into something that actually happened.",
+    summary:
+      "The Tool Call is the external-action primitive Tool Use is built from: `llm_call → tool_call` is the simplest of the six canonical agent patterns in `docs/Agentic_AI.md`. It uses the exact same bounded-concurrency shape every other entity here does, and can forward onward if something's wired past it (an internal service, another tool) or terminate the chain and respond directly. Two independent failure rolls happen at the tool-call boundary specifically — the external call failing outright, and its response not matching the shape the calling model expected — deliberately separate from `llm_call`'s own Hallucination Rate, since a tool doesn't hallucinate; the model calling it does.",
+    industryExamples: [
+      "MCP tool servers — the standardized agent-to-tool wire format",
+      "OpenAI / Anthropic function calling",
+      "Internal microservice or third-party API calls an agent reaches for",
+    ],
+    usage: {
+      whereItGoes:
+        "Directly downstream of an llm_call that decided to act rather than answer from text alone. Stays wireable onward — a tool call can itself reach further infrastructure — rather than always terminating the chain the way Database does.",
+      typicalTopology: "Client → LLM Call → Tool Call.",
+      normal:
+        "Call Duration and Failure Rate set to model a real, moderately reliable external dependency; Cost / Call set to whatever a real metered API would charge, 0 for a free internal function.",
+      extremes: [
+        {
+          title: "Failure Rate → 100%",
+          description:
+            "Every call fails outright with reason tool_call_failed — useful for confirming whether anything upstream (a guardrail, a retry) actually handles a consistently unavailable dependency, or whether the failure just propagates straight to the client unhandled.",
+        },
+        {
+          title: "Schema Failure Rate → 100%",
+          description:
+            "Every call 'succeeds' at the external system but comes back malformed — the specific failure mode a caller that only checks for an error status code, rather than validating the shape of a successful response, would miss entirely.",
+        },
+      ],
+      edgeCases: [
+        "Cost / Call set to a real published API price (e.g. a paid search or data-enrichment API) — watch the monthly cost readout scale directly with traffic, the same usage-only pricing shape CDN and Message Queue already use.",
+        "A second entity wired downstream of the tool_call — confirms the chain can extend past a tool call into further infrastructure, not just terminate there.",
+        "Max Concurrent set below the calling llm_call's own throughput — the tool call becomes the bottleneck instead of the model call, worth comparing against the identical scenario with the constraint on the llm_call side instead.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Failure Rate vs Schema Failure Rate — two different signals",
+        description:
+          "A generic failure (the call didn't come back at all) and a schema violation (it came back, but wrong) call for different mitigations — a retry helps the first, response validation helps the second. Modeling them as two independent dials keeps that distinction visible instead of collapsing both into one generic error rate.",
+      },
+      {
+        title: "Terminal vs wireable-onward",
+        description:
+          "Unlike Database (always terminal) or API Server (wireable onward), Tool Call follows API Server's shape on purpose: a real tool call can itself reach further infrastructure, so the option to extend the chain past it stays open rather than being foreclosed by the entity's own design.",
+      },
+    ],
+    pros: [
+      "Makes the tool-call boundary — where a model's text output becomes a real, structured call — a genuinely separate, independently-configurable point of failure from the model call itself.",
+    ],
+    cons: [
+      "Hallucinated Invocation Rate models the *consequence* (a call that never should have been dispatched, checked before every other roll) but not the cause — this entity has no concept of an actual registered tool set the model could hallucinate outside of.",
+      "Silent Failure's info-loss is modeled as a single boolean flag (compromised, propagated or not) rather than the graded 'how empty/malformed' a real malformed payload can be.",
+    ],
+    failureModes: [
+      {
+        name: "The Tool That Was Never Registered",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #2: the calling model invents a tool call to something that was never really reachable — checked before Schema Failure Rate and Failure Rate, since a hallucinated invocation never legitimately reached a real external system to fail against in the first place.",
+        reproduce: [
+          "Set Hallucinated Invocation Rate to a high value (e.g. 30%), Schema Failure Rate and Failure Rate both to 0.",
+          "Run and inspect REQUEST_FAILED events' reason field.",
+        ],
+        observe:
+          "Failures carry reason hallucinated_tool_call, distinct from both schema_violation and tool_call_failed — a clean signal that the call itself should never have been made, not that it was made and then went wrong.",
+        simulated: true,
+      },
+      {
+        name: "The Silent Failure — 200 OK, Nothing Useful Inside",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #4, properly modeled now: a call that comes back looking successful but is actually empty or malformed, with no error surfacing anywhere in the standard metrics. Distinct from Failure Rate, which fails loudly and explicitly.",
+        reproduce: [
+          "Set Silent Failure Rate to a high value (e.g. 40%), Failure Rate and Schema Failure Rate both to 0, nothing wired downstream.",
+          "Run and check the Results bar's success rate.",
+          "Then wire a Guardrail Validator downstream and re-run, identical seed.",
+        ],
+        observe:
+          "The first run's success rate stays at 100% despite a high silent-failure rate — nothing in the metrics distinguishes a clean success from a compromised one. The second run's success rate visibly drops, now failing with reason silent_tool_failure — only the guardrail catches what the trace otherwise hides.",
+        simulated: true,
+      },
+      {
+        name: "The Tool Call That Simply Fails",
+        description:
+          "The external dependency itself is unavailable, timed out, or errored — independent of anything the calling model did right or wrong.",
+        reproduce: [
+          "Set Failure Rate to a high value (e.g. 30%) and Schema Failure Rate to 0.",
+          "Run and check the Results bar's failure count and the reason on a REQUEST_FAILED event in the Inspector.",
+        ],
+        observe:
+          "Failures carry reason tool_call_failed — a clean, generic signal that the external call itself is the problem, not the model's output.",
+        simulated: true,
+      },
+      {
+        name: "The Response That Looks Fine and Isn't",
+        description:
+          "The external call completes without error, but its response doesn't match the shape the calling llm_call expected — a renamed field, a changed type, an undocumented API version bump. This is the failure mode a status-code-only check would never catch.",
+        reproduce: [
+          "Set Schema Failure Rate to a high value (e.g. 30%) and Failure Rate to 0.",
+          "Run and confirm failures carry reason schema_violation, distinct from tool_call_failed.",
+        ],
+        observe:
+          "Two structurally identical-looking REQUEST_FAILED events carry different reasons depending on which dial triggered them — the trace distinguishes 'it didn't come back' from 'it came back wrong,' which a real system's monitoring has to as well.",
+        simulated: true,
+      },
+    ],
+  },
+  agent_orchestrator: {
+    tagline: "Routes, plans, and loops — the site where a retry loop can turn into an infinite one.",
+    summary:
+      "The Agent Orchestrator is where two of the six canonical patterns in `docs/Agentic_AI.md` live: Sequential routing mode dispatches to its downstream targets one at a time, in order, only advancing once the current one succeeds — Planning. Parallel mode dispatches to every downstream target at the identical simulated timestamp and waits for all of them before responding — Orchestrator-Worker. Unlike every entity before it in this simulator, it holds a *session* across potentially many hops for one admitted unit of work — its BoundedProcessor slot stays occupied for the session's entire lifetime, not one fixed-duration step, since a real orchestrator genuinely holds session state for as long as it's coordinating. Max Iterations is this entity's whole reason for existing: it's the cap on retrying a failed step or worker in place, and the direct, hands-on site of failure mode #5 — the infinite retry loop.",
+    industryExamples: [
+      "LangGraph, Microsoft Agent Framework, Claude Agent SDK, OpenAI Agents SDK — the control-flow layer every agent framework ships some version of",
+      "A2A (Agent2Agent) — Google's protocol for 2+ orchestrators exchanging peer messages, Multi-Agent Collaboration's real-world wire format",
+    ],
+    usage: {
+      whereItGoes:
+        "Between whatever originates a request (a Client, or another orchestrator) and the llm_call/tool_call workers it coordinates. Two or more Agent Orchestrator nodes wired to each other as peers — not through a shared parent — is Multi-Agent Collaboration, buildable today with no additional entity.",
+      typicalTopology: "Client → Agent Orchestrator → LLM Call, Tool Call (Sequential); or Agent Orchestrator fanned out to several workers at once (Parallel).",
+      normal:
+        "Sequential mode for a genuinely dependent chain of subtasks; Parallel only once downstream work is actually independent. Max Iterations left at a small default (3) — enough to absorb a transient blip, not so much it can mask a genuinely broken dependency.",
+      extremes: [
+        {
+          title: "Max Iterations → 1000 against an always-failing downstream target",
+          description:
+            "The infinite-retry-loop failure mode, reproduced on purpose. The failing target's own requestCount balloons far past the orchestrator's own totalRequests-driven count — one logical request causing hundreds of real downstream calls before finally giving up.",
+        },
+        {
+          title: "Parallel mode with one worker configured much slower than the rest",
+          description:
+            "The whole session waits on the slowest worker — synthesis can't happen until every worker reports back. Compare average latency against the identical topology in Sequential mode to see when fan-out actually helps versus just adding concurrent-call cost with no win.",
+        },
+      ],
+      edgeCases: [
+        "Sequential mode with only one downstream target — degenerates to a plain forward, useful for isolating the orchestrator's own Planning Overhead in isolation from any real multi-step behavior.",
+        "Parallel mode where one worker fails and the others succeed — confirms the whole session fails once that worker's own retries are exhausted, even though the other workers did real, successful work that's now discarded.",
+        "Two Agent Orchestrators wired to each other, each with its own downstream workers — Multi-Agent Collaboration, peer-to-peer rather than one parent coordinating everything.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Sequential (Planning) vs Parallel (Orchestrator-Worker)",
+        description:
+          "Sequential is correct whenever a step genuinely depends on the previous one's result — Parallel can't skip that dependency, it can only run independent work concurrently. Parallel earns its extra concurrent-call cost only when subtasks are actually independent; used on a dependent chain, it's real overkill with no latency win to show for it.",
+      },
+      {
+        title: "Max Iterations: fail-fast vs tolerant",
+        description:
+          "A low value (even 1 — no retry) fails fast on a genuinely broken dependency, keeping a bad session short. A high value tolerates real transient blips better, but the exact same dial, set high enough against a *consistently* failing target, is what causes an infinite retry loop instead of protecting against one.",
+      },
+    ],
+    pros: [
+      "The one entity whose session can span many hops and multiple downstream targets, making Planning and Orchestrator-Worker directly comparable, side by side, using the identical downstream topology just by flipping Routing Mode.",
+    ],
+    cons: [
+      "No self-critique or scoring step — Reflection and Evaluator-Optimizer (the other two patterns that route through a loop, per docs/Agentic_AI.md) need `guardrail_validator`, which this entity deliberately doesn't approximate. They aren't buildable until that primitive lands.",
+      "Parallel mode's synthesis is binary — any worker's exhausted failure fails the whole session, even if every other worker succeeded. No partial-success or majority-vote synthesis is modeled.",
+    ],
+    failureModes: [
+      {
+        name: "The Infinite Retry Loop",
+        description:
+          "A failed step or worker is retried identically, with no recognition it keeps failing the same way, until Max Iterations is finally exhausted — set high enough against a target that never recovers, this is the named failure mode itself, not a hypothetical.",
+        reproduce: [
+          "Wire a single Tool Call downstream with Failure Rate at 100%.",
+          "Set the Agent Orchestrator's Max Iterations to a large value (e.g. 200) in Sequential mode.",
+          "Run and compare the Tool Call's own requestCount against the orchestrator's totalRequests.",
+        ],
+        observe:
+          "The Tool Call's requestCount runs roughly Max Iterations times higher than the number of logical requests that ever reached it — one user-facing request quietly caused hundreds of real downstream calls before the orchestrator finally gave up with reason iteration_limit_exceeded.",
+        simulated: true,
+      },
+      {
+        name: "Parallel Fan-Out on a Dependent Workflow",
+        description:
+          "Parallel mode dispatches to every downstream target immediately, with no way to express 'wait for this one's result before starting that one' — using it on subtasks that actually depend on each other doesn't just fail to help, it actively runs steps before the input they need exists.",
+        reproduce: [
+          "Build the same two-worker topology twice — once with Routing Mode Sequential, once Parallel.",
+          "Compare the PROCESSING_STARTED timestamps for each downstream worker in the two runs.",
+        ],
+        observe:
+          "Parallel dispatches both workers at the identical timestamp regardless of any real dependency between them; Sequential visibly staggers the second dispatch until the first one's response comes back — the topology choice has to match whether the work is actually independent.",
+        simulated: true,
+      },
+      {
+        name: "Agent Paralysis — No Action Satisfies the Gate",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #6: contradictory or impossibly strict success criteria mean no attempt ever satisfies the check, and the session burns its entire retry budget without ever making real progress — mechanically identical to The Infinite Retry Loop above, but the broken thing is the bar itself, not a downstream dependency. §1.7's own named mitigation is 'defined exit conditions + escalation path' — the exact role a Human-in-the-Loop Gate plays: wire one in as an escalation path once Max Iterations is exhausted, so a paralyzed session hands off to a person instead of just failing silently.",
+        reproduce: [
+          "Wire Client → Agent Orchestrator (Sequential, Max Iterations e.g. 20) → LLM Call → Guardrail Validator (Gate, Rejection Rate 100%).",
+          "Run and compare the LLM Call's own requestCount against the orchestrator's totalRequests, same reasoning as The Infinite Retry Loop.",
+        ],
+        observe:
+          "Every session exhausts its full retry budget and still fails — from the metrics alone, a maximally strict, unsatisfiable check is indistinguishable from a genuinely broken dependency. That indistinguishability is the actual lesson: without a defined exit condition, 'retry harder' and 'this can never succeed' look identical from the outside.",
+        simulated: true,
+      },
+      {
+        name: "Error Cascade — An Unverified Hallucination, Trusted Downstream",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #7: in Multi-Agent Collaboration (two Agent Orchestrators wired as peers), one agent's confidently wrong output gets forwarded and trusted as fact by the next, with nothing between them to catch it. §1.7's own named mitigation is 'verification checks before forwarding between agents' — wiring a Guardrail Validator into the handoff is the direct fix, not a bigger retry budget on either side.",
+        reproduce: [
+          "Build two Agent Orchestrators wired as peers (Agent A → Agent B), each with its own downstream LLM Call.",
+          "Set Agent A's LLM Call Hallucination Rate high (e.g. 30%), with nothing between Agent A and Agent B to check the handoff.",
+          "Run once as built, once more with a Guardrail Validator (Gate mode) inserted between Agent A and Agent B, identical seed and rate.",
+        ],
+        observe:
+          "The first run's overall success rate absorbs Agent A's hallucination rate silently — Agent B has no way to know the input it trusted was already wrong. The second run's failures shift to an explicit guardrail_rejected at the handoff point instead — the same underlying unreliability, but now caught at the boundary instead of propagating.",
+        simulated: true,
+      },
+    ],
+  },
+  memory_context_store: {
+    tagline: "The context window — three policies for what survives once it fills up.",
+    summary:
+      "The Memory / Context Store models the second of `docs/Agentic_AI.md` §2.2's policy-bearing primitives — the short-term half of context engineering's memory pillar: the conversation and tool history actually living in the model's context window. Every request the traffic generator sends through this node is treated as one more turn in a single, long-running agent session it maintains for the whole run — a running context size that grows turn by turn until it exceeds Capacity, at which point the Compaction Policy decides what happens. None truncates the oldest content instantly and for free, but the first time it fires, this session's original critical info (the task, the constraint it was given at the start) is gone for good. Summarization compresses instead of dropping, at the cost of extra latency on the compacting turn. Scratchpad — Anthropic's own documented pattern — writes overflow to a file outside the window: critical info almost always survives, but every subsequent turn now pays to read it back. Nothing here fails loudly when it happens — that's the whole point.",
+    industryExamples: [
+      "Anthropic's documented scratchpad/file pattern — the model writes a structured note to a file outside the context window and re-reads it later",
+      "Claude Code's own long-session compaction — summarizes conversation history once the window fills, rather than truncating or refusing to continue",
+      "Any RAG/agent framework's 'conversation memory' or 'chat history' module (LangGraph checkpointing, mem0, and similar) — all solving this same fill-then-what problem",
+    ],
+    usage: {
+      whereItGoes:
+        "Downstream of the llm_call whose session it's tracking — it can forward further (to a tool_call, another llm_call) or safely end the chain, the same 'safe to end on' shape llm_call/tool_call already use.",
+      typicalTopology: "Client → LLM Call → Memory / Context Store.",
+      normal:
+        "Capacity set well above Tokens / Turn × the run's expected turn count, so compaction rarely or never triggers — the store just quietly tracks a session that never fills up.",
+      extremes: [
+        {
+          title: "Capacity set just above one turn's Tokens / Turn",
+          description:
+            "Compaction triggers almost immediately and repeatedly — the fastest way to see a policy's steady-state behavior (not just its first compaction) inside a short run.",
+        },
+        {
+          title: "None policy, left running for a long simulated session",
+          description:
+            "Fast and free right up until the first overflow, then Drift Failure Rate starts rolling against every turn from that point on — a session that looked completely healthy in every other metric starts silently failing for a reason nothing else in the trace explains, until you check this node.",
+        },
+      ],
+      edgeCases: [
+        "Comparing all three Compaction Policies on the identical session (same seed, same traffic, same Capacity/Tokens-Per-Turn) — the direct, honest answer to 'does this actually matter' §2.2 asks for.",
+        "Scratchpad with Scratchpad Read Latency set high — makes the sustained per-turn tax the policy pays visible in average latency even when its info-loss rate stays at zero.",
+        "Driving Drift Failure Rate to 0 to isolate whether critical info survives from whether that loss actually causes downstream failures — they're two independent, separately measurable things here.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "None vs Summarization vs Scratchpad",
+        description:
+          "None is free until it isn't — the cheapest policy right up to its first overflow, then a permanent, one-way loss. Summarization pays latency only on compacting turns and mostly (not always) keeps critical info intact. Scratchpad pays latency on every turn after its first compaction but keeps critical info intact almost all the time — the clearest 'you always pay something' trade-off of the three.",
+      },
+      {
+        title: "Instant loss vs sustained cost",
+        description:
+          "None's cost is invisible until the moment it isn't (a single truncation event, then silence). Scratchpad's cost is the opposite shape: small, visible, and constant on every turn from then on. Neither is strictly better — which one wins depends on whether the session even runs long enough for either cost to matter.",
+      },
+    ],
+    pros: [
+      "Three genuinely distinct, comparable policies on identical traffic — not one hardcoded default with the other two asserted as better in a lesson.",
+      "Makes context rot observable rather than assumed: a session can look completely healthy in throughput and latency while quietly losing the one thing that mattered.",
+    ],
+    cons: [
+      "Models exactly one 'critical info' fact per session (a single boolean), not the graded, partial information loss a real long conversation actually experiences.",
+      "Treats every request through this node as one more turn of the same session — a deliberate simplification of this engine's independent-request traffic model, not a literal multi-turn conversation simulator.",
+    ],
+    failureModes: [
+      {
+        name: "Context Truncation / Rot",
+        description:
+          "`docs/Agentic_AI.md` §2.3's failure mode #3, made observable rather than asserted: under the None policy, the first overflow permanently drops this session's critical info, and every turn after that independently rolls Drift Failure Rate — nothing crashes, requests just start quietly going wrong at a steady rate.",
+        reproduce: [
+          "Set Compaction Policy to None, Capacity just above one turn's Tokens / Turn so overflow happens almost immediately.",
+          "Set Drift Failure Rate to a meaningful value (e.g. 50%) and Max Queue Length/Concurrent high enough to avoid capacity-driven failures muddying the read.",
+          "Run and watch REQUEST_FAILED events with reason context_truncation appear only after the first CONTEXT_COMPACTED event.",
+        ],
+        observe:
+          "Zero context_truncation failures before the first compaction, then a steady stream of them afterward at roughly Drift Failure Rate's own rate — the session's health visibly changes shape partway through the run, at exactly the moment critical info was lost.",
+        simulated: true,
+      },
+      {
+        name: "Scratchpad's Hidden Latency Tax",
+        description:
+          "Scratchpad looks like the obviously correct choice by info-loss rate alone — until the sustained per-turn read cost it pays from its first compaction onward is measured against the other two policies' latency, not just their reliability.",
+        reproduce: [
+          "Run the identical session (same seed, Capacity, Tokens / Turn) once under None and once under Scratchpad, both with Drift Failure Rate at 0 so only latency differs.",
+          "Compare averageLatency between the two runs.",
+        ],
+        observe:
+          "Scratchpad's average latency runs measurably higher once its file exists — the policy that best protects critical info is not the policy with the best latency, a real trade-off rather than a strictly-dominant choice.",
+        simulated: true,
+      },
+      {
+        name: "Context/Spec Drift — Nothing Fails, but the Original Task Is Gone",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #8, distinct from Context Truncation above: that failure mode is loud (an explicit context_truncation REQUEST_FAILED at Drift Failure Rate's own frequency). This one is silent — with Drift Failure Rate at 0, nothing ever fails, the success rate reads 100%, and every other metric looks completely healthy. The only place the original constraint's loss is visible at all is the CONTEXT_COMPACTED marker's own criticalInfoIntact field going false and staying false — §1.7's own named mitigation, 'evaluate output against original intent, not status codes,' means exactly this: a status code (or a success rate) can't tell you the goalposts moved.",
+        reproduce: [
+          "Set Compaction Policy to None, Capacity just above one turn's Tokens / Turn, Drift Failure Rate at 0.",
+          "Run and confirm the success rate reads 100% for the whole session.",
+          "Then check the Inspector's event log for this node's CONTEXT_COMPACTED events and their criticalInfoIntact field.",
+        ],
+        observe:
+          "Every REQUEST_COMPLETED event looks identical, before and after the first compaction — but the first CONTEXT_COMPACTED marker already shows criticalInfoIntact: false, and every one after it does too. A guardrail wired downstream that only checks 'does this look plausible' rather than 'does this still satisfy the original task' would wave every one of these through — the exact gap the taxonomy's mitigation names.",
+        simulated: true,
+      },
+    ],
+  },
+  retriever: {
+    tagline: "Four RAG architectures, one node — no strictly-dominant choice among them.",
+    summary:
+      "The Retriever models `docs/Agentic_AI.md` §1.5/§2.2's third policy-bearing primitive: RAG, which fractured into three real architectures pretending to be one thing, plus a fourth that routes between them. Pipeline is the 2023-era baseline — embed, fetch top-k, generate, one shot. Agentic turns retrieval into a bounded retrieve-critique-reretrieve loop, up to Max Retrieval Attempts, with the real documented risk modeled directly: an exhausted loop is more likely to return a confidently wrong answer than a plain, honest miss. GraphRAG retrieves via entity/relationship graph traversal instead of chunk similarity — a genuine trade-off, not a free upgrade: slower and a touch less reliable than Pipeline on an ordinary lookup, but it wins decisively on queries that need multi-hop relationship reasoning, traffic the other chunk-based modes structurally cannot answer no matter how well-tuned they are. Adaptive routes each query to whichever underlying mode can actually answer it, reusing Pipeline's and GraphRAG's own real behavior rather than a separate model of its own.",
+    industryExamples: [
+      "LangChain/LlamaIndex's RAG pipelines — the Pipeline mode's real-world shape: embed, retrieve top-k, generate",
+      "Self-RAG / Corrective RAG research — Agentic mode's retrieve-critique-reretrieve loop",
+      "Microsoft GraphRAG, Neo4j's GraphRAG stack — entity/relationship extraction into a knowledge graph, retrieved via traversal",
+      "RouteLLM-style query routers, applied to retrieval instead of model choice — Adaptive mode's complexity-classifier-then-route shape",
+    ],
+    usage: {
+      whereItGoes:
+        "Upstream of the llm_call whose answer it's feeding context into — a retriever fetches, an llm_call reasons over what it fetched.",
+      typicalTopology: "Client → Retriever → LLM Call.",
+      normal:
+        "Pipeline mode for straightforward lookup traffic where the Client's Relationship Query Rate is low or 0 — the cheapest option that's genuinely sufficient for that traffic.",
+      extremes: [
+        {
+          title: "Client's Relationship Query Rate raised well above 0, Mode left on Pipeline",
+          description:
+            "Miss Rate effectively multiplies by Relationship Penalty on every relationship-shaped query — success rate visibly drops for exactly the fraction of traffic that needed a fundamentally different retrieval architecture, not a tuning fix.",
+        },
+        {
+          title: "Agentic mode with a high Miss Rate and a generous Max Retrieval Attempts",
+          description:
+            "Average latency and cost climb well above Pipeline's — many queries need most or all of the attempt budget to resolve. Watch the failure reason on the ones that never resolve: retrieval_hallucination, not retrieval_miss, at roughly Unresolved Hallucination Rate's own frequency.",
+        },
+      ],
+      edgeCases: [
+        "Comparing all four modes on identical traffic (same seed, same Relationship Query Rate) — the direct, honest answer to which trade-off actually fits, rather than a lesson's assertion that GraphRAG or Adaptive is simply 'better'.",
+        "GraphRAG with Client's Relationship Query Rate at 0 — isolates its real cost on ordinary traffic (higher Graph Traversal Time, a worse base Miss Rate than Pipeline) with none of its advantage showing up to offset it.",
+        "Adaptive against a 50/50 mix of ordinary and relationship traffic — the closest thing to 'best of both' this entity offers, since it's genuinely delegating to Pipeline's and GraphRAG's own real numbers per query, not averaging them.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Pipeline vs GraphRAG",
+        description:
+          "Pipeline is faster and cheaper on ordinary queries and structurally cannot answer relationship-shaped ones well at any Miss Rate. GraphRAG pays a real, constant cost (higher Graph Traversal Time, a worse base Miss Rate) even on queries that didn't need it, in exchange for decisively winning on the one kind of query the other three modes cannot.",
+      },
+      {
+        title: "Agentic's loop: more chances to resolve vs a worse failure when it doesn't",
+        description:
+          "More attempts genuinely raise the odds of resolving a hard query, but every attempt costs real latency and money whether or not it turns out to be needed — and an attempt budget that's exhausted anyway is more likely to hand back a confidently wrong answer than an honest miss, the real risk this mode's own research names directly.",
+      },
+    ],
+    pros: [
+      "Four genuinely distinct, comparable modes on identical traffic — including one (Adaptive) that's modeled as real delegation to the other two's own numbers, not a separate approximation.",
+      "Relationship Query Rate (Client) + Relationship Penalty/Bonus make GraphRAG's specific advantage a measured result, not an assumed one — the same traffic that breaks Pipeline is exactly what GraphRAG is shown solving.",
+    ],
+    cons: [
+      "Models exactly one axis of query difficulty (relationship reasoning vs. not) — a real corpus has many other reasons a query might be hard that this entity doesn't represent.",
+      "Agentic's attempt loop is resolved synchronously in one internal computation rather than as separately observable per-attempt events — the final outcome and total duration are accurate, but there's no per-attempt trace entry to inspect.",
+    ],
+    failureModes: [
+      {
+        name: "Chunk Similarity's Structural Ceiling",
+        description:
+          "No amount of lowering Pipeline's (or Agentic's) Miss Rate closes the gap on relationship-shaped queries — Relationship Penalty models a real limitation of the underlying retrieval architecture, not a tuning problem a lower Miss Rate could fix.",
+        reproduce: [
+          "Set the Client's Relationship Query Rate to a high value (e.g. 50%).",
+          "Run once with the Retriever on Pipeline mode, once on GraphRAG mode, everything else identical.",
+        ],
+        observe:
+          "Pipeline's success rate drops sharply from Relationship Penalty multiplying Miss Rate on half its traffic; GraphRAG's stays high thanks to Relationship Bonus — the same traffic, two structurally different outcomes.",
+        simulated: true,
+      },
+      {
+        name: "The Elaborate Hallucination",
+        description:
+          "Agentic RAG's real, documented risk: without redundancy, a retrieval loop that never resolves doesn't just fail honestly more often — it self-corrects into a *confidently wrong* answer at a meaningfully higher rate than a plain miss.",
+        reproduce: [
+          "Set Mode to Agentic, Miss Rate high enough that most queries don't resolve within Max Retrieval Attempts, and Unresolved Hallucination Rate at a high value (e.g. 70%).",
+          "Run and inspect REQUEST_FAILED events' reason field.",
+        ],
+        observe:
+          "Most failures come back as retrieval_hallucination rather than retrieval_miss — the qualitative difference the research names: an exhausted retry loop tends to sound confident, not unsure.",
+        simulated: true,
+      },
+      {
+        name: "Indirect Prompt Injection — Poisoned Content, Passed Along Silently",
+        description:
+          "`docs/Agentic_AI.md` §1.7's failure mode #10: malicious instructions embedded in retrieved content reach the downstream llm_call looking exactly like a normal, successfully resolved retrieval — no REQUEST_FAILED, nothing in the standard success rate. Only rolled on an attempt that actually resolves, across any of the four modes; a miss or hallucination has no content to poison.",
+        reproduce: [
+          "Set Poisoned Content Rate to a high value (e.g. 40%), Miss Rate low so most attempts resolve.",
+          "Run with the Retriever wired straight into an LLM Call, nothing between them, and check the Results bar's success rate.",
+          "Then insert a Guardrail Validator between the Retriever and the LLM Call and re-run, identical seed.",
+        ],
+        observe:
+          "The first run shows a high success rate despite the high poison rate — poisoned content is indistinguishable from clean content in every metric. The second run's success rate visibly drops, now failing with reason indirect_prompt_injection at the boundary — the exact topology §2.3 names as this failure mode's mitigation.",
+        simulated: true,
+      },
+    ],
+  },
+  guardrail_validator: {
+    tagline: "The check that turns a blind retry loop into a real self-critique loop.",
+    summary:
+      "The Guardrail Validator is `docs/Agentic_AI.md` §2.1's inline check/scorer — the primitive that finally makes Reflection and Evaluator-Optimizer buildable, the two canonical patterns that were written ahead of it and honestly said so. Gate mode is a binary pass/fail check, Reflection's shape. Scorer mode is a graded score against a threshold, Evaluator-Optimizer's shape. Neither mode implements its own retry loop — wire this node downstream of an llm_call inside a Sequential Agent Orchestrator, and a failure here propagates back through the llm_call to the orchestrator's own existing iteration-capped retry (the same mechanism Planning already demonstrates), now driven by a real decision instead of a blind count. Scorer mode's Verification Method makes Evaluator-Optimizer's own named risk simulatable: Execution-based grounding never drifts across retries of the same request; Judge-based grounding measurably does, via Judge Drift / Attempt — a same-model judge scoring an unchanged underlying answer more leniently each time it's retried. Independent of Mode, Compromise Catch Rate is this node's content-safety half: a separate roll, checked first, against any request already flagged compromised by a Tool Call, LLM Call, or Retriever upstream (failure modes #4/#9/#10) — the concrete answer to what a guardrail actually does about §2.3's indirect-prompt-injection role, not just where it's wired.",
+    industryExamples: [
+      "LLM-as-judge scoring frameworks (and their well-documented self-preference/leniency bias) — Judge-based verification's real-world shape",
+      "CI test suites, database assertions, sandboxed code execution as an agent's success signal — Execution-based verification's real-world shape",
+      "Claude Code's own layered validation before an irreversible action — a real production 'inline check before proceeding' example",
+    ],
+    usage: {
+      whereItGoes:
+        "Downstream of the llm_call it checks, inside a Sequential Agent Orchestrator for the self-critique loop to actually happen; or standalone downstream of a retriever/tool_call and upstream of an llm_call, catching a compromised response before it reaches the model (§2.3's indirect-prompt-injection mitigation) — the same node, two different roles depending on where it's wired.",
+      typicalTopology: "Client → Agent Orchestrator (Sequential) → LLM Call → Guardrail Validator.",
+      normal:
+        "Gate mode with a moderate Rejection Rate, wired inside a Sequential orchestrator with a small Max Iterations — enough retries to matter, not so many the loop masks a genuinely broken llm_call.",
+      extremes: [
+        {
+          title: "Scorer mode, Judge-based, Score Threshold near the ceiling",
+          description:
+            "A strict bar forces many retries, and Judge Drift / Attempt compounds on every one — watch the effective pass rate climb well above what Score Mean alone would predict, purely from repeated re-grading.",
+        },
+        {
+          title: "Scorer mode, Execution-based, identical Score Threshold and traffic otherwise",
+          description:
+            "No drift at any retry count — the honest baseline. Comparing this run against the Judge-based one above, seed and threshold held identical, is the direct measurement of how much of a 'pass' under Judge-based verification was real versus just leniency.",
+        },
+      ],
+      edgeCases: [
+        "Gate mode with Rejection Rate at 100% inside a Sequential orchestrator — the loop runs exactly Max Iterations times before the whole session fails with iteration_limit_exceeded, the same infinite-retry-loop shape Agent Orchestrator's own failure mode demonstrates, now driven by a real (if maximally strict) check instead of an always-failing tool.",
+        "This node with nothing wired downstream and no orchestrator above it — a standalone check that either passes a request through unchanged or fails it outright, useful for isolating Rejection Rate/Score Threshold's own behavior before wiring the full loop.",
+        "Wired between a Retriever and an llm_call instead of after one — the other named role: catching a bad/compromised retrieval result before it ever reaches the model.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Gate vs Scorer",
+        description:
+          "Gate is simpler and cheaper to reason about — one rate, one binary outcome. Scorer carries more nuance (a real graded signal, a meaningful threshold) but only pays off if the score itself means something — a Scorer whose Verification Method is Judge-based can end up less trustworthy than a well-tuned Gate, precisely because a graded number sounds more rigorous than it necessarily is.",
+      },
+      {
+        title: "Execution-based vs Judge-based verification",
+        description:
+          "Execution-based verification is only available when a real, checkable outcome exists — a test suite, a database's actual state. When it does, it's strictly better: grounded, ungameable by repetition. Judge-based verification is the only option for open-ended, unverifiable-by-execution tasks, but it inherits the same failure mode it's meant to catch — repetition alone can make a stalled answer look like it improved.",
+      },
+    ],
+    pros: [
+      "Completes two of the six canonical patterns with zero new orchestration code — the retry loop was already sitting in Agent Orchestrator, waiting for a primitive that could drive it with a real decision.",
+      "Makes Evaluator-Optimizer's own 'real risk' section a measurable comparison (Judge vs Execution verification, identical traffic) rather than a claim to take on faith.",
+    ],
+    cons: [
+      "Scorer mode's per-requestId attempt counter is never evicted — an accepted, documented simplification at this simulator's scale, same spirit as a couple of other entities' known request-count overcounts.",
+      "Models exactly one axis of judge unreliability (leniency drift with repetition) — a real same-model judge can fail in other ways (inconsistency, susceptibility to phrasing) this entity doesn't represent.",
+    ],
+    failureModes: [
+      {
+        name: "Judge Drift — Self-Correcting Into a More Elaborate Hallucination",
+        description:
+          "Evaluator-Optimizer's own named risk, made simulatable: under Judge-based verification, a score that should reflect the same, un-improved underlying answer creeps upward on every retry of the identical request — the loop can 'pass' something that never actually got better.",
+        reproduce: [
+          "Wire Client → Agent Orchestrator (Sequential, high Max Iterations) → LLM Call → Guardrail Validator (Scorer, Judge-based, Score Threshold near the ceiling, Judge Drift / Attempt at a high value).",
+          "Run once as configured, once more with Verification Method switched to Execution-based, everything else identical.",
+        ],
+        observe:
+          "The Judge-based run's success rate comes back measurably higher than the Execution-based run's, on identical traffic and threshold — the exact gap Judge Drift creates, not a real accuracy difference.",
+        simulated: true,
+      },
+      {
+        name: "The Loop That Never Passes",
+        description:
+          "Gate mode's Rejection Rate set high enough inside a Sequential orchestrator reproduces the same infinite-retry-loop shape Agent Orchestrator's own failure mode demonstrates against an always-failing tool — except here it's a check that's essentially impossible to satisfy, not a broken dependency.",
+        reproduce: [
+          "Wire Client → Agent Orchestrator (Sequential, Max Iterations e.g. 50) → LLM Call → Guardrail Validator (Gate, Rejection Rate 100%).",
+          "Run and inspect the LLM Call's own requestCount against the orchestrator's totalRequests.",
+        ],
+        observe:
+          "The LLM Call's requestCount runs roughly Max Iterations times higher than the number of logical requests that ever reached it, and every session ultimately fails with iteration_limit_exceeded — a maximally strict check is functionally indistinguishable, from the metrics, from a broken downstream dependency.",
+        simulated: true,
+      },
+      {
+        name: "Catching (or Missing) a Compromised Response",
+        description:
+          "Compromise Catch Rate is what actually turns 'wire a Guardrail Validator downstream' from advice into a measured outcome. It's not perfect: a compromised request that isn't caught here still passes through exactly as compromised as it arrived, unchanged, same as if no guardrail existed at all.",
+        reproduce: [
+          "Wire Client → LLM Call (Prompt Injection Rate high, e.g. 50%) → Guardrail Validator (Gate mode, Rejection Rate 0 so only Compromise Catch Rate is in play).",
+          "Run once with Compromise Catch Rate at its default (85%), once more at 0%, identical seed and injection rate.",
+        ],
+        observe:
+          "The first run's failures land almost entirely on reason direct_prompt_injection, at roughly the injection rate's own frequency. The second run's success rate climbs back toward 100% on identical traffic — the exact same compromised requests are still happening, but with nothing left to catch them, they reach the client looking clean.",
+        simulated: true,
+      },
+    ],
+  },
+  model_router: {
+    tagline: "The SLM/LLM cascade — routes each request to the cheapest tier that can answer it.",
+    summary:
+      "The Model Router is `docs/Agentic_AI.md` §2.8's fourth policy-bearing primitive, where §1.10's 90/10 rule and §1.13's 'roughly 95% frontier quality at 75-85% cost cut' claims stop being trivia and become something a comparison actually demonstrates. Wire an SLM-tier llm_call as the first downstream connection and an LLM-tier one as the second — the same wiring-order convention Agent Orchestrator's Sequential steps already use, needing no new per-connection config UI. Always-LLM and Always-SLM are the two baselines with zero routing logic. Confidence-cascade escalates to the LLM target whenever a per-request confidence draw falls below a threshold, applying identically no matter how much traffic has already escalated. Cost-optimized-cascade adds a real, running budget: a hard cap on what fraction of traffic is allowed to escalate, so once too much recent traffic already has, further escalations are suppressed even when confidence alone called for one — the literal 'budget-aware threshold' the research names, modeled as a request-fraction budget rather than reimplementing dollar pricing inside this entity.",
+    industryExamples: [
+      "RouteLLM — the formalized version of this exact cascade pattern: route to a weaker/cheaper model, escalate to a stronger one only on low-confidence cases",
+      "Any production system pairing a small on-device or self-hosted model with a frontier API as a fallback — the SLM/LLM cascade's real-world shape",
+      "This app's own CircuitBreaker/RateLimiter 'cheap fast path, expensive fallback' pattern — the identical shape applied to model choice instead of infrastructure",
+    ],
+    usage: {
+      whereItGoes:
+        "Between whatever originates a request and two llm_call nodes — an SLM-tier one wired first, an LLM-tier one wired second.",
+      typicalTopology: "Client → Model Router → LLM Call (SLM tier), LLM Call (LLM tier).",
+      normal:
+        "Confidence-cascade with a moderate Confidence Threshold — most traffic stays cheap, only genuinely low-confidence requests pay for the expensive tier.",
+      extremes: [
+        {
+          title: "Cost-optimized-cascade with a low Max Escalation Rate under heavy low-confidence traffic",
+          description:
+            "Many requests want to escalate (confidence keeps rolling below threshold), but the budget cap suppresses most of them once it's hit — watch the Dispatch Distribution stay lopsided toward the SLM target even though Confidence-cascade, run on identical traffic, would have escalated far more.",
+        },
+        {
+          title: "Always-SLM vs. Always-LLM on identical traffic",
+          description:
+            "The two baselines with no routing logic at all — compare their success rates and the Cost panel's combined total to establish the actual floor and ceiling any cascade mode is being measured against.",
+        },
+      ],
+      edgeCases: [
+        "Only one downstream connection wired — every mode degenerates to routing everything to that single target, useful for confirming the router adds no latency or capacity of its own.",
+        "Confidence-cascade vs. Cost-optimized-cascade on identical traffic, seed, and Confidence Threshold — isolates exactly what the budget cap changes: the escalation decision on requests that would have escalated under Confidence-cascade alone.",
+        "SLM Confidence Mean set very low (a poorly-calibrated SLM) under Cost-optimized-cascade — nearly every request wants to escalate, so Max Escalation Rate ends up doing almost all the routing work, not the confidence signal.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Confidence-cascade vs. Cost-optimized-cascade",
+        description:
+          "Confidence-cascade is simpler and, request by request, arguably more honest — it escalates exactly when the SLM says it's unsure, full stop. Cost-optimized-cascade is less locally 'fair' (a genuinely low-confidence request can still get suppressed to the cheap tier once the budget is spent) but is the only mode that actually enforces a cost ceiling — a stateless threshold can be individually reasonable on every decision while still blowing through a real monthly budget, because it never looks at the running total.",
+      },
+      {
+        title: "The two baselines aren't strawmen",
+        description:
+          "Always-LLM is the right choice when reliability matters more than cost and volume is low enough that the bill doesn't matter. Always-SLM is right when the task is genuinely easy and consistent. Cascading only earns its complexity when traffic is a real mix of easy and hard requests — on uniformly easy or uniformly hard traffic, a cascade adds routing complexity for a result close to whichever baseline would have won anyway.",
+      },
+    ],
+    pros: [
+      "The SLM/LLM cost differential shows up for free in the existing Cost panel once both downstream llm_call nodes are separately priced — no new pricing model needed for this entity itself.",
+      "Same free Dispatch Distribution Inspector section every other routing entity (Load Balancer, Agent Orchestrator) already gets — the SLM-vs-LLM split is the whole point, and it needed zero new UI.",
+    ],
+    cons: [
+      "Confidence is a synthetic per-request draw (calibration, not task difficulty) — a real SLM's confidence correlates with how hard the actual query is, something this entity doesn't model.",
+      "Not priced in costEngine.ts itself, by design — its own cost impact is entirely a function of which downstream llm_call nodes it actually routes to, not a separate line item.",
+    ],
+    failureModes: [
+      {
+        name: "A Stateless Threshold Blows Through Budget",
+        description:
+          "Confidence-cascade's fixed threshold applies identically to request 1 and request 10,000 — nothing about it responds to how much has already been spent escalating. Under a traffic mix skewed toward low confidence, it can escalate far more than a real budget would tolerate.",
+        reproduce: [
+          "Set Mode to Confidence-cascade, SLM Confidence Mean low (e.g. 0.3) so most requests want to escalate.",
+          "Run once as Confidence-cascade, once more as Cost-optimized-cascade with Max Escalation Rate at 0.2 — everything else, including the seed, identical.",
+        ],
+        observe:
+          "Confidence-cascade's Dispatch Distribution shows a much larger share routed to the LLM target than Cost-optimized-cascade's does on identical traffic — the budget cap visibly holding the line the stateless threshold doesn't.",
+        simulated: true,
+      },
+      {
+        name: "Cascading On Traffic That Doesn't Need It",
+        description:
+          "Any cascade mode's real value depends on traffic actually being a mix of easy and hard requests. Set up a cascade against uniformly high-confidence (easy) traffic and it barely differs from Always-SLM — the routing complexity bought nothing.",
+        reproduce: [
+          "Set SLM Confidence Mean high (e.g. 0.95) and Jitter low, Mode to Confidence-cascade.",
+          "Compare against a separate run with Mode set to Always-SLM, identical traffic.",
+        ],
+        observe:
+          "Dispatch Distribution under Confidence-cascade is overwhelmingly SLM-target, nearly matching Always-SLM's 100% — the cascade adds a config surface without a meaningfully different outcome on traffic this easy.",
+        simulated: true,
+      },
+    ],
+  },
+  human_in_loop_gate: {
+    tagline: "Approval branch + latency injection — the harder gate an irreversible action actually deserves.",
+    summary:
+      "The Human-in-the-Loop Gate is `docs/Agentic_AI.md` §2.1's approval-branch primitive: reversibility-weighted risk, not one uniform check for every tool. Wired directly in front of a tool_call that performs something that can't be undone — a refund, a production deploy, a destructive delete — every request pays Approval Latency first, a deliberately large delay standing in for a real human's review time, not an instant check. Denial Rate then decides the outcome once that delay elapses: approved requests forward on exactly like they passed any other check, denied ones fail with reason human_denied_approval — a distinct, honest signal from a guardrail rejection or a tool failure, because a human, not a heuristic, said no. Structurally this is every other agentic entity's exact admit-queue-reject shape (a reviewer's own attention is bounded capacity too); the one thing this entity actually models is the delay and the decision at the end of it.",
+    industryExamples: [
+      "Claude Code's own deny-first, human-escalation trust spectrum before an irreversible tool action — the real production shape this entity is modeled on directly",
+      "Any 'require manager approval' step in a workflow/RPA tool before a payment, refund, or account action over a threshold",
+      "Kubernetes/CI-CD manual approval gates before a production deploy or destructive migration",
+    ],
+    usage: {
+      whereItGoes:
+        "Directly upstream of the tool_call that performs the irreversible action — between the llm_call that decided to act and the tool_call that actually does it. Safe to end a chain on if the demo only needs to show the approve/deny decision itself, not the action that follows.",
+      typicalTopology: "Client → LLM Call → Human-in-the-Loop Gate → Tool Call.",
+      normal:
+        "Approval Latency set high enough to read as a genuine human delay (seconds, not milliseconds) relative to everything else in the architecture; Denial Rate low — most reviewed actions are legitimate, the gate exists for the ones that aren't.",
+      extremes: [
+        {
+          title: "Approval Latency → 0",
+          description:
+            "The gate becomes a pure decision with no delay cost — useful for isolating Denial Rate's effect on success rate from the latency tax, before reintroducing a realistic review time.",
+        },
+        {
+          title: "Denial Rate → 100%",
+          description:
+            "Every request is denied after paying the full review delay — confirms the gate genuinely blocks the irreversible action downstream rather than just adding latency in front of it; nothing beyond this node ever runs.",
+        },
+      ],
+      edgeCases: [
+        "Max Concurrent set to 1 — a single on-call reviewer as a real bottleneck; watch requests queue behind Approval Latency the same admit-queue-reject shape every other bounded entity here uses.",
+        "Wired as an escalation path after an Agent Orchestrator's Max Iterations is exhausted (see Agent Orchestrator's own 'Agent Paralysis' failure mode) — the taxonomy's own named mitigation for failure mode #6, a defined exit that hands off to a person instead of just failing.",
+        "Comparing average latency and success rate with the gate present vs. spliced out on identical traffic — the direct, measured cost of the safety margin it buys.",
+      ],
+    },
+    tradeoffs: [
+      {
+        title: "Approval Latency: safety margin vs. real cost",
+        description:
+          "Every millisecond of Approval Latency is a real cost paid on every single request that reaches this node, whether or not it ends up being denied — there's no way to get the safety benefit without paying the delay, which is the whole point: a gate that decided instantly wouldn't be modeling a human review at all.",
+      },
+      {
+        title: "Where it sits: broad vs. narrow",
+        description:
+          "Gating every tool_call uniformly is simple but expensive — most actions are reversible and don't need it. Gating only the specific tool_call that performs an irreversible action is reversibility-weighted risk in practice: the harder check goes exactly where the stakes justify it, not everywhere.",
+      },
+    ],
+    pros: [
+      "The only entity whose entire reason for existing is a deliberate, configurable latency cost — makes 'safety has a real, measurable price' something you see in the metrics, not just a design principle stated in a lesson.",
+      "A distinct failure reason (human_denied_approval) that's honestly different from every other rejection in this simulator — a human decision, not a heuristic threshold.",
+    ],
+    cons: [
+      "Denial Rate is a flat, context-free probability — a real human reviewer's decision depends on the specifics of what's being approved, which this entity has no way to represent.",
+      "No escalation-within-the-gate modeling (a denied request retried with a different reviewer, or auto-approved past a timeout) — a denial here is final for that request, not the start of a further workflow.",
+    ],
+    failureModes: [
+      {
+        name: "Approval Fatigue — the Gate as a Pure Latency Tax",
+        description:
+          "Under sustained load with too few reviewers (Max Concurrent too low), most of this node's cost stops being about Denial Rate at all — it becomes queueing delay stacked on top of Approval Latency, the same backpressure shape every bounded entity here shows, just with a much larger base delay to stack it on.",
+        reproduce: [
+          "Set Max Concurrent to 1, Approval Latency to a realistic value (e.g. 4000ms), Denial Rate to 0.",
+          "Drive traffic well above what one reviewer can sustain at that latency.",
+        ],
+        observe:
+          "Average latency climbs far past the configured Approval Latency alone — requests are queueing behind a slow, bounded-capacity human step, not being denied. Watch QUEUE_FULL events appear once the backlog itself is exhausted.",
+        simulated: true,
+      },
+      {
+        name: "A Gate That's Never Actually Reached",
+        description:
+          "Wiring this node downstream of something that already fails most requests before they arrive means it can look 'safe' in aggregate success-rate terms while barely ever actually running — the gate's own Denial Rate isn't what's suppressing bad actions, an earlier failure is.",
+        reproduce: [
+          "Wire Client → LLM Call (Hallucination Rate high) → Human-in-the-Loop Gate → Tool Call, Denial Rate at 0.",
+          "Compare this node's own requestCount against the Client's totalRequests.",
+        ],
+        observe:
+          "This node's requestCount runs well below totalRequests — most of the architecture's overall failure rate is coming from upstream, not from this gate ever denying anything, a reminder to check where in a chain a safety margin is actually doing its job.",
+        simulated: true,
+      },
+    ],
+  },
 };
 
 export function getEntityDeepDive(type: EntityType): EntityDeepDive {

@@ -61,6 +61,8 @@ export class Client implements Entity {
     const key = typeof event.metadata.key === "string" ? event.metadata.key : "key_0";
     const route = typeof event.metadata.route === "string" ? event.metadata.route : undefined;
     const exists = typeof event.metadata.exists === "boolean" ? event.metadata.exists : true;
+    const requiresRelationshipTraversal =
+      event.metadata.requiresRelationshipTraversal === true;
     return [
       createRequestRoutedEvent(
         ctx.now + latency,
@@ -73,6 +75,7 @@ export class Client implements Entity {
           path: [this.id],
           key,
           exists,
+          requiresRelationshipTraversal,
           ...(route !== undefined ? { route } : {}),
         }
       ),

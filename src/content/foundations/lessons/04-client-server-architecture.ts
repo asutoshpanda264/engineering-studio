@@ -202,7 +202,7 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
               title: "Application Server sends response back to app",
               detail: "{ \"order_id\": 9981, \"status\": \"confirmed\", \"eta\": \"35 mins\" }",
             },
-            { title: "App displays", detail: "\"Order placed! Arriving in 35 mins 🎉\"", tone: "healthy" },
+            { title: "App displays", detail: "\"Order placed! Arriving in 35 mins\"", tone: "healthy" },
           ],
         },
         { kind: "paragraph", text: "Every web application you use follows this pattern." },
@@ -242,7 +242,10 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
         { kind: "paragraph", text: "Problem: what if Request 1 goes to Server A and Request 2 goes to Server B?" },
         {
           kind: "list",
-          items: ["Server A: knows your session ✅", "Server B: has no idea who you are ❌"],
+          items: [
+            { text: "Server A: knows your session", tone: "healthy" },
+            { text: "Server B: has no idea who you are", tone: "critical" },
+          ],
         },
         {
           kind: "insight",
@@ -392,4 +395,5 @@ export const CLIENT_SERVER_ARCHITECTURE: FoundationLesson = {
       "You're designing the backend for Hotstar during the IPL final. 50 million users are watching simultaneously. Your single application server is melting. Your teammate proposes: \"Let's just add 10 more application servers and split the traffic.\" A second teammate says: \"That won't work — our app server stores user session data in memory.\" Why exactly does the second teammate's concern break the \"just add more servers\" plan? What is the one architectural change you need to make before adding more servers will actually help? Reason through it using what you learned today — specifically the stateless vs stateful section.",
   },
   relatedEntitySlugs: [],
+  prerequisites: ["browser-request-lifecycle"],
 };

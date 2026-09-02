@@ -44,7 +44,7 @@ export function Modal({ open, onClose, title, children, action, maxWidthClassNam
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
         onClick={(event) => event.stopPropagation()}
-        className={`flex max-h-[85vh] w-full ${maxWidthClassName} flex-col overflow-hidden rounded-lg border border-border bg-bg-elevated shadow-elevated`}
+        className={`flex max-h-[85vh] w-full ${maxWidthClassName} flex-col overflow-hidden border border-border bg-bg-elevated shadow-elevated`}
       >
         <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">{title}</h2>
@@ -54,7 +54,7 @@ export function Modal({ open, onClose, title, children, action, maxWidthClassNam
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="rounded-md p-1.5 text-text-subtle transition-colors duration-fast ease-standard hover:bg-bg-panel hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="p-1.5 text-text-subtle transition-colors duration-fast ease-standard hover:bg-bg-panel hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             >
               <X className="size-4" aria-hidden />
             </button>

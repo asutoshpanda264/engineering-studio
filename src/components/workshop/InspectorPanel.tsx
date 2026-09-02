@@ -93,7 +93,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+        className="flex w-full items-center justify-between gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
       >
         <span className="flex min-w-0 items-center gap-1 text-xs font-medium uppercase tracking-wide text-text-subtle">
           <ChevronRight
@@ -221,11 +221,11 @@ function FieldInfoPopover({
           role="dialog"
           aria-label={field.label}
           style={{ position: "fixed", top: coords.top, left: coords.left, width: FIELD_INFO_POPOVER_WIDTH }}
-          className="z-50 flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3 text-left shadow-elevated"
+          className="z-50 flex flex-col gap-2 border border-border bg-bg-elevated p-3 text-left shadow-elevated"
         >
           <p className="text-xs font-medium text-text">{field.label}</p>
           {benchmark && (
-            <div className="flex flex-col gap-1 rounded-sm bg-bg-panel p-2">
+            <div className="flex flex-col gap-1 bg-bg-panel p-2">
               <BenchmarkRow label="Low" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.low)} note={benchmark.lowNote} />
               <BenchmarkRow label="Avg" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.avg)} note={benchmark.avgNote} />
               <BenchmarkRow label="High" value={formatBenchmarkValue(field as NumericFieldSchema, benchmark.high)} note={benchmark.highNote} />
@@ -306,7 +306,7 @@ function ScenarioInspector() {
               role="switch"
               aria-checked={budgetCheckingEnabled}
               onClick={() => setBudgetCheckingEnabled(!budgetCheckingEnabled)}
-              className={`flex h-9 items-center justify-between rounded-md border px-3 text-xs transition-colors duration-fast ease-standard ${
+              className={`flex h-9 items-center justify-between border px-3 text-xs transition-colors duration-fast ease-standard ${
                 budgetCheckingEnabled
                   ? "border-border text-text hover:border-border-hover"
                   : "border-signal/50 bg-signal/10 text-signal"
@@ -407,7 +407,7 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
       {score?.gatesPassed && <ScoreCard score={score} />}
 
       {evaluation && scenario.reflection && simulationResult && (
-        <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+        <section className="flex flex-col gap-2 border border-border bg-bg-elevated p-3">
           <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
             What Happened
           </h4>
@@ -418,7 +418,7 @@ function ScenarioBriefing({ scenario }: { scenario: Scenario }) {
       )}
 
       {evaluation?.passed && (
-        <section className="flex flex-col gap-2 rounded-md border border-status-healthy/30 bg-status-healthy/10 p-3">
+        <section className="flex flex-col gap-2 border border-status-healthy/30 bg-status-healthy/10 p-3">
           <p className="text-xs font-medium text-status-healthy">
             All success criteria met. Here&apos;s what made the difference:
           </p>
@@ -455,7 +455,7 @@ function ReferenceSolutionSection({ scenario }: { scenario: Scenario }) {
   if (!solution) return null;
 
   return (
-    <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+    <section className="flex flex-col gap-2 border border-border bg-bg-elevated p-3">
       <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
         Stuck?
       </h4>
@@ -566,7 +566,7 @@ function ArchitectureGateRow({ architectureValid }: { architectureValid: boolean
 function ScoreCard({ score }: { score: ScenarioScore }) {
   if (score.legendary) {
     return (
-      <section className="flex flex-col gap-1 rounded-md border border-signal bg-signal/15 p-3">
+      <section className="flex flex-col gap-1 border border-signal bg-signal/15 p-3">
         <div className="flex items-center justify-between">
           <p className="text-xs font-medium text-text">Solution quality</p>
           <p className="text-sm text-signal" aria-label="Legendary — beat the reference solution">
@@ -583,7 +583,7 @@ function ScoreCard({ score }: { score: ScenarioScore }) {
   }
 
   return (
-    <section className="flex flex-col gap-1 rounded-md border border-signal/30 bg-signal/10 p-3">
+    <section className="flex flex-col gap-1 border border-signal/30 bg-signal/10 p-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-text">Solution quality</p>
         <p className="text-sm" aria-label={`${score.stars} out of 3 stars`}>
@@ -644,7 +644,7 @@ function CapacityEstimatePrompt({ estimate }: { estimate: CapacityEstimate }) {
   const [revealed, setRevealed] = useState(false);
 
   return (
-    <section className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
+    <section className="flex flex-col gap-2 border border-border bg-bg-elevated p-3">
       <h4 className="text-xs font-medium uppercase tracking-wide text-text-subtle">
         Before You Run
       </h4>
@@ -825,12 +825,20 @@ function NodeInspector({ node }: { node: ArchitectureNode }) {
           node.data.entityType === "replica_pool" ||
           node.data.entityType === "reverse_proxy" ||
           node.data.entityType === "kafka" ||
+          node.data.entityType === "agent_orchestrator" ||
+          node.data.entityType === "model_router" ||
           (node.data.entityType === "message_queue" && node.data.config.deliveryMode === "topic")) &&
           entityMetrics?.routingDistribution && (
             <LoadBalancerDistributionSection
               distribution={entityMetrics.routingDistribution}
               title={
-                node.data.entityType === "kafka" ? "Consumer Group Distribution" : undefined
+                node.data.entityType === "kafka"
+                  ? "Consumer Group Distribution"
+                  : node.data.entityType === "agent_orchestrator"
+                    ? "Dispatch Distribution"
+                    : node.data.entityType === "model_router"
+                      ? "SLM / LLM Split"
+                      : undefined
               }
             />
           )}
@@ -1023,7 +1031,7 @@ function LoadBalancerWeightsSection({ node }: { node: ArchitectureNode }) {
                     const next = Math.max(1, Math.min(50, Math.round(Number(e.target.value)) || 1));
                     updateNodeConfig(node.id, { weights: { ...weights, [targetId]: next } });
                   }}
-                  className="h-7 w-16 rounded-md border border-border bg-bg-elevated px-2 text-right text-xs text-text
+                  className="h-7 w-16 border border-border bg-bg-elevated px-2 text-right text-xs text-text
                     transition-colors duration-fast ease-standard
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
                     hover:border-border-hover"
@@ -1078,7 +1086,7 @@ function ReverseProxyRoutesSection({ node }: { node: ArchitectureNode }) {
                     else delete next[targetId];
                     updateNodeConfig(node.id, { routes: next });
                   }}
-                  className="h-7 w-32 rounded-md border border-border bg-bg-elevated px-1.5 text-xs text-text
+                  className="h-7 w-32 border border-border bg-bg-elevated px-1.5 text-xs text-text
                     transition-colors duration-fast ease-standard
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg
                     hover:border-border-hover"
@@ -1140,9 +1148,9 @@ function LoadBalancerDistributionSection({
                   {entry.requests} ({(fraction * 100).toFixed(0)}%)
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+              <div className="h-1.5 overflow-hidden bg-bg-panel">
                 <div
-                  className="h-full rounded-full bg-signal"
+                  className="h-full bg-signal"
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -1191,9 +1199,9 @@ function RateLimiterSection({ rateLimiter }: { rateLimiter: RateLimiterMetrics }
                   {bar.value} ({(fraction * 100).toFixed(0)}%)
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+              <div className="h-1.5 overflow-hidden bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label === "Rejected" ? "bg-status-critical" : "bg-signal"}`}
+                  className={`h-full ${bar.label === "Rejected" ? "bg-status-critical" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -1241,9 +1249,9 @@ function CacheStampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) 
                   {bar.value} ({(fraction * 100).toFixed(0)}%)
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+              <div className="h-1.5 overflow-hidden bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label.startsWith("Coalesced") ? "bg-status-healthy" : "bg-signal"}`}
+                  className={`h-full ${bar.label.startsWith("Coalesced") ? "bg-status-healthy" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -1290,9 +1298,9 @@ function CachePenetrationSection({ penetration }: { penetration: CachePenetratio
                   {bar.value} ({(fraction * 100).toFixed(0)}%)
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+              <div className="h-1.5 overflow-hidden bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.label.startsWith("Negative") ? "bg-status-healthy" : "bg-signal"}`}
+                  className={`h-full ${bar.label.startsWith("Negative") ? "bg-status-healthy" : "bg-signal"}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -1463,7 +1471,7 @@ function EstimatedCostSection({
 
 /**
  * "What This Is" and "Learning Goal" deliberately reuse MetricStat's card
- * look (rounded-md bg-bg-panel, small uppercase label above the value) —
+ * look (bg-bg-panel, small uppercase label above the value) —
  * the same visual language as Live Metrics / Estimated Cost elsewhere in
  * this panel, instead of each Inspector section inventing its own text
  * treatment (feedback: the mix of plain paragraphs and a lone blockquote
@@ -1471,7 +1479,7 @@ function EstimatedCostSection({
  */
 function EducationCard({ label, text }: { label: string; text: string }) {
   return (
-    <div className="rounded-md bg-bg-panel p-2.5">
+    <div className="bg-bg-panel p-2.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-text-subtle">
         {label}
       </p>
@@ -1598,7 +1606,7 @@ function ConfigField({
 
 function MetricStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-bg-panel px-2 py-1.5">
+    <div className="bg-bg-panel px-2 py-1.5">
       <p className="text-[11px] text-text-subtle">{label}</p>
       <p className="text-sm font-medium text-text">{value}</p>
     </div>

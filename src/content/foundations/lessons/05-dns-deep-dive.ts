@@ -39,7 +39,10 @@ export const DNS_DEEP_DIVE: FoundationLesson = {
         { kind: "paragraph", text: "Problem 1 — humans can't remember IPs." },
         {
           kind: "list",
-          items: ["google.com ✅ — easy to remember", "142.250.x.x ❌ — not easy to remember"],
+          items: [
+            { text: "google.com — easy to remember", tone: "healthy" },
+            { text: "142.250.x.x — not easy to remember", tone: "critical" },
+          ],
         },
         {
           kind: "paragraph",
@@ -158,15 +161,15 @@ export const DNS_DEEP_DIVE: FoundationLesson = {
           kind: "table",
           headers: ["", "High TTL (86400)", "Low TTL (60)"],
           rows: [
-            ["Performance", "✅ Fewer DNS lookups", "❌ More DNS lookups"],
-            ["DNS server load", "✅ Less load", "❌ More load"],
-            ["Propagation speed", "❌ Changes take 24hrs to propagate", "✅ Changes propagate in 1 min"],
-            ["Failover speed", "❌ Slow — users stuck on old IP", "✅ Fast — can redirect quickly"],
+            ["Performance", "Fewer DNS lookups", "More DNS lookups"],
+            ["DNS server load", "Less load", "More load"],
+            ["Propagation speed", "Changes take 24hrs to propagate", "Changes propagate in 1 min"],
+            ["Failover speed", "Slow — users stuck on old IP", "Fast — can redirect quickly"],
           ],
         },
         {
           kind: "paragraph",
-          text: "Real-world implication: if Swiggy's server at 13.234.156.90 goes down and they need to redirect traffic to a backup server at 13.234.156.91 — with TTL=86400, users are stuck for up to 24 hours ❌; with TTL=60, users get the new IP within 1 minute ✅.",
+          text: "Real-world implication: if Swiggy's server at 13.234.156.90 goes down and they need to redirect traffic to a backup server at 13.234.156.91 — with TTL=86400, users are stuck for up to 24 hours; with TTL=60, users get the new IP within 1 minute.",
         },
         {
           kind: "insight",
@@ -298,4 +301,5 @@ export const DNS_DEEP_DIVE: FoundationLesson = {
       "Flipkart is planning a major infrastructure migration — moving all their servers from their own data center in Bangalore to AWS Mumbai region. The migration will happen at 2 AM on a Sunday. Their current DNS records: flipkart.com A 103.240.158.53 TTL=86400. A junior engineer says: \"At 2 AM, we'll just update the DNS record to point to the new AWS IP. Done.\" You're the senior engineer on call. What's wrong with the junior engineer's plan, and what would you do differently — and when would you start doing it? Think step by step. The answer requires understanding TTL deeply.",
   },
   relatedEntitySlugs: ["load-balancer", "cdn"],
+  prerequisites: ["client-server-architecture"],
 };

@@ -10,12 +10,12 @@ import {
 import type { ReactNode } from "react";
 import { getLockInState } from "@/lib/lockInMode";
 
-export type Theme = "light" | "dark" | "night-ops";
+export type Theme = "dark" | "light" | "night-ops";
 
-// Order the toggle cycles through. "night-ops" is a PREVIEW theme (see
-// globals.css) — it sits right after "dark" so it's one click away from the
-// default, without disturbing the light/dark habit anyone already has.
-const THEME_CYCLE: readonly Theme[] = ["dark", "night-ops", "light"];
+// Order the toggle cycles through. "light" (Paper) and "night-ops" are both
+// PREVIEW themes (see globals.css) — dark ships as the default, so this
+// cycles default -> Paper -> Night Ops -> default.
+const THEME_CYCLE: readonly Theme[] = ["dark", "light", "night-ops"];
 
 const STORAGE_KEY = "theme";
 
@@ -23,7 +23,7 @@ const listeners = new Set<() => void>();
 
 function getSnapshot(): Theme {
   const attr = document.documentElement.getAttribute("data-theme");
-  return attr === "light" || attr === "night-ops" ? attr : "dark";
+  return attr === "night-ops" || attr === "light" ? attr : "dark";
 }
 
 // SSR has no `document` and no saved preference to read — "dark" matches
@@ -61,10 +61,12 @@ function setTheme(theme: Theme) {
 
 interface ThemeContextValue {
   theme: Theme;
-  /** "dark" for both "dark" and "night-ops" — the only two values react-flow's
-   *  `colorMode` prop understands. Night Ops is a dark variant, not a third
-   *  color mode, so canvas consumers key off this instead of `theme`. */
-  colorMode: "light" | "dark";
+  /** Always "dark" — React Flow canvases (Workshop, LLD editor, ...) haven't
+   *  been redesigned for a light ground yet, regardless of the site theme,
+   *  and this is the value react-flow's `colorMode` prop expects. Kept as
+   *  its own field (rather than reusing `theme` directly) so canvas
+   *  consumers don't need to care whether more themes get added later. */
+  colorMode: "dark";
   toggleTheme: () => void;
 }
 
@@ -90,7 +92,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const value = useMemo(
-    () => ({ theme, colorMode: theme === "light" ? ("light" as const) : ("dark" as const), toggleTheme }),
+    () => ({ theme, colorMode: "dark" as const, toggleTheme }),
     [theme, toggleTheme],
   );
 

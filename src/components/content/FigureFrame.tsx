@@ -25,7 +25,7 @@ export function FigureFrame({ children, caption }: { children: ReactNode; captio
 
   return (
     <>
-      <figure className="relative overflow-x-auto border border-border bg-bg-panel p-4">
+      <figure className="relative overflow-x-auto bg-bg-panel p-4">
         <button
           type="button"
           onClick={() => setOpen(true)}

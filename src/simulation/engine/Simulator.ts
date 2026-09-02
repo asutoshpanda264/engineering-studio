@@ -15,6 +15,7 @@ import {
   assignPhantomKey,
   assignRequestExistence,
   assignRequestKey,
+  assignRequestRelationshipQuery,
   assignRequestRoute,
   generateArrivalTimestamps,
 } from "./TrafficGenerator";
@@ -36,6 +37,14 @@ import { CircuitBreaker } from "../entities/CircuitBreaker";
 import { ReplicaPool } from "../entities/ReplicaPool";
 import { ReverseProxy } from "../entities/ReverseProxy";
 import { Kafka } from "../entities/Kafka";
+import { LlmCall } from "../entities/LlmCall";
+import { ToolCall } from "../entities/ToolCall";
+import { AgentOrchestrator } from "../entities/AgentOrchestrator";
+import { MemoryContextStore } from "../entities/MemoryContextStore";
+import { Retriever } from "../entities/Retriever";
+import { GuardrailValidator } from "../entities/GuardrailValidator";
+import { ModelRouter } from "../entities/ModelRouter";
+import { HumanInLoopGate } from "../entities/HumanInLoopGate";
 import { collectMetrics } from "../metrics/MetricsCollector";
 import type {
   EntityConfig,
@@ -49,6 +58,7 @@ const DEFAULT_MAX_STEPS = 200_000;
 const DEFAULT_KEY_POOL_SIZE = 50;
 const DEFAULT_ROUTE_POOL_SIZE = 3;
 const DEFAULT_MISSING_KEY_RATE = 0;
+const DEFAULT_RELATIONSHIP_QUERY_RATE = 0;
 
 function createEntity(config: EntityConfig): Entity | null {
   switch (config.type) {
@@ -76,6 +86,22 @@ function createEntity(config: EntityConfig): Entity | null {
       return new ReverseProxy(config.id, config.config);
     case "kafka":
       return new Kafka(config.id, config.config);
+    case "llm_call":
+      return new LlmCall(config.id, config.config);
+    case "tool_call":
+      return new ToolCall(config.id, config.config);
+    case "agent_orchestrator":
+      return new AgentOrchestrator(config.id, config.config);
+    case "memory_context_store":
+      return new MemoryContextStore(config.id, config.config);
+    case "retriever":
+      return new Retriever(config.id, config.config);
+    case "guardrail_validator":
+      return new GuardrailValidator(config.id, config.config);
+    case "model_router":
+      return new ModelRouter(config.id, config.config);
+    case "human_in_loop_gate":
+      return new HumanInLoopGate(config.id, config.config);
     default:
       return null;
   }
@@ -141,6 +167,10 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
       typeof clientEntity.config.missingKeyRate === "number"
         ? clientEntity.config.missingKeyRate
         : DEFAULT_MISSING_KEY_RATE;
+    const relationshipQueryRate =
+      typeof clientEntity.config.relationshipQueryRate === "number"
+        ? clientEntity.config.relationshipQueryRate
+        : DEFAULT_RELATIONSHIP_QUERY_RATE;
 
     const arrivals = generateArrivalTimestamps(
       config.scenario.trafficPattern,
@@ -162,6 +192,10 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
             key: exists ? assignRequestKey(rng, keyPoolSize) : assignPhantomKey(rng, keyPoolSize),
             route: assignRequestRoute(rng, routePoolSize),
             exists,
+            requiresRelationshipTraversal: assignRequestRelationshipQuery(
+              rng,
+              relationshipQueryRate
+            ),
           }
         )
       );
@@ -206,12 +240,20 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
   const clientIds = config.entities
     .filter((e) => e.type === "client")
     .map((e) => e.id);
+  const agentOrchestratorIds = config.entities
+    .filter((e) => e.type === "agent_orchestrator")
+    .map((e) => e.id);
+  const guardrailValidatorIds = config.entities
+    .filter((e) => e.type === "guardrail_validator")
+    .map((e) => e.id);
 
   const metrics = collectMetrics(
     allEvents,
     Array.from(entities.keys()),
     config.scenario.durationMs,
-    clientIds
+    clientIds,
+    agentOrchestratorIds,
+    guardrailValidatorIds
   );
 
   return {
@@ -221,6 +263,8 @@ export function runSimulation(config: SimulationConfig): SimulationResult {
     warnings,
     errors,
     clientIds,
+    agentOrchestratorIds,
+    guardrailValidatorIds,
     metadata: {
       seed: config.options.seed,
       version: "0.1.0",

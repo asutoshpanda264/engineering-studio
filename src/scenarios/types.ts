@@ -47,7 +47,9 @@ export type ScenarioMetric =
   | "p95Latency"
   | "p99Latency"
   | "throughput"
-  | "failedRequests";
+  | "failedRequests"
+  | "totalIterations"
+  | "guardrailRejectionRate";
 
 export type Comparator = "lt" | "lte" | "gt" | "gte";
 
@@ -72,7 +74,20 @@ export type ScenarioTopic =
   | "kafka"
   | "replication"
   | "reverse-proxy"
-  | "system-design";
+  | "system-design"
+  // docs/Agentic_AI.md Part 4 — the agentic domain's own topic set,
+  // mirroring the "one entity/mechanism each, plus a capstone label"
+  // shape the HLD topics above already establish (system-design's
+  // agentic sibling is agentic-system-design, not a reused label — these
+  // are two structurally different sandboxes, see entityCatalog.ts's own
+  // `domain` field, and conflating their catalogues would blur two
+  // unrelated curricula into one filter).
+  | "tool-use"
+  | "human-in-the-loop"
+  | "retrieval"
+  | "multi-agent-orchestration"
+  | "model-routing"
+  | "agentic-system-design";
 
 export const SCENARIO_TOPIC_LABEL: Record<ScenarioTopic, string> = {
   "load-balancing": "Load Balancing",
@@ -85,6 +100,12 @@ export const SCENARIO_TOPIC_LABEL: Record<ScenarioTopic, string> = {
   replication: "Replication",
   "reverse-proxy": "Reverse Proxy",
   "system-design": "System Design",
+  "tool-use": "Tool Use",
+  "human-in-the-loop": "Human-in-the-Loop",
+  retrieval: "Retrieval",
+  "multi-agent-orchestration": "Multi-Agent Orchestration",
+  "model-routing": "Model Routing",
+  "agentic-system-design": "Agentic System Design",
 };
 
 /**
@@ -228,6 +249,18 @@ export interface Scenario {
    * should (see movieTicketBooking.ts for the reference implementation).
    */
   budgetUsd?: number;
+  /**
+   * `docs/Agentic_AI.md` §2.1/Part 4's reversibility-weighted-risk gate —
+   * checked the same way as `hasUnguardedBackendAccess` (via
+   * `src/lib/scenarioScoring.ts`, since it needs the live canvas' nodes,
+   * not just a MetricsSnapshot). When true, a build where any Client
+   * traffic can reach a `tool_call` without first passing through a
+   * `human_in_loop_gate` hasn't solved the scenario, regardless of its
+   * metrics — see `hasUnguardedIrreversibleAction` in
+   * `architectureValidation.ts`. Undefined/false means no gate — every
+   * scenario before this field existed keeps its exact prior behavior.
+   */
+  requiresGatedToolCalls?: boolean;
   /** Socratic questions, never answers (SCENARIOS.md — "Hints"). */
   hints: string[];
   /** What a student should leave understanding (SCENARIOS.md §6). */
@@ -240,11 +273,20 @@ export interface Scenario {
   optimalSolution?: OptimalSolution;
 }
 
+/**
+ * `totalIterations`/`guardrailRejectionRate` are `number | undefined` on
+ * MetricsSnapshot (absent when the run has no Agent Orchestrator/
+ * Guardrail Validator entities at all — see MetricsCollector.ts). A
+ * scenario that constrains either one only makes sense once its own
+ * `startingEntities`/story guarantees the relevant entity type exists, so
+ * "absent" and "genuinely zero" collapse to the same reading here: no
+ * orchestrator ever ran means 0 iterations, not "unknown."
+ */
 export function readScenarioMetric(
   metrics: MetricsSnapshot,
   metric: ScenarioMetric
 ): number {
-  return metrics[metric];
+  return metrics[metric] ?? 0;
 }
 
 const METRIC_PLACEHOLDER = /\{\{(\w+)\}\}/g;
@@ -255,6 +297,8 @@ const SCENARIO_METRIC_KEYS: readonly ScenarioMetric[] = [
   "p99Latency",
   "throughput",
   "failedRequests",
+  "totalIterations",
+  "guardrailRejectionRate",
 ];
 
 function isScenarioMetric(key: string): key is ScenarioMetric {
@@ -262,8 +306,11 @@ function isScenarioMetric(key: string): key is ScenarioMetric {
 }
 
 function formatMetricPlaceholder(metric: ScenarioMetric, value: number): string {
-  if (metric === "successRate") return `${(value * 100).toFixed(1)}%`;
+  if (metric === "successRate" || metric === "guardrailRejectionRate") {
+    return `${(value * 100).toFixed(1)}%`;
+  }
   if (metric === "throughput") return `${value.toFixed(1)} req/s`;
+  if (metric === "totalIterations") return String(Math.round(value));
   if (metric.toLowerCase().includes("latency")) return `${Math.round(value)}ms`;
   return value.toFixed(1);
 }

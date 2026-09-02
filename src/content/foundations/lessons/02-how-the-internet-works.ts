@@ -306,4 +306,5 @@ export const HOW_THE_INTERNET_WORKS: FoundationLesson = {
       "You're designing a live cricket score app for 10 million users. Scores update every ball — roughly every 30 seconds. Your teammate says: \"Let's use TCP — we need reliable delivery, we can't miss a score update.\" Another teammate says: \"Let's use UDP — we need speed, TCP is too slow.\" Who is right? Or are both wrong? Think about: What happens if a score update is lost? What happens if a score arrives 2 seconds late? Does \"reliability\" mean the same thing here as it does for a bank transaction? Write your reasoning — don't worry about being right, reason through it like an engineer.",
   },
   relatedEntitySlugs: [],
+  prerequisites: ["what-is-system-design"],
 };

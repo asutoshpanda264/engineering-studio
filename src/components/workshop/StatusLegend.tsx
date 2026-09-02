@@ -29,7 +29,7 @@ export function StatusLegend() {
   return (
     <div className="flex flex-col items-end gap-2">
       {open && (
-        <div className="w-64 rounded-lg border border-border bg-bg-elevated shadow-dropdown">
+        <div className="w-64 border border-border bg-bg-elevated shadow-dropdown">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <p className="text-xs font-medium text-text">Status</p>
             <button

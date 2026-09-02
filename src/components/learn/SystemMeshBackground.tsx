@@ -1,15 +1,37 @@
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
+
 /**
  * Decorative full-bleed background for `/learn` — a loosely-clustered
  * network topology (not a repeating grid) with one highlighted request
- * path threading through a central hub, plus a scatter of real
- * system-design vocabulary rendered as faint blueprint annotations.
+ * path threading through a central hub.
+ *
+ * Used to also scatter real system-design vocabulary ("p95 latency",
+ * "round robin", ...) across the mesh as faint blueprint annotations —
+ * pulled after feedback that legible words sitting behind scrolling cards
+ * read as clutter rather than texture, especially once a card's own copy
+ * happened to land near-overlapping one. The graph (nodes/edges/highlighted
+ * path) carries the "this is a system" read on its own without needing
+ * text.
  *
  * Replaces the earlier `.bg-blueprint-grid` tile, which was flat/uniform
  * and read as generic texture rather than anything to do with this app's
- * actual subject matter. This is still purely decorative (all coordinates
- * are hand-placed, not derived from real content) and still static — no
- * loop, no scroll-trigger — consistent with the rest of the app's rule
- * that motion communicates a state change, never just decorates.
+ * actual subject matter. All coordinates are hand-placed, not derived from
+ * real content.
+ *
+ * Was static (no loop) until direct feedback specifically asked for motion
+ * on this exact background — "add moving dots animation to the line, or
+ * just glow up and fade in to the existing dots." `Packet` below is the
+ * former: one small glowing dot traveling the highlighted path node to
+ * node and looping, the same "one real path picked out of the noise, a
+ * packet actually moving along it" idea the landing page's `HeroDiagram`
+ * already uses, just applied to this mesh's own accent path instead of a
+ * new element. Everything else — the base graph, the static accent
+ * line/nodes underneath the packet — stays exactly as still as before;
+ * this adds one small moving accent, it doesn't turn the whole background
+ * into a texture that's constantly in motion. `useReducedMotion` skips the
+ * packet entirely, same convention `HeroDiagram` uses.
  *
  * All color comes from the existing design tokens (`stroke-border`,
  * `fill-signal`, etc.) via the same Tailwind `fill-*`/`stroke-*` utilities
@@ -113,16 +135,40 @@ const ACCENT_EDGES: [number, number][] = [
 ];
 const ACCENT_NODES = new Set([2, 18, 15, 17, 8]);
 
-const LABELS: { x: number; y: number; text: string; rotate?: number }[] = [
-  { x: 250, y: 420, text: "p95 latency", rotate: -4 },
-  { x: 1290, y: 430, text: "round robin", rotate: 3 },
-  { x: 540, y: 600, text: "cache-aside", rotate: -3 },
-  { x: 1050, y: 610, text: "ttl 60s", rotate: 4 },
-  { x: 830, y: 190, text: "consistent hashing", rotate: -2 },
-  { x: 140, y: 700, text: "backpressure", rotate: 3 },
-  { x: 1420, y: 760, text: "circuit breaker", rotate: -3 },
-  { x: 680, y: 110, text: "sharding", rotate: 2 },
-];
+// The same chain as `ACCENT_EDGES`, in travel order — `Packet` below
+// animates `cx`/`cy` through these points in sequence rather than deriving
+// them from the edge list itself, since edge order alone doesn't guarantee
+// a single head-to-tail direction (it happens to here, but this makes the
+// travel path explicit rather than relying on that coincidence holding).
+const ACCENT_PATH: readonly number[] = [2, 18, 15, 17, 8];
+
+/**
+ * One glowing dot traveling the accent path node to node, then looping —
+ * see this file's own doc comment for why. Same keyframe-array-of-positions
+ * recipe `HeroDiagram`'s `Packet` uses (there: `left` percentages along a
+ * straight line; here: `cx`/`cy` pairs through several waypoints), just
+ * animating SVG attributes instead of a CSS position.
+ */
+function Packet() {
+  const points = ACCENT_PATH.map((i) => NODES[i]);
+  const cx = points.map((p) => p.x);
+  const cy = points.map((p) => p.y);
+  const times = points.map((_, i) => i / (points.length - 1));
+  // Fades in leaving the first node, holds fully visible through the
+  // waypoints in between, fades out arriving at the last one — never just
+  // pops in/out at the path's ends.
+  const opacity = points.map((_, i) => (i === 0 || i === points.length - 1 ? 0 : 1));
+
+  return (
+    <motion.circle
+      r={4}
+      className="fill-signal"
+      style={{ filter: "drop-shadow(0 0 6px var(--color-signal))" }}
+      animate={{ cx, cy, opacity }}
+      transition={{ duration: 3.2, times, repeat: Infinity, repeatDelay: 1, ease: "easeInOut" }}
+    />
+  );
+}
 
 function Node({ node, accent }: { node: MeshNode; accent: boolean }) {
   const cls = accent ? "fill-signal stroke-signal" : "fill-bg-elevated stroke-border-hover";
@@ -134,6 +180,8 @@ function Node({ node, accent }: { node: MeshNode; accent: boolean }) {
 }
 
 export function SystemMeshBackground() {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <svg
       viewBox="0 0 1600 900"
@@ -164,13 +212,7 @@ export function SystemMeshBackground() {
         ))}
       </g>
 
-      <g className="fill-text-subtle font-mono text-[15px] uppercase tracking-wide" opacity={0.3}>
-        {LABELS.map((label, i) => (
-          <text key={i} x={label.x} y={label.y} transform={`rotate(${label.rotate ?? 0} ${label.x} ${label.y})`}>
-            {label.text}
-          </text>
-        ))}
-      </g>
+      {!prefersReducedMotion && <Packet />}
     </svg>
   );
 }

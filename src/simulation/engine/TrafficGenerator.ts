@@ -88,6 +88,24 @@ export function assignPhantomKey(rng: RNG, keyPoolSize: number): string {
 }
 
 /**
+ * Decides, once per request, whether it needs multi-hop relationship
+ * reasoning to answer correctly rather than a single similarity-matched
+ * chunk — see RequestLifecycleMetadata.requiresRelationshipTraversal, and
+ * Retriever.ts's GraphRAG mode, which specifically wins on this traffic.
+ * Same "skip the RNG draw entirely at rate 0" purely-additive shape as
+ * assignRequestExistence, for the identical reason: every existing
+ * scenario/test that never sets a Client's Relationship Query Rate keeps
+ * drawing the exact same RNG sequence it always has.
+ */
+export function assignRequestRelationshipQuery(
+  rng: RNG,
+  relationshipQueryRate: number
+): boolean {
+  if (relationshipQueryRate <= 0) return false;
+  return rng.next() < relationshipQueryRate;
+}
+
+/**
  * Fixed pool of realistic-looking service paths a Reverse Proxy can route
  * between. Not free-text/configurable — a small closed set keeps the
  * Reverse Proxy's routing rules a dropdown (no typo-prone string matching

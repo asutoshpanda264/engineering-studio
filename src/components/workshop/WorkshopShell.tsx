@@ -5,6 +5,8 @@ import { ArchitectureCanvas } from "@/components/workshop/ArchitectureCanvas";
 import { InspectorPanel } from "@/components/workshop/InspectorPanel";
 import { PlaybackControls } from "@/components/workshop/PlaybackControls";
 import { SimulationResultsPanel } from "@/components/workshop/SimulationResultsPanel";
+import { TracePanel } from "@/components/workshop/TracePanel";
+import { ReliabilityPanel } from "@/components/workshop/ReliabilityPanel";
 import { ScenarioCompletionToast } from "@/components/workshop/ScenarioCompletionToast";
 import { useWorkshopStore } from "@/store/workshopStore";
 import { getScenario } from "@/scenarios";
@@ -68,6 +70,8 @@ export function WorkshopShell({
       >
         <PlaybackControls />
         <SimulationResultsPanel />
+        <TracePanel />
+        <ReliabilityPanel />
       </div>
       {overlay}
     </div>

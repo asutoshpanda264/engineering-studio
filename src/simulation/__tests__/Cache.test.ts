@@ -686,6 +686,73 @@ describe("Cache stampede protection (through the full Simulator)", () => {
   });
 });
 
+describe("Cache semantic caching (through the full Simulator, docs/Agentic_AI.md §2.9)", () => {
+  // A large key pool (little exact-key repetition) so exact mode's hit
+  // rate stays low, isolating semantic mode's own additive effect.
+  function configWithCachingMode(
+    cachingMode: "exact" | "semantic",
+    semanticHitRate = 0.9
+  ): SimulationConfig {
+    return {
+      entities: [
+        { id: "client1", type: "client", position: { x: 0, y: 0 }, config: { keyPoolSize: 500 } },
+        {
+          id: "cache1",
+          type: "cache",
+          position: { x: 0, y: 0 },
+          config: { capacity: 50, cachingMode, semanticHitRate },
+        },
+        { id: "db1", type: "database", position: { x: 0, y: 0 }, config: {} },
+      ],
+      connections: [
+        { source: "client1", target: "cache1", latencyMs: 1 },
+        { source: "cache1", target: "db1", latencyMs: 1 },
+      ],
+      scenario: {
+        id: "semantic-cache-test",
+        title: "Semantic Cache Test",
+        trafficPattern: { type: "constant", rate: 30 },
+        durationMs: 4000,
+      },
+      options: { seed: 7 },
+    };
+  }
+
+  function hitRate(result: ReturnType<typeof runSimulation>): number {
+    const hits = result.events.filter((e) => e.type === "CACHE_HIT").length;
+    const misses = result.events.filter((e) => e.type === "CACHE_MISS").length;
+    return hits + misses > 0 ? hits / (hits + misses) : 0;
+  }
+
+  it("semantic mode produces a meaningfully higher hit rate than exact mode on identical, mostly-unique traffic", () => {
+    const exact = runSimulation(configWithCachingMode("exact"));
+    const semantic = runSimulation(configWithCachingMode("semantic"));
+    expect(hitRate(semantic)).toBeGreaterThan(hitRate(exact));
+  });
+
+  it("semantic mode's hit rate scales down toward exact mode's as semanticHitRate approaches 0", () => {
+    const exact = runSimulation(configWithCachingMode("exact"));
+    const semanticOff = runSimulation(configWithCachingMode("semantic", 0));
+    expect(hitRate(semanticOff)).toBeCloseTo(hitRate(exact), 1);
+  });
+
+  it("never rolls a semantic hit for a phantom (confirmed nonexistent) key", () => {
+    const config = configWithCachingMode("semantic", 1);
+    config.entities[0].config = { ...config.entities[0].config, missingKeyRate: 1 };
+    const result = runSimulation(config);
+    const semanticHits = result.events.filter(
+      (e) => e.type === "CACHE_HIT" && e.metadata.semantic === true
+    );
+    expect(semanticHits.length).toBe(0);
+  });
+
+  it("is deterministic for a given seed under semantic mode", () => {
+    const a = runSimulation(configWithCachingMode("semantic"));
+    const b = runSimulation(configWithCachingMode("semantic"));
+    expect(a.events).toEqual(b.events);
+  });
+});
+
 describe("Cache penetration (through the full Simulator)", () => {
   function configWithPenetration(negativeCaching: "off" | "on"): SimulationConfig {
     return {

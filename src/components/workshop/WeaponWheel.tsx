@@ -10,23 +10,30 @@ import type { EntityType } from "@/simulation/types";
  * a ring of wedges around a hollow center that echoes back whatever's
  * currently under the pointer, one click commits it. Reserved for
  * night-ops specifically (see ComponentSidebar.tsx) — a docked list is the
- * right tool for scanning 12 items in light/dark, but this theme already
+ * right tool for scanning items in light/dark, but this theme already
  * commits to a HUD aesthetic, so leaning into it here is a fit, not a
  * gimmick tacked onto every theme.
  *
- * SVG carries the wedge geometry (real clickable sectors, computed with
- * polar trig below) while each icon is a plain positioned HTML node laid
- * on top at the same coordinates — mixing the two is simpler than fighting
- * `foreignObject` just to keep using the existing lucide `<Icon />`
+ * Renders two independent `Dial`s side by side — "Distributed Systems" and
+ * "AI Flow" — instead of one merged ring, mirroring the light/dark
+ * sidebar's `DistributedSystemsPalette`/`AIFlowPalette` split
+ * (ComponentSidebar.tsx): the two catalogs are separate sandboxes, so
+ * clicking "Choose Weapon" surfaces both dials at once rather than forcing
+ * a domain pick first or blending 20 wedges into one ring.
+ *
+ * SVG carries each dial's wedge geometry (real clickable sectors, computed
+ * with polar trig below) while each icon is a plain positioned HTML node
+ * laid on top at the same coordinates — mixing the two is simpler than
+ * fighting `foreignObject` just to keep using the existing lucide `<Icon />`
  * components without re-deriving their paths.
  */
 
-const WHEEL_SIZE = 400;
-const CENTER = WHEEL_SIZE / 2;
-const OUTER_R = 188;
-const INNER_R = 84;
+const DIAL_SIZE = 300;
+const CENTER = DIAL_SIZE / 2;
+const OUTER_R = 140;
+const INNER_R = 62;
 const ICON_R = (INNER_R + OUTER_R) / 2;
-const GAP_DEG = 1.5;
+const GAP_DEG = 2;
 
 function polarToCartesian(radius: number, angleDeg: number) {
   // -90 so index 0 starts at 12 o'clock instead of 3 o'clock — reads as a
@@ -50,6 +57,20 @@ function wedgePath(startAngle: number, endAngle: number) {
   ].join(" ");
 }
 
+/** One contiguous dial, one per `EntityCatalogItem.domain` value. */
+interface DialGroup {
+  key: string;
+  label: string;
+  items: EntityCatalogItem[];
+}
+
+function buildDialGroups(items: EntityCatalogItem[]): DialGroup[] {
+  return [
+    { key: "distributed", label: "Distributed Systems", items: items.filter((item) => !item.domain) },
+    { key: "ai-flow", label: "AI Flow", items: items.filter((item) => item.domain === "agentic") },
+  ].filter((group) => group.items.length > 0);
+}
+
 export function WeaponWheel({
   onClose,
   onSelect,
@@ -57,9 +78,7 @@ export function WeaponWheel({
   onClose: () => void;
   onSelect: (type: EntityType) => void;
 }) {
-  const [hovered, setHovered] = useState<EntityCatalogItem | null>(null);
-  const items = ENTITY_CATALOG;
-  const step = 360 / items.length;
+  const groups = buildDialGroups(ENTITY_CATALOG);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -73,21 +92,56 @@ export function WeaponWheel({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Choose a component"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/85 backdrop-blur-sm"
+      aria-label="Choose a component — Distributed Systems or AI Flow"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/85 p-6 backdrop-blur-sm"
       onClick={onClose}
     >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="fixed right-4 top-4 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-bg-elevated text-text-muted transition-colors duration-fast ease-standard hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+      >
+        <X className="size-4" aria-hidden />
+      </button>
+
       <div
-        className="relative flex flex-col items-center justify-center"
-        style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}
+        className="flex flex-col items-center gap-10 overflow-y-auto md:flex-row md:items-start md:justify-center"
         onClick={(event) => event.stopPropagation()}
       >
+        {groups.map((group) => (
+          <Dial key={group.key} label={group.label} items={group.items} onSelect={onSelect} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Dial({
+  label,
+  items,
+  onSelect,
+}: {
+  label: string;
+  items: EntityCatalogItem[];
+  onSelect: (type: EntityType) => void;
+}) {
+  const [hovered, setHovered] = useState<EntityCatalogItem | null>(null);
+  const step = 360 / items.length;
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">{label}</p>
+      <div
+        className="relative flex flex-col items-center justify-center"
+        style={{ width: DIAL_SIZE, height: DIAL_SIZE }}
+      >
         <svg
-          width={WHEEL_SIZE}
-          height={WHEEL_SIZE}
-          viewBox={`0 0 ${WHEEL_SIZE} ${WHEEL_SIZE}`}
+          width={DIAL_SIZE}
+          height={DIAL_SIZE}
+          viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`}
           className="absolute inset-0"
-          style={{ filter: "drop-shadow(0 0 50px color-mix(in srgb, var(--color-signal) 35%, transparent))" }}
+          style={{ filter: "drop-shadow(0 0 40px color-mix(in srgb, var(--color-signal) 35%, transparent))" }}
         >
           <circle cx={CENTER} cy={CENTER} r={OUTER_R + 2} fill="none" stroke="var(--color-border)" strokeWidth={1} />
           {items.map((item, i) => {
@@ -142,7 +196,7 @@ export function WeaponWheel({
               style={{ left: pos.x, top: pos.y, transform: "translate(-50%, -50%)" }}
             >
               <Icon
-                className={`size-5 transition-colors duration-100 ${
+                className={`size-4 transition-colors duration-100 ${
                   disabled ? "text-text-subtle" : isHovered ? "text-signal" : "text-text-muted"
                 }`}
                 aria-hidden
@@ -153,7 +207,7 @@ export function WeaponWheel({
 
         <div
           className="pointer-events-none absolute flex flex-col items-center justify-center gap-1 text-center"
-          style={{ left: CENTER, top: CENTER, transform: "translate(-50%, -50%)", width: INNER_R * 2 - 28 }}
+          style={{ left: CENTER, top: CENTER, transform: "translate(-50%, -50%)", width: INNER_R * 2 - 20 }}
         >
           {hovered ? (
             <>
@@ -167,15 +221,6 @@ export function WeaponWheel({
             <p className="text-xs text-text-subtle">Pick a component</p>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute -top-1 -right-1 flex size-8 items-center justify-center rounded-full border border-border bg-bg-elevated text-text-muted transition-colors duration-fast ease-standard hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-        >
-          <X className="size-4" aria-hidden />
-        </button>
       </div>
     </div>
   );

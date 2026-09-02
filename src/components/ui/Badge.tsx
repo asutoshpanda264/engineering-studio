@@ -9,13 +9,16 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 
 // Hairline-bordered tag, not a filled rounded pill — same "specimen" mark
 // as the landing page's Tag component, so a badge always reads as data,
-// never as decoration.
+// never as decoration. A faint tint of the variant color sits behind the
+// hairline (10% opacity, neutral gets a plain elevated wash) so a badge
+// reads as a small solid chip at a glance instead of just outlined text —
+// "refined tag," not "more border."
 const variantClasses: Record<BadgeVariant, string> = {
-  neutral: "border-border text-text-muted",
-  primary: "border-signal/50 text-signal",
-  success: "border-status-healthy/50 text-status-healthy",
-  warning: "border-status-degraded/50 text-status-degraded",
-  error: "border-status-critical/50 text-status-critical",
+  neutral: "border-border bg-bg-elevated/60 text-text-muted",
+  primary: "border-signal/50 bg-signal/10 text-signal",
+  success: "border-status-healthy/50 bg-status-healthy/10 text-status-healthy",
+  warning: "border-status-degraded/50 bg-status-degraded/10 text-status-degraded",
+  error: "border-status-critical/50 bg-status-critical/10 text-status-critical",
 };
 
 const dotClasses: Record<BadgeVariant, string> = {

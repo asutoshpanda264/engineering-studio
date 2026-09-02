@@ -453,13 +453,13 @@ export const MESSAGE_QUEUES: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "❌ When the operation must complete before responding to the user: \"Is my payment successful?\" — the user NEEDS the answer now. Use a synchronous call, not a queue.",
-            "❌ When latency must be minimal: real-time gaming, trading systems — a queue adds latency.",
-            "❌ When operations are simple and fast: a single database write that takes 1ms — adding a queue is overkill.",
-            "❌ When you need a request-response pattern: API calls where the caller needs an immediate result — use synchronous REST/gRPC.",
+            { text: "When the operation must complete before responding to the user: \"Is my payment successful?\" — the user NEEDS the answer now. Use a synchronous call, not a queue.", tone: "critical" },
+            { text: "When latency must be minimal: real-time gaming, trading systems — a queue adds latency.", tone: "critical" },
+            { text: "When operations are simple and fast: a single database write that takes 1ms — adding a queue is overkill.", tone: "critical" },
+            { text: "When you need a request-response pattern: API calls where the caller needs an immediate result — use synchronous REST/gRPC.", tone: "critical" },
           ],
         },
-        { kind: "paragraph", text: "✅ Use queues when:" },
+        { kind: "paragraph", text: "Use queues when:" },
         {
           kind: "list",
           items: [
@@ -483,7 +483,7 @@ export const MESSAGE_QUEUES: FoundationLesson = {
             ["Model", "Queue + Exchange", "Log/Stream", "Queue"],
             ["Throughput", "~50K/sec", "Millions/sec", "High"],
             ["Retention", "Until consumed", "Configurable (days/forever)", "14 days max"],
-            ["Replay", "❌ No", "✅ Yes", "❌ No"],
+            ["Replay", "No", "Yes", "No"],
             ["Ordering", "Per queue", "Per partition", "Best effort"],
             ["Routing", "Complex (exchanges)", "Topic-based", "Simple"],
             ["Use case", "Task queues", "Event streaming", "Simple queues on AWS"],
@@ -532,4 +532,5 @@ export const MESSAGE_QUEUES: FoundationLesson = {
       "You're designing the order processing system for Flipkart's Big Billion Day — expecting 5 million orders in the first hour (1,400 orders/second). For each order placed, Flipkart needs to: (1) send order confirmation SMS (~200ms, external SMS gateway); (2) send order confirmation email (~300ms, external SMTP); (3) notify the seller (~100ms); (4) update inventory count (~50ms, must be accurate); (5) update the analytics dashboard (~500ms, complex aggregation); (6) award loyalty points (~150ms). Which of these 6 operations should be synchronous (user waits) vs asynchronous (queued)? Justify each. For the asynchronous operations — should you use a single queue for all of them, or separate queues? What are the trade-offs? During Big Billion Day, the SMS gateway can only handle 500 SMS/second but orders are arriving at 1,400/second — how does the queue help here, and what metric would you monitor to know if you're falling behind? The loyalty points service has a bug and keeps crashing when processing orders above ₹10,000 — after 3 hours, what happens to those messages, and how does a DLQ help?",
   },
   relatedEntitySlugs: ["message-queue"],
+  prerequisites: ["vertical-vs-horizontal-scaling"],
 };

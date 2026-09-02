@@ -78,7 +78,7 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
         },
         {
           kind: "insight",
-          text: "Never use FLOAT for money. Floating point math is imprecise: 0.1 + 0.2 = 0.30000000000000004 ❌. Use DECIMAL(10,2) for money always ✅.",
+          text: "Never use FLOAT for money. Floating point math is imprecise: 0.1 + 0.2 = 0.30000000000000004. Use DECIMAL(10,2) for money always.",
         },
       ],
     },
@@ -270,9 +270,9 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "Read performance: ✅ much faster (milliseconds vs seconds)",
-            "Write performance: ❌ slower (must update the index on every INSERT/UPDATE/DELETE)",
-            "Storage: ❌ more disk space (the index is a separate structure)",
+            { text: "Read performance: much faster (milliseconds vs seconds)", tone: "healthy" },
+            { text: "Write performance: slower (must update the index on every INSERT/UPDATE/DELETE)", tone: "critical" },
+            { text: "Storage: more disk space (the index is a separate structure)", tone: "critical" },
           ],
         },
         {
@@ -388,7 +388,7 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
           kind: "paragraph",
           text: "This kills performance in production and interviewers love asking about it. The scenario: display 10 orders with restaurant names.",
         },
-        { kind: "paragraph", text: "❌ N+1 approach (what beginners write):" },
+        { kind: "paragraph", text: "The N+1 approach (what beginners write):" },
         {
           kind: "code",
           language: "sql",
@@ -398,7 +398,7 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
           kind: "paragraph",
           text: "Total: 11 queries for 10 orders. With 100 orders: 101 queries. With 1000 orders: 1001 queries.",
         },
-        { kind: "paragraph", text: "✅ Correct approach: JOIN or IN clause" },
+        { kind: "paragraph", text: "The correct approach: JOIN or IN clause" },
         {
           kind: "code",
           language: "sql",
@@ -450,4 +450,5 @@ export const SQL_DEEP_DIVE: FoundationLesson = {
       "You're designing the database for Splitwise — an app where friends split expenses. Core features: users can create groups (e.g. \"Goa Trip\", \"Flat Mates\"); users can add expenses to a group (\"Priya paid ₹3000 for hotel, split equally among 4 people\"); the app tracks who owes whom how much; users can settle debts. Your task: identify the core entities; design the schema (table names, key columns, primary/foreign keys); write one SQL query: \"For user Priya, show everyone who owes her money and how much\"; what index would you add to make that query fast? Don't worry about being perfect — think through the relationships first.",
   },
   relatedEntitySlugs: ["database"],
+  prerequisites: ["databases-the-big-picture"],
 };

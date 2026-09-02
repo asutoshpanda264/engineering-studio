@@ -7,10 +7,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Server shell + client body, same split `docs-game/CLAUDE.md`'s
- * `/quest/map` used for the same reason: a page can either export static
- * `metadata` or read reactive client-only state (`useLockInState`), not
- * both, so the state-dependent part lives in `VictoryScreen` instead.
+ * Server shell + client body: a page can either export static `metadata`
+ * or read reactive client-only state (`useLockInState`), not both, so
+ * the state-dependent part lives in `VictoryScreen` instead.
  */
 export default function BatmanModeVictoryPage() {
   return <VictoryScreen />;

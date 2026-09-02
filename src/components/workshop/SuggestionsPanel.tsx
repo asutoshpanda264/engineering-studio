@@ -39,7 +39,7 @@ export function SuggestionsPanel() {
   return (
     <div className="flex flex-col items-end gap-2">
       {open && (
-        <div className="max-h-96 w-80 overflow-auto rounded-lg border border-border bg-bg-elevated shadow-dropdown">
+        <div className="max-h-96 w-80 overflow-auto border border-border bg-bg-elevated shadow-dropdown">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <p className="text-xs font-medium text-text">Suggestions</p>
             <button
@@ -72,7 +72,7 @@ export function SuggestionsPanel() {
 function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   const Icon = SEVERITY_ICON[suggestion.severity];
   return (
-    <div className={`rounded-md border-l-2 bg-bg-panel py-1.5 pl-2.5 pr-2 ${SEVERITY_CLASSES[suggestion.severity]}`}>
+    <div className={`border-l-2 bg-bg-panel py-1.5 pl-2.5 pr-2 ${SEVERITY_CLASSES[suggestion.severity]}`}>
       <div className="flex items-start gap-1.5">
         <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">

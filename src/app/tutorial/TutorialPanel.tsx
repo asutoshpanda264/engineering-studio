@@ -56,8 +56,8 @@ export function TutorialPanel({
   onTogglePaused: () => void;
   onChooseAnother: () => void;
 }) {
-  const componentsPanelOpen = useWorkshopStore((s) => s.componentsPanelOpen);
-  const leftOffset = componentsPanelOpen ? "left-[20rem]" : "left-3";
+  const openComponentPack = useWorkshopStore((s) => s.openComponentPack);
+  const leftOffset = openComponentPack ? "left-[20rem]" : "left-3";
 
   if (activeTarget && currentStep) {
     const catalogItem = ENTITY_CATALOG.find((item) => item.type === activeTarget);
@@ -113,8 +113,9 @@ export function TutorialPanel({
     );
   }
 
-  const core = ENTITY_CATALOG.filter((item) => item.phase === 1);
-  const modules = ENTITY_CATALOG.filter((item) => item.phase === 2);
+  const core = ENTITY_CATALOG.filter((item) => !item.domain && item.phase === 1);
+  const modules = ENTITY_CATALOG.filter((item) => !item.domain && item.phase === 2);
+  const agentic = ENTITY_CATALOG.filter((item) => item.domain === "agentic");
 
   return (
     <div className={`pointer-events-auto fixed ${leftOffset} top-20 z-40 flex max-h-[calc(100vh-6rem)] w-72 flex-col border border-border bg-bg-elevated shadow-dropdown`}>
@@ -146,6 +147,7 @@ export function TutorialPanel({
 
         <EntityGroup title="Core" items={core} onPick={onPick} />
         <EntityGroup title="Modules" items={modules} onPick={onPick} />
+        <EntityGroup title="Agentic AI" items={agentic} onPick={onPick} />
       </div>
     </div>
   );

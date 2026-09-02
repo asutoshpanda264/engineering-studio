@@ -19,6 +19,7 @@ import type {
   CircuitBreakerState,
   EntityId,
   EntityMetrics,
+  MemoryContextMetrics,
   MetricsSnapshot,
   RateLimiterMetrics,
   RoutingTargetMetrics,
@@ -44,7 +45,18 @@ export function collectMetrics(
    * that second completion would double-count against totals that were
    * sized to one event per client-issued request.
    */
-  clientIds?: EntityId[]
+  clientIds?: EntityId[],
+  /**
+   * Ids of Agent Orchestrator entities in this run, if any — see
+   * `MetricsSnapshot.totalIterations`'s own doc. Optional so every
+   * existing call site (tests, callers that don't yet know entity types)
+   * keeps working unchanged; omitting it just means `totalIterations`
+   * stays `undefined`, the same "not applicable" convention every other
+   * optional metric here follows.
+   */
+  agentOrchestratorIds?: EntityId[],
+  /** Ids of Guardrail Validator entities in this run, if any — see `MetricsSnapshot.guardrailRejectionRate`'s own doc. Same optionality reasoning as agentOrchestratorIds. */
+  guardrailValidatorIds?: EntityId[]
 ): MetricsSnapshot {
   const clientIdSet = clientIds ? new Set(clientIds) : null;
   const countsTowardClientOutcome = (destination: EntityId | null): boolean =>
@@ -85,6 +97,11 @@ export function collectMetrics(
   const routingByEntity = new Map<EntityId, Map<EntityId, number>>();
   const partitionByEntity = new Map<EntityId, Map<number, number>>();
   const rateLimiterByEntity = new Map<EntityId, { admitted: number; rejected: number }>();
+  const guardrailEvalByEntity = new Map<EntityId, { checks: number; rejections: number }>();
+  const memoryContextByEntity = new Map<
+    EntityId,
+    { policy: MemoryContextMetrics["policy"]; compactionCount: number; criticalInfoIntact: boolean; currentContextTokens: number }
+  >();
   const circuitBreakerByEntity = new Map<
     EntityId,
     { state: CircuitBreakerState; tripCount: number }
@@ -210,6 +227,37 @@ export function collectMetrics(
           edgeMap.set(event.metadata.edgeIndex, edgeCounts);
           edgeAccessByEntity.set(event.source, edgeMap);
         }
+        break;
+      }
+      case "CONTEXT_COMPACTED": {
+        if (!event.source) break;
+        const policy = event.metadata.policy as MemoryContextMetrics["policy"] | undefined;
+        if (!policy) break;
+        const current = memoryContextByEntity.get(event.source) ?? {
+          policy,
+          compactionCount: 0,
+          criticalInfoIntact: true,
+          currentContextTokens: 0,
+        };
+        current.policy = policy;
+        current.compactionCount++;
+        // "Last one wins" — same point-in-time reasoning CIRCUIT_OPENED
+        // above uses — reflects the most recent compaction, not the first.
+        if (typeof event.metadata.criticalInfoIntact === "boolean") {
+          current.criticalInfoIntact = event.metadata.criticalInfoIntact;
+        }
+        if (typeof event.metadata.contextSizeTokens === "number") {
+          current.currentContextTokens = event.metadata.contextSizeTokens;
+        }
+        memoryContextByEntity.set(event.source, current);
+        break;
+      }
+      case "GUARDRAIL_EVALUATED": {
+        if (!event.source) break;
+        const counts = guardrailEvalByEntity.get(event.source) ?? { checks: 0, rejections: 0 };
+        counts.checks++;
+        if (event.metadata.passed === false) counts.rejections++;
+        guardrailEvalByEntity.set(event.source, counts);
         break;
       }
       case "PARTITION_ASSIGNED": {
@@ -339,6 +387,13 @@ export function collectMetrics(
     metrics.circuitBreaker = circuitBreaker;
   }
 
+  for (const [entityId, counts] of memoryContextByEntity) {
+    const metrics = entityMetrics[entityId];
+    if (!metrics) continue;
+    const memoryContext: MemoryContextMetrics = { ...counts };
+    metrics.memoryContext = memoryContext;
+  }
+
   for (const [entityId, intervals] of queueActivityByEntity) {
     const metrics = entityMetrics[entityId];
     if (!metrics) continue;
@@ -346,6 +401,41 @@ export function collectMetrics(
   }
 
   latencies.sort((a, b) => a - b);
+
+  // docs/Agentic_AI.md §2.5 — see MetricsSnapshot.totalIterations's own
+  // doc. dispatchCount reuses routingByEntity (already swept above for
+  // routingDistribution) rather than a second pass over `events`.
+  let totalIterations: number | undefined;
+  if (agentOrchestratorIds && agentOrchestratorIds.length > 0) {
+    totalIterations = 0;
+    for (const id of agentOrchestratorIds) {
+      const targets = routingByEntity.get(id);
+      const dispatchCount = targets
+        ? [...targets.values()].reduce((sum, count) => sum + count, 0)
+        : 0;
+      const sessionCount = entityMetrics[id]?.requestCount ?? 0;
+      totalIterations += Math.max(0, dispatchCount - sessionCount);
+    }
+  }
+
+  // docs/Agentic_AI.md §2.5 — see MetricsSnapshot.guardrailRejectionRate's
+  // own doc. Reads GUARDRAIL_EVALUATED markers, not REQUEST_FAILED/
+  // errorCount: a Guardrail Validator's own normal placement (inside an
+  // Agent Orchestrator's retry loop, not client-adjacent) means it never
+  // itself emits REQUEST_FAILED, so errorCount undercounts — see
+  // GuardrailValidator.ts's own doc on this marker.
+  let guardrailRejectionRate: number | undefined;
+  if (guardrailValidatorIds && guardrailValidatorIds.length > 0) {
+    let checks = 0;
+    let rejections = 0;
+    for (const id of guardrailValidatorIds) {
+      const counts = guardrailEvalByEntity.get(id);
+      if (!counts) continue;
+      checks += counts.checks;
+      rejections += counts.rejections;
+    }
+    guardrailRejectionRate = checks > 0 ? rejections / checks : 0;
+  }
 
   return {
     totalRequests,
@@ -359,6 +449,8 @@ export function collectMetrics(
     throughput:
       totalDurationMs > 0 ? successfulRequests / (totalDurationMs / 1000) : 0,
     entityMetrics,
+    totalIterations,
+    guardrailRejectionRate,
   };
 }
 

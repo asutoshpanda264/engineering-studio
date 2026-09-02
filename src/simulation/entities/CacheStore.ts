@@ -39,6 +39,11 @@ export class CacheStore {
 
   constructor(private readonly config: CacheStoreConfig) {}
 
+  /** Distinct entries currently stored — used by Cache.ts's semantic caching mode to scale hit likelihood with how "full" the store is, not just an exact key match. */
+  get size(): number {
+    return this.entries.size;
+  }
+
   /** Whether `key` is present and not expired — see CacheLookupResult.
    * Expired entries are evicted as a side effect of being looked up. */
   lookup(key: string, now: number): CacheLookupResult {

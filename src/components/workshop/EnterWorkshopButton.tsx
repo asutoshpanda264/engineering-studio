@@ -32,7 +32,7 @@ export function EnterWorkshopButton() {
     <button
       type="button"
       onClick={handleClick}
-      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+      className="inline-flex h-8 items-center justify-center gap-1.5 px-3 text-xs font-medium text-text-muted transition-colors duration-fast ease-standard hover:bg-bg-elevated hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       aria-label="Workshop — a fresh, blank canvas, discarding whatever's currently loaded"
       title="Fresh, blank canvas — discards whatever's currently loaded"
     >

@@ -44,10 +44,26 @@ export type EventType =
   | "CIRCUIT_OPENED"
   | "CIRCUIT_CLOSED"
   | "CIRCUIT_HALF_OPENED"
+  // Self-addressed diagnostic marker, same pattern as CACHE_HIT/MISS —
+  // fires only on turns that trigger MemoryContextStore's compaction
+  // policy, carrying the resulting context size and whether critical
+  // info survived. See MemoryContextStore.ts.
+  | "CONTEXT_COMPACTED"
   // Diagnostic marker, never delivered anywhere (destination null, same
   // as CACHE_HIT/MISS) — records which partition a Kafka message was
   // assigned to, independent of whether any consumer group exists yet.
   | "PARTITION_ASSIGNED"
+  // Self-addressed diagnostic marker, same pattern as CONTEXT_COMPACTED —
+  // fires on every GuardrailValidator.evaluate() call, pass or fail.
+  // docs/Agentic_AI.md §2.5's guardrailRejectionRate metric needs this:
+  // a guardrail deep in a real composition (inside an Agent Orchestrator's
+  // retry loop, GuardrailValidator's own documented normal placement)
+  // never itself emits REQUEST_FAILED — only whichever entity sits
+  // client-adjacent along the response path does, attributed to *that*
+  // entity, not the guardrail that actually made the call. This marker
+  // is the guardrail reporting its own outcome directly, the same
+  // reasoning CONTEXT_COMPACTED's own doc gives for MemoryContextStore.
+  | "GUARDRAIL_EVALUATED"
   // Processing lifecycle — any entity that does bounded-capacity work
   // (APIServer, Database, ...) emits these around that work, so utilization
   // metrics can be derived by pairing start/complete per entity.
@@ -122,6 +138,28 @@ export interface CacheAccessMetadata {
 }
 
 /**
+ * Metadata shape for CONTEXT_COMPACTED events — see MemoryContextStore.ts.
+ */
+export interface ContextCompactionMetadata {
+  requestId: RequestId;
+  policy: "none" | "summarization" | "scratchpad";
+  /** Context size, in tokens, immediately after this compaction. */
+  contextSizeTokens: number;
+  /** Whether the assumed-early "critical info" is still intact after this compaction. */
+  criticalInfoIntact: boolean;
+}
+
+/**
+ * Metadata shape for GUARDRAIL_EVALUATED events — see GuardrailValidator.ts.
+ */
+export interface GuardrailEvaluatedMetadata {
+  requestId: RequestId;
+  passed: boolean;
+  /** Only meaningful when passed is false — mirrors the reason the standard REQUEST_FAILED/failureReason would carry. */
+  reason: string | null;
+}
+
+/**
  * Carried on every event as a request moves through the architecture.
  * Each hop copies this forward so any entity can compute end-to-end
  * duration or respond to whoever sent it, without a shared registry —
@@ -178,4 +216,32 @@ export interface RequestLifecycleMetadata extends Record<string, unknown> {
    * none of them model per-key existence themselves.
    */
   exists?: boolean;
+  /**
+   * Whether this request needs multi-hop relationship reasoning to answer
+   * correctly, decided once at the Client from the Client's Relationship
+   * Query Rate config (see TrafficGenerator.assignRequestRelationshipQuery)
+   * and carried forward like `key`/`exists`. Absent or `false` means the
+   * normal case — a single similarity-matched chunk can answer it. Only
+   * Retriever reads this (see Retriever.ts's GraphRAG mode); every other
+   * entity ignores it.
+   */
+  requiresRelationshipTraversal?: boolean;
+  /**
+   * Set when this request's content has been quietly compromised somewhere
+   * on its journey, WITHOUT itself becoming a REQUEST_FAILED — a tool
+   * response that comes back 200-but-empty (failure mode #4, silent tool
+   * failure), a hijacked llm_call output (#9, direct prompt injection), or
+   * poisoned retrieved content (#10, indirect prompt injection). This is
+   * `docs/Agentic_AI.md` §1.7's "agent failures often look like success in
+   * a trace" made literal: every entity that passes a response through
+   * unchanged (`...meta`) propagates this for free, the same as `failed`.
+   * Only GuardrailValidator's `compromiseCatchRate` reads it (rolling a
+   * chance to catch and fail the request instead) — every other entity
+   * ignores it and happily treats a compromised-but-"successful" response
+   * as fine, which is the whole point of the demo: without a guardrail
+   * wired downstream, this reaches the client with `failed` never set.
+   */
+  compromised?: boolean;
+  /** Which specific compromise this is — only meaningful when `compromised` is true. */
+  compromiseReason?: "silent_tool_failure" | "direct_prompt_injection" | "indirect_prompt_injection";
 }

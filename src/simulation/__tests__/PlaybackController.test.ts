@@ -58,6 +58,8 @@ function buildResult(): SimulationResult {
     warnings: [],
     errors: [],
     clientIds: ["client1"],
+    agentOrchestratorIds: [],
+    guardrailValidatorIds: [],
     metadata: { seed: 1, version: "0.1.0", generatedAt: new Date().toISOString() },
   };
 }

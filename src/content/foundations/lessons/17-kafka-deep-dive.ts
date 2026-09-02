@@ -227,7 +227,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
         },
         {
           kind: "insight",
-          text: "Rule: max useful consumers per group = number of partitions. 6 partitions, 6 consumers → each gets 1 partition ✅. 6 partitions, 3 consumers → each gets 2 partitions ✅. 6 partitions, 10 consumers → 4 consumers sit idle ⚠️. To increase parallelism: increase partition count.",
+          text: "Rule: max useful consumers per group = number of partitions. 6 partitions, 6 consumers → each gets 1 partition. 6 partitions, 3 consumers → each gets 2 partitions. 6 partitions, 10 consumers → 4 consumers sit idle. To increase parallelism: increase partition count.",
         },
         { kind: "paragraph", text: "Offset Management — each consumer group tracks its own offset per partition:" },
         {
@@ -327,7 +327,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
             {
               title: "Traditional Queue (RabbitMQ)",
               nodes: [
-                { id: "retention-rmq-outage", label: "Messages during outage", sublabel: "LOST ❌", col: 0, row: 0, tone: "critical" },
+                { id: "retention-rmq-outage", label: "Messages during outage", sublabel: "LOST", col: 0, row: 0, tone: "critical" },
                 { id: "retention-rmq-analytics", label: "Analytics", sublabel: "missing 6 hours of data", col: 1, row: 0, tone: "critical", entityType: "api" },
               ],
               edges: [{ from: "retention-rmq-outage", to: "retention-rmq-analytics", tone: "critical" }],
@@ -335,7 +335,7 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
             {
               title: "Kafka",
               nodes: [
-                { id: "retention-kafka-outage", label: "Messages during outage", sublabel: "still in topic ✅", col: 0, row: 0, tone: "healthy" },
+                { id: "retention-kafka-outage", label: "Messages during outage", sublabel: "still in topic", col: 0, row: 0, tone: "healthy" },
                 {
                   id: "retention-kafka-analytics",
                   label: "Analytics service recovers",
@@ -621,4 +621,5 @@ export const KAFKA_DEEP_DIVE: FoundationLesson = {
       "You're designing the real-time data pipeline for Zomato. Events generated per second at peak: order_placed (500/sec), order_status_update (2,000/sec — placed → confirmed → preparing → delivered), restaurant_viewed (50,000/sec), search_performed (30,000/sec), payment_processed (500/sec), driver_location (10,000/sec — every 5 seconds from 50,000 active drivers). Consumers that need these events: A. Notification Service needs order_placed and order_status_update; B. Analytics Dashboard needs ALL events; C. Fraud Detection needs payment_processed and order_placed; D. Search Personalization needs search_performed and restaurant_viewed; E. ETA Calculator needs driver_location and order_status_update; F. Revenue Reporting needs payment_processed. How many topics would you create? Name them and justify why you grouped events that way. For the \"order-events\" topic — how many partitions would you choose and what would be the partition key? Justify. Consumer F (Revenue Reporting) runs a daily batch job and was down for 48 hours — when it recovers, what happens, and what Kafka configuration ensures it can catch up? Search Personalization (Consumer D) needs to process events in real-time but is currently processing only 20,000 events/second when it receives 80,000/second combined — what are your two options to scale it up?",
   },
   relatedEntitySlugs: ["kafka"],
+  prerequisites: ["message-queues"],
 };

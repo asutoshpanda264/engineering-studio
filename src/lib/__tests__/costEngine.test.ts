@@ -276,4 +276,30 @@ describe("estimateCost", () => {
     expect(cost.totalMonthlyCost).toBe(0);
     expect(cost.severity).toBe("normal");
   });
+
+  it("promptCacheHitRate discounts an llm_call's usage cost toward roughly 1/10th price as it approaches 1, docs/Agentic_AI.md §2.9", () => {
+    const config = baseConfig({
+      entities: [
+        { id: "client1", type: "client", position: { x: 0, y: 0 }, config: { requestRate: 20 } },
+        {
+          id: "llm1",
+          type: "llm_call",
+          position: { x: 0, y: 0 },
+          config: { hallucinationRate: 0, schemaFailureRate: 0 },
+        },
+      ],
+      connections: [{ source: "client1", target: "llm1", latencyMs: 1 }],
+    });
+    const result = runSimulation(config);
+    const nodes = toArchitectureNodes(config);
+
+    const noCache = estimateCost(result, nodes).entities.find((e) => e.entityId === "llm1")!;
+    nodes.find((n) => n.id === "llm1")!.data.config = {
+      ...nodes.find((n) => n.id === "llm1")!.data.config,
+      promptCacheHitRate: 1,
+    };
+    const fullCache = estimateCost(result, nodes).entities.find((e) => e.entityId === "llm1")!;
+
+    expect(fullCache.monthlyUsageCost).toBeCloseTo(noCache.monthlyUsageCost * 0.1, 5);
+  });
 });

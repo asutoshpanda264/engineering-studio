@@ -1,11 +1,22 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowRight, BookOpen, Compass, Hammer, Repeat, Search } from "lucide-react";
+import { ArrowRight, BookOpen, Building2, Compass, Hammer, ListChecks, Repeat, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { HeroDiagram } from "@/components/landing/HeroDiagram";
+import { Reveal } from "@/components/landing/Reveal";
 import { SCENARIOS } from "@/scenarios";
-import { difficultyColorClass, difficultyMeter } from "@/lib/difficultyDisplay";
+import { DifficultyMeter } from "@/components/ui/DifficultyMeter";
+import { CardCorners } from "@/components/ui/Card";
+import { truncateAtWord } from "@/lib/truncateText";
+
+// Generous enough to still read as a real excerpt at every breakpoint this
+// grid uses (`sm:grid-cols-2` through `lg:grid-cols-4`) while comfortably
+// fitting the 3-line clamp below even at the narrowest (4-column) card
+// width — see `truncateAtWord`'s own doc comment for why this replaces
+// relying on `line-clamp-3`'s own cut.
+const SCENARIO_STORY_MAX_CHARS = 150;
 
 const GITHUB_URL = "https://github.com/asutoshpanda264/engineering-studio";
 
@@ -26,9 +37,39 @@ function GitHubIcon(props: { className?: string }) {
  *  - LinkButton (components/ui/LinkButton.tsx) — the one primary-action
  *    treatment in the product, shared by every page rather than each
  *    hand-rolling its own CTA classes.
- * No section on this page fades in on mount/scroll — content is visible the
- * instant it paints; motion here is reserved for hover/press states only.
+ * No section on this page fades in on mount/scroll under the dark theme —
+ * content is visible the instant it paints; motion is reserved for
+ * hover/press states only. Paper (the light theme, see globals.css) is the
+ * one deliberate exception: its `<Reveal>`-wrapped sections fade+rise in as
+ * they enter the viewport. That CSS only exists under `data-theme="light"`
+ * (see `.landing-reveal`), so dark keeps the instant-paint rule above
+ * exactly as written.
  */
+
+/**
+ * One of the header's four nav links (Tutorial/Learn/Problems/Interviews).
+ * The label collapses to icon-only below `lg` (1024px) — this row plus the
+ * brand mark, theme toggle, GitHub link, and "Enter Workshop" CTA needed
+ * ~820px with no breakpoints at all to avoid overflowing; collapsing these
+ * four labels first (they're the most repetitive part — an icon + tooltip
+ * carries the same information) gives the header an actual defined point
+ * where it degrades on purpose instead of just running out of room.
+ * `aria-label` keeps the accessible name intact even while the visible
+ * text is hidden.
+ */
+function NavLink({ href, icon: Icon, label }: { href: string; icon: typeof Compass; label: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="hidden lg:inline">{label}</span>
+    </Link>
+  );
+}
 
 function Tag({ children }: { children: ReactNode }) {
   return (
@@ -68,26 +109,19 @@ const PROCESS_STEPS = [
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-text">
+      <AppHeader
+        maxWidthClassName="max-w-7xl"
+        left={
+          <span className="shrink-0 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-text">
             Engineering Studio
           </span>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/tutorial"
-              className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-            >
-              <Compass className="size-4" aria-hidden />
-              Tutorial
-            </Link>
-            <Link
-              href="/learn"
-              className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-            >
-              <BookOpen className="size-4" aria-hidden />
-              Learn
-            </Link>
+        }
+        right={
+          <>
+            <NavLink href="/tutorial" icon={Compass} label="Tutorial" />
+            <NavLink href="/learn" icon={BookOpen} label="Learn" />
+            <NavLink href="/problems" icon={ListChecks} label="Problems" />
+            <NavLink href="/interview-questions" icon={Building2} label="Interviews" />
             <ThemeToggle />
             <a
               href={GITHUB_URL}
@@ -101,54 +135,81 @@ export default function Home() {
             <LinkButton href="/workshop" variant="secondary">
               Enter Workshop
             </LinkButton>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
-      {/* Hero */}
-      <section className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 px-6 pb-16 pt-20 text-center sm:pt-28">
-        <Tag>An educational sandbox, not a production tool</Tag>
-        <h1 className="text-4xl font-semibold tracking-tight text-text sm:text-5xl">
-          Build. Simulate. Break. Learn.
-        </h1>
-        <p className="max-w-2xl text-balance text-lg text-text-muted">
-          Design distributed systems visually, run a real discrete-event simulation against
-          them, and watch your architecture succeed or collapse under load —{" "}
-          <span className="text-signal">no lecture, just consequences</span>.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <LinkButton href="/workshop">
-            Enter Workshop
-            <ArrowRight className="size-4" aria-hidden />
-          </LinkButton>
-          <LinkButton href="#scenarios" variant="secondary">
-            Browse Scenarios
-          </LinkButton>
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-4xl px-6 pb-24">
-        <div className="relative border border-border bg-bg-elevated p-6 sm:p-8">
-          <span className="absolute -top-px -left-px border border-signal/50 bg-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-signal">
-            Fig. 01 — Live Architecture
-          </span>
-          <HeroDiagram />
-        </div>
-      </section>
-
-      {/* Process — an indexed spec sheet, not three rounded cards */}
-      <section className="mx-auto w-full max-w-5xl px-6 pb-28">
-        <Kicker>How it works</Kicker>
-        <div className="mt-14 grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {PROCESS_STEPS.map((step, i) => (
-            <div key={step.title} className="flex flex-col gap-4 py-8 sm:px-8 sm:py-0 sm:pt-8 first:sm:pl-0">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-xs text-signal">{String(i + 1).padStart(2, "0")}</span>
-                <step.icon className="size-4 text-text-muted" aria-hidden />
-              </div>
-              <h3 className="text-lg font-semibold text-text">{step.title}</h3>
-              <p className="text-sm leading-relaxed text-text-muted">{step.body}</p>
+      {/* Hero — full-width outer wrapper so Paper's glow (see globals.css's
+          --landing-glow, a no-op under the dark theme) can bleed edge to
+          edge behind the still text-centered, readable-width content. */}
+      <section className="relative w-full overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[36rem]"
+          style={{ backgroundImage: "var(--landing-glow)" }}
+        />
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-6 pb-16 pt-20 text-center sm:pt-28">
+          <Reveal>
+            <Tag>An educational sandbox, not a production tool</Tag>
+          </Reveal>
+          <Reveal delay={80}>
+            <h1 className="text-5xl font-semibold tracking-tight text-text sm:text-6xl md:text-7xl">
+              Build. Simulate. Break. Learn.
+            </h1>
+          </Reveal>
+          <Reveal delay={160}>
+            <p className="max-w-2xl text-balance text-lg text-text-muted">
+              Design distributed systems visually, run a real discrete-event simulation against
+              them, and watch your architecture succeed or collapse under load —{" "}
+              <span className="text-signal">no lecture, just consequences</span>.
+            </p>
+          </Reveal>
+          <Reveal delay={240}>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <LinkButton href="/workshop">
+                Enter Workshop
+                <ArrowRight className="size-4" aria-hidden />
+              </LinkButton>
+              <LinkButton href="#scenarios" variant="secondary">
+                Browse Scenarios
+              </LinkButton>
             </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-6 pb-24">
+        <Reveal delay={320}>
+          <div className="relative rounded-[var(--landing-radius-lg)] border border-border bg-bg-elevated p-6 shadow-[var(--landing-shadow-card)] transition-shadow duration-slow ease-standard hover:shadow-[var(--landing-shadow-hover)] sm:p-10">
+            <span className="absolute left-4 top-4 border border-signal/50 bg-bg px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-signal sm:left-5 sm:top-5">
+              Fig. 01 — Live Architecture
+            </span>
+            <div className="pt-6">
+              <HeroDiagram />
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* Process — an indexed spec sheet under the dark theme; Paper adds a
+          rounded, shadowed frame around the same divided strip rather than
+          restructuring it into separate cards. */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-28">
+        <Reveal>
+          <Kicker>How it works</Kicker>
+        </Reveal>
+        <div className="mt-14 grid divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border-t border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {PROCESS_STEPS.map((step, i) => (
+            <Reveal key={step.title} delay={i * 100}>
+              <div className="flex h-full flex-col gap-4 bg-bg-elevated px-6 py-8 sm:px-8 sm:py-10">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-signal">{String(i + 1).padStart(2, "0")}</span>
+                  <step.icon className="size-4 text-text-muted" aria-hidden />
+                </div>
+                <h3 className="text-lg font-semibold text-text">{step.title}</h3>
+                <p className="text-sm leading-relaxed text-text-muted">{step.body}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -156,59 +217,60 @@ export default function Home() {
       {/* Scenarios */}
       <section
         id="scenarios"
-        className="mx-auto w-full max-w-5xl scroll-mt-14 border-t border-border px-6 py-24"
+        className="mx-auto w-full max-w-7xl scroll-mt-14 border-t border-border px-6 py-24"
       >
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <Kicker>Pick a problem to solve</Kicker>
-            <p className="max-w-xl text-sm text-text-muted">
-              Every scenario hands you an intentionally imperfect architecture and a business
-              problem, not a technical one. Your job is to figure out why it&apos;s failing.
-            </p>
+        <Reveal>
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <Kicker>Pick a problem to solve</Kicker>
+              <p className="max-w-xl text-sm text-text-muted">
+                Every scenario hands you an intentionally imperfect architecture and a business
+                problem, not a technical one. Your job is to figure out why it&apos;s failing.
+              </p>
+            </div>
+            <Link
+              href="/problems"
+              className="group flex shrink-0 items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+            >
+              See all {SCENARIOS.length} problems
+              <ArrowRight
+                className="size-3.5 transition-transform duration-fast ease-standard group-hover:translate-x-0.5"
+                aria-hidden
+              />
+            </Link>
           </div>
-          <Link
-            href="/problems"
-            className="group flex shrink-0 items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-          >
-            See all {SCENARIOS.length} problems
-            <ArrowRight
-              className="size-3.5 transition-transform duration-fast ease-standard group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </Link>
-        </div>
+        </Reveal>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SCENARIOS.slice(0, 4).map((scenario, i) => (
-            <Link
-              key={scenario.id}
-              href={`/workshop?scenario=${scenario.id}`}
-              className="group relative flex h-full flex-col gap-3 border border-border bg-bg-panel p-5 transition-all duration-fast ease-standard hover:-translate-y-1 hover:border-border-hover hover:bg-bg-elevated hover:shadow-dropdown"
-            >
-              <span className="absolute right-3 top-3 font-mono text-[10px] text-text-subtle">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <h3 className="pr-6 font-semibold text-text">{scenario.title}</h3>
-              <p className={`font-mono text-[11px] tracking-wide ${difficultyColorClass(scenario.difficulty)}`}>
-                {difficultyMeter(scenario.difficulty)}{" "}
-                <span className="text-text-subtle">
-                  {scenario.difficulty}/5
+            <Reveal key={scenario.id} delay={i * 80}>
+              <Link
+                href={`/workshop?scenario=${scenario.id}`}
+                className="group relative flex h-full flex-col gap-3 rounded-[var(--landing-radius)] bg-bg-panel p-5 shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-1 hover:bg-bg-hover hover:shadow-[var(--landing-shadow-hover)]"
+              >
+                <CardCorners />
+                <span className="absolute right-3 top-3 font-mono text-[10px] text-text-subtle">
+                  {String(i + 1).padStart(2, "0")}
                 </span>
-              </p>
-              <p className="line-clamp-3 text-sm text-text-muted">{scenario.story}</p>
-              <p className="mt-auto flex items-center gap-1.5 pt-2 font-mono text-[11px] uppercase tracking-wide text-text-subtle">
-                {scenario.constraints.length} success criteria
-                <ArrowRight
-                  className="size-3.5 shrink-0 text-signal opacity-0 transition-all duration-fast ease-standard group-hover:translate-x-0.5 group-hover:opacity-100"
-                  aria-hidden
-                />
-              </p>
-            </Link>
+                <h3 className="pr-6 font-semibold text-text">{scenario.title}</h3>
+                <DifficultyMeter level={scenario.difficulty} />
+                <p className="line-clamp-3 text-sm text-text-muted">
+                  {truncateAtWord(scenario.story, SCENARIO_STORY_MAX_CHARS)}
+                </p>
+                <p className="mt-auto flex items-center gap-1.5 pt-2 font-mono text-[11px] uppercase tracking-wide text-text-subtle">
+                  {scenario.constraints.length} success criteria
+                  <ArrowRight
+                    className="size-3.5 shrink-0 text-signal opacity-0 transition-all duration-fast ease-standard group-hover:translate-x-0.5 group-hover:opacity-100"
+                    aria-hidden
+                  />
+                </p>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </section>
 
       <footer className="border-t border-border px-6 py-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-wide text-text-subtle sm:flex-row">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-wide text-text-subtle sm:flex-row">
           <span>Engineering Studio — Build. Simulate. Break. Learn.</span>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-text-muted">
             View source on GitHub

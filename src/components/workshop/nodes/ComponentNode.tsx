@@ -61,6 +61,8 @@ const ROUTING_ENTITY_TYPES = new Set<EntityType>([
   "replica_pool",
   "reverse_proxy",
   "kafka",
+  "agent_orchestrator",
+  "model_router",
 ]);
 
 // The visible dot stays 10px (!size-2.5) — the `after:` pseudo-element
@@ -165,21 +167,39 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
 
       {selected && <CornerBrackets size={9} inset={-1} colorClassName="border-signal" />}
 
-      <Handle type="target" position={Position.Left} className={HANDLE_CLASSES} />
+      {/* Four handles, not just left/right — a node placed below-and-left
+          (or above-and-right, etc.) of its source used to be reachable only
+          via the one fixed left-target/right-source pair, forcing the edge
+          to sweep out and loop back around the node instead of taking the
+          short way. `connectionMode="loose"` on the <ReactFlow> instance
+          (ArchitectureCanvas.tsx) makes every handle below usable as either
+          end of a connection regardless of its declared `type`, so the
+          `type` values here just keep the visual mix even — they aren't a
+          real restriction. */}
+      <Handle type="target" position={Position.Top} id="top" className={HANDLE_CLASSES} />
+      <Handle type="target" position={Position.Left} id="left" className={HANDLE_CLASSES} />
 
-      <div className="flex items-start gap-2.5 px-3 pt-2.5 pb-2">
-        <span className="flex size-7 shrink-0 items-center justify-center border border-border bg-bg-elevated">
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        {/* The icon alone carries the entity type (title attr for a hover
+            tooltip, aria-label for screen readers) — the card used to also
+            spell it out as an uppercase eyebrow directly above the title,
+            but the title is almost always that same word (data.label
+            defaults to catalogItem.name, see workshopStore.ts's
+            `nextLabelFor`), so it just repeated the same text twice in two
+            type treatments on every node, for no added information. */}
+        <span
+          className="flex size-7 shrink-0 items-center justify-center border border-border bg-bg-elevated"
+          title={catalogItem.name}
+        >
           <Icon className="size-3.5 text-text-muted" aria-hidden />
+          <span className="sr-only">{catalogItem.name}</span>
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-medium uppercase tracking-wide text-text-subtle">
-            {catalogItem.name}
-          </p>
           <p className="truncate text-sm font-medium text-text">{data.label}</p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {isGiven && (
             <Lock
               className="size-3 text-text-subtle"
@@ -269,7 +289,8 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
         </div>
       )}
 
-      <Handle type="source" position={Position.Right} className={HANDLE_CLASSES} />
+      <Handle type="source" position={Position.Right} id="right" className={HANDLE_CLASSES} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={HANDLE_CLASSES} />
     </div>
   );
 }

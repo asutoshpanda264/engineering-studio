@@ -99,7 +99,7 @@ export const REST_APIS: FoundationLesson = {
         },
         {
           kind: "table",
-          headers: ["❌ Stateful (bad)", "✅ Stateless (good)"],
+          headers: ["Stateful (bad)", "Stateless (good)"],
           rows: [
             [
               "Request 1: \"Login as user 123\"",
@@ -116,7 +116,7 @@ export const REST_APIS: FoundationLesson = {
         { kind: "paragraph", text: "a) Resource-based URLs — everything is a resource (noun), identified by a URL." },
         {
           kind: "table",
-          headers: ["❌ Action-based (not RESTful)", "✅ Resource-based (RESTful)"],
+          headers: ["Action-based (not RESTful)", "Resource-based (RESTful)"],
           rows: [
             ["/getUser", "/users"],
             ["/createOrder", "/orders"],
@@ -299,7 +299,7 @@ export const REST_APIS: FoundationLesson = {
         { kind: "paragraph", text: "Things juniors get wrong that interviewers notice:" },
         {
           kind: "table",
-          headers: ["Mistake", "❌ Wrong", "✅ Correct"],
+          headers: ["Mistake", "Wrong", "Correct"],
           rows: [
             [
               "Verbs in URLs",
@@ -340,4 +340,5 @@ export const REST_APIS: FoundationLesson = {
       "You're a backend engineer at BookMyShow. Design a REST API for the core booking flow. Users need to: browse movies currently showing in their city; select a movie and see available theatres + showtimes; select a showtime and see available seats; book specific seats; view their booking history; cancel a booking. Your task: define the resources, write the endpoint URLs, specify HTTP methods, show request/response shape for at least the \"book seats\" endpoint, and handle the edge case — two users try to book the same seat simultaneously — what HTTP status code do you return to the loser? Don't worry about the database or backend logic yet — just the API contract.",
   },
   relatedEntitySlugs: [],
+  prerequisites: ["http-and-https"],
 };

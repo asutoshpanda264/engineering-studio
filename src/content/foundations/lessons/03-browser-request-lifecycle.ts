@@ -93,8 +93,8 @@ export const BROWSER_REQUEST_LIFECYCLE: FoundationLesson = {
         {
           kind: "list",
           items: [
-            "Cache hit → serve immediately, no network call needed ✅",
-            "Cache miss → proceed to DNS resolution ❌ (need to fetch)",
+            { text: "Cache hit → serve immediately, no network call needed", tone: "healthy" },
+            { text: "Cache miss → proceed to DNS resolution (need to fetch)", tone: "critical" },
           ],
         },
         {
@@ -419,4 +419,5 @@ export const BROWSER_REQUEST_LIFECYCLE: FoundationLesson = {
     ],
   },
   relatedEntitySlugs: [],
+  prerequisites: ["how-the-internet-works"],
 };

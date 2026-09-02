@@ -43,3 +43,11 @@ export function difficultyBorderColorClass(difficulty: number): string {
   if (difficulty === 3) return "border-l-status-degraded/60";
   return "border-l-status-critical/60";
 }
+
+/** Same thresholds again, as a solid fill — for `DifficultyMeter`'s bars,
+    which need an actual background color rather than text/border color. */
+export function difficultyFillColorClass(difficulty: number): string {
+  if (difficulty <= 2) return "bg-status-healthy";
+  if (difficulty === 3) return "bg-status-degraded";
+  return "bg-status-critical";
+}

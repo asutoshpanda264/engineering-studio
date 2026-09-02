@@ -114,6 +114,52 @@ function wrapLabel(label: string, maxLineLen = 18): [string] | [string, string] 
   return [label.slice(0, splitAt), label.slice(splitAt + 1)];
 }
 
+/**
+ * Rough chars-per-line budget for wrapping body text inside a box of
+ * `availableWidth` at `fontSizePx` — same empirical ~0.6em/char average
+ * glyph width `DiagramArrow`'s own label-chip sizing already assumes
+ * (5.4px at a 9px label), generalized so callers don't each hand-guess a
+ * char count. Deliberately conservative (SVG text can't be measured
+ * synchronously pre-layout, same constraint noted there) — errs toward
+ * wrapping a line slightly early rather than risking overflow.
+ */
+export function estimateMaxChars(availableWidth: number, fontSizePx: number): number {
+  return Math.max(4, Math.floor(availableWidth / (fontSizePx * 0.62)));
+}
+
+/**
+ * Greedy word-wrap for body text that doesn't fit `wrapLabel`'s 2-line
+ * cap (a longer `flow` step's `detail`, a `figure` caption, ...) — any
+ * number of lines up to `maxLines`, breaking only on whitespace, never
+ * mid-word. Text that fits within `maxLines` renders in full; text that
+ * genuinely exceeds it gets its last line trimmed and ellipsized instead
+ * of silently spilling out of its box the way an unwrapped `<text>` did.
+ */
+export function wrapText(text: string, maxLineLen: number, maxLines = 3): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxLineLen && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+
+  if (lines.length <= maxLines) return lines;
+
+  const truncated = lines.slice(0, maxLines);
+  const budget = maxLineLen - 1; // leave room for the ellipsis glyph itself
+  let last = truncated[maxLines - 1];
+  if (last.length > budget) last = last.slice(0, budget).replace(/\s+\S*$/, "");
+  truncated[maxLines - 1] = `${last}…`;
+  return truncated;
+}
+
 /** Straight connector, optionally arrowed, optionally labeled at its midpoint. */
 export function DiagramArrow({
   x1,

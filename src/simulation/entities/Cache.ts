@@ -90,8 +90,27 @@ export type { EvictionPolicy };
 
 export type CacheStampedeMode = "naive" | "coalesced";
 export type NegativeCachingMode = "off" | "on";
+export type CachingMode = "exact" | "semantic";
 
 export interface CacheConfig {
+  /**
+   * "exact" (the default, and every behavior above this field's addition)
+   * answers a hit only when `meta.key` itself is already stored. "semantic"
+   * — docs/Agentic_AI.md §2.9's semantic caching, cache-aside in front of
+   * an llm_call with a "hit" redefined as similarity-above-threshold — adds
+   * an EXTRA chance of hitting even on a key that was never stored,
+   * standing in for "a semantically-similar-enough query was answered
+   * before." Modeled as a flat probability (`semanticHitRate`), scaled by
+   * how full the store currently is (more cached entries = more chances
+   * something is similar enough) — illustrative, not real embedding
+   * similarity, same "directional, not measured" spirit as every other
+   * probability table in this simulator. Negative Caching and Stampede
+   * Protection stay exact-key concerns either way — "this specific key is
+   * confirmed nonexistent" doesn't have an honest fuzzy-similarity analog.
+   */
+  cachingMode?: CachingMode;
+  /** Chance (0.0-1.0) an otherwise-missed request "hits" via similarity to something already cached, once the store is completely full. Semantic mode only — see cachingMode. */
+  semanticHitRate?: number;
   /** Distinct keys the cache can hold before it must evict something. */
   capacity?: number;
   /** Which entry to remove when a new key arrives at capacity. */
@@ -117,6 +136,8 @@ export interface CacheConfig {
 }
 
 const DEFAULTS: Required<CacheConfig> = {
+  cachingMode: "exact",
+  semanticHitRate: 0.7,
   capacity: 20,
   evictionPolicy: "lru",
   ttlMs: 0,
@@ -229,10 +250,24 @@ export class Cache implements Entity {
     // not when processing finishes — so a burst of identical keys
     // arriving back-to-back all see the same, already-warm cache state.
     const lookup = isRequestLeg ? this.store.lookup(meta.key, ctx.now) : "cold";
-    const hit = lookup === "hit";
+    const exactHit = lookup === "hit";
     const isExpiryMiss = lookup === "expired";
     const isPhantom = meta.exists === false;
-    if (isRequestLeg && hit) this.store.touch(meta.key, ctx.now);
+    if (isRequestLeg && exactHit) this.store.touch(meta.key, ctx.now);
+
+    // Semantic caching is additive on top of exact matching, never a
+    // replacement for it — a repeat of the identical key still hits for
+    // free either way, same as a real semantic cache. Only rolled on an
+    // otherwise-missed request, and never for a phantom (confirmed
+    // nonexistent) key — a fuzzy match to something that doesn't exist
+    // isn't a coherent "semantic hit."
+    const isSemanticHit =
+      isRequestLeg &&
+      !exactHit &&
+      !isPhantom &&
+      this.config.cachingMode === "semantic" &&
+      this.rollSemanticHit(ctx);
+    const hit = exactHit || isSemanticHit;
 
     // Negative-cache short-circuit: a key already confirmed not to exist,
     // with that confirmation still valid, is answered immediately and
@@ -315,6 +350,7 @@ export class Cache implements Entity {
           {
             ...(isExpiryMiss ? { expired: true } : {}),
             ...(isPhantom ? { notFound: true } : {}),
+            ...(isSemanticHit ? { semantic: true } : {}),
           }
         )
       );
@@ -323,6 +359,12 @@ export class Cache implements Entity {
       createProcessingCompletedEvent(ctx.now + duration, this.id, requestId)
     );
     return events;
+  }
+
+  /** Semantic caching only — see CacheConfig.cachingMode. Scales semanticHitRate by how full the store currently is: an empty store has nothing to be similar to (0% chance), a full one reaches the configured ceiling. */
+  private rollSemanticHit(ctx: SimulationContext): boolean {
+    const fullness = Math.max(0, Math.min(1, this.store.size / this.config.capacity));
+    return ctx.rng.next() < this.config.semanticHitRate * fullness;
   }
 
   /** Randomizes ttlMs by up to ±ttlJitterPercent for one entry, so a batch

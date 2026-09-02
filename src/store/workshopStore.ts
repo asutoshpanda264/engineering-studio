@@ -19,10 +19,15 @@ import type {
   MetricsSnapshot,
   SimulationResult,
 } from "@/simulation/types";
+import type { SimulationEvent } from "@/simulation/events/types";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
-import { buildSimulationConfig } from "@/lib/workshopBridge";
+import type { ComponentPackId } from "@/lib/entityCatalog";
+import { baselineRequestRate, buildSimulationConfig } from "@/lib/workshopBridge";
+import { getVillainAttack, type VillainAttackId } from "@/content/workshop/villainAttacks";
 import { runSimulation as runSimulationEngine } from "@/simulation/engine/Simulator";
 import { removeEntityAndReroute } from "@/simulation/engine/compareArchitectures";
+import { computeReliabilityScore } from "@/simulation/engine/reliabilityScore";
+import type { ReliabilityScoreResult } from "@/simulation/engine/reliabilityScore";
 import { computeEdgePacketSamples } from "@/lib/packetSampling";
 import { deriveNodeStatus } from "@/lib/nodeStatus";
 import { isGivenNode, lockedFieldsForNode } from "@/lib/scenarioLocking";
@@ -70,6 +75,11 @@ interface WorkshopState {
   playbackController: PlaybackController | null;
   playbackState: PlaybackState | null;
   playbackMetrics: MetricsSnapshot | null;
+  // Events up to the current playback time — captured for the Agentic
+  // domain's OTel-shaped Trace Panel (docs/Agentic_AI.md §2.4), which
+  // needs the actual event log, not just the derived metrics every other
+  // panel reads. null under the same conditions playbackMetrics is.
+  playbackVisibleEvents: SimulationEvent[] | null;
 
   // "With vs. without this CDN" — recomputed by re-running the same
   // config with the CDN spliced out (see compareArchitectures.ts), keyed
@@ -110,13 +120,50 @@ interface WorkshopState {
   // Defaults on (existing behavior, unchanged unless a student opts out).
   budgetCheckingEnabled: boolean;
 
-  // Whether the on-demand Components panel (ComponentSidebar) is open.
-  // Lives here rather than as local component state so the guided tour
-  // (TutorialRunner) can force it open for steps that need the real
-  // catalog list visible ("Drag or click X to add it") — see
-  // tutorialPlanner.ts's `requiresComponentsPanel`. Starts closed: the
-  // Workshop opens canvas-first by default (see ComponentSidebar.tsx).
-  componentsPanelOpen: boolean;
+  // Which of the Workshop's two on-demand Component Library panels
+  // (ComponentSidebar) is open — "distributed", "ai-flow", or neither
+  // (null). The two packs are mutually exclusive, same shape as
+  // `tracePanelOpen`/`reliabilityPanelOpen` below: opening one panel
+  // closes the other rather than letting both stack and push the canvas
+  // trigger buttons down the screen. Lives here rather than as local
+  // component state so the guided tour (TutorialRunner) can force the
+  // right pack open for steps that need the real catalog list visible
+  // ("Drag or click X to add it") — see tutorialPlanner.ts's
+  // `requiresComponentsPanel`. Starts closed (null): the Workshop opens
+  // canvas-first by default (see ComponentSidebar.tsx).
+  openComponentPack: ComponentPackId | null;
+
+  /**
+   * Whether the Trace Panel (the Agentic domain's OTel-shaped playback
+   * view — docs/Agentic_AI.md §2.4) is open. Same "lives in the store, not
+   * local component state" reasoning as openComponentPack — a toggle,
+   * doesn't touch the canvas or a run itself.
+   */
+  tracePanelOpen: boolean;
+
+  /**
+   * `docs/Agentic_AI.md` §2.5's pass^k reliability score — the same
+   * "re-run and compare" shape as `cdnComparisons`, but across seeds
+   * instead of a spliced entity. null until the first check runs (or
+   * after a `reset()`); recomputed fresh on demand, never auto-run on
+   * every `runSimulation()` since it's meaningfully more expensive (N
+   * full simulation runs, not one).
+   */
+  reliabilityScoreResult: ReliabilityScoreResult | null;
+  isComputingReliability: boolean;
+  reliabilityScoreError: string | null;
+  reliabilityPanelOpen: boolean;
+
+  /**
+   * "Batman Mode" (`night-ops`) villain attack loaded onto the next run,
+   * if any — see content/workshop/villainAttacks.ts. Overrides whatever
+   * traffic pattern the active scenario (or freeform Client rate) would
+   * otherwise produce, scaled off it rather than replacing it with an
+   * unrelated number (see workshopBridge.baselineRequestRate). Purely a
+   * run-time toggle: doesn't touch the canvas itself, only what
+   * `runSimulation` feeds the engine next.
+   */
+  activeVillainAttackId: VillainAttackId | null;
 
   onNodesChange: (changes: NodeChange<ArchitectureNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<ArchitectureEdge>[]) => void;
@@ -149,9 +196,15 @@ interface WorkshopState {
   setScenarioDurationMs: (durationMs: number) => void;
   setConnectionLatencyMs: (latencyMs: number) => void;
   setBudgetCheckingEnabled: (enabled: boolean) => void;
-  setComponentsPanelOpen: (open: boolean) => void;
+  setOpenComponentPack: (pack: ComponentPackId | null) => void;
+  setTracePanelOpen: (open: boolean) => void;
+  setReliabilityPanelOpen: (open: boolean) => void;
+  /** Loads (or clears, via `null`) a villain attack for the next `runSimulation()` call. */
+  setVillainAttack: (id: VillainAttackId | null) => void;
 
   runSimulation: () => void;
+  /** Re-runs the current architecture across N seeds and scores the pass^k-style reliability result — see `reliabilityScoreResult`'s own doc. */
+  runReliabilityScore: () => void;
   /** Clears the last run's result/error and node statuses — leaves the architecture untouched. */
   resetSimulation: () => void;
 
@@ -241,8 +294,8 @@ function attachPlayback(
   set: (partial: Partial<WorkshopState>) => void
 ): void {
   unsubscribePlayback?.();
-  unsubscribePlayback = controller.subscribe((state, metrics) => {
-    set({ playbackState: state, playbackMetrics: metrics });
+  unsubscribePlayback = controller.subscribe((state, metrics, visibleEvents) => {
+    set({ playbackState: state, playbackMetrics: metrics, playbackVisibleEvents: visibleEvents });
   });
 }
 
@@ -250,6 +303,47 @@ function detachPlayback(controller: PlaybackController | null): void {
   unsubscribePlayback?.();
   unsubscribePlayback = null;
   controller?.dispose();
+}
+
+/**
+ * Builds the SimulationConfig the current canvas + scenario/villain-attack
+ * state would produce — the exact logic `runSimulation()` already used
+ * inline, factored out so `runReliabilityScore()` can build the identical
+ * config to re-run across seeds without duplicating the villain-attack
+ * traffic-pattern-override reasoning.
+ */
+function buildCurrentSimulationConfig(
+  state: Pick<
+    WorkshopState,
+    | "nodes"
+    | "edges"
+    | "scenarioDurationMs"
+    | "connectionLatencyMs"
+    | "activeScenarioId"
+    | "activeVillainAttackId"
+  >
+): ReturnType<typeof buildSimulationConfig> {
+  const { nodes, edges, scenarioDurationMs, connectionLatencyMs, activeScenarioId, activeVillainAttackId } =
+    state;
+  const activeScenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
+  // A loaded villain attack overrides the scenario's (or freeform
+  // Client's) traffic pattern outright, scaled off it rather than
+  // replaced with an unrelated number — see baselineRequestRate.
+  const trafficPattern = activeVillainAttackId
+    ? getVillainAttack(activeVillainAttackId).buildPattern(
+        baselineRequestRate(
+          activeScenario?.trafficPattern,
+          nodes.find((n) => n.data.entityType === "client")?.data.config.requestRate
+        ),
+        scenarioDurationMs
+      )
+    : activeScenario?.trafficPattern;
+  return buildSimulationConfig(nodes, edges, {
+    durationMs: scenarioDurationMs,
+    connectionLatencyMs,
+    seed: activeScenario?.seed,
+    trafficPattern,
+  });
 }
 
 export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
@@ -268,7 +362,11 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   playbackController: null,
   playbackState: null,
   playbackMetrics: null,
+  playbackVisibleEvents: null,
   cdnComparisons: null,
+  reliabilityScoreResult: null,
+  isComputingReliability: false,
+  reliabilityScoreError: null,
 
   activeScenarioId: null,
   viewingOptimalSolution: false,
@@ -276,7 +374,10 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   scenarioDurationMs: DEFAULT_SCENARIO_DURATION_MS,
   connectionLatencyMs: DEFAULT_CONNECTION_LATENCY_MS,
   budgetCheckingEnabled: true,
-  componentsPanelOpen: false,
+  openComponentPack: null,
+  activeVillainAttackId: null,
+  tracePanelOpen: false,
+  reliabilityPanelOpen: false,
 
   onNodesChange: (changes) => {
     // React Flow's own Backspace/Delete handling (deleteKeyCode on
@@ -293,14 +394,26 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       (change) => !(change.type === "remove" && isGivenNode(scenario, change.id))
     );
     set({ nodes: applyNodeChanges(filtered, get().nodes) });
+    // A node deletion (keyboard Delete — see the comment above) changes the
+    // architecture, not just its layout; a "position"/"select"/"dimensions"
+    // change doesn't. Stale results left on screen after a structural edit
+    // read as if they belonged to the architecture currently on the canvas,
+    // which they no longer do — see docs/Agentic_AI.md's "To check" list.
+    if (changes.some((change) => change.type === "remove") && get().simulationResult) {
+      get().resetSimulation();
+    }
   },
 
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) });
+    if (changes.some((change) => change.type === "remove") && get().simulationResult) {
+      get().resetSimulation();
+    }
   },
 
   onConnect: (connection) => {
     set({ edges: addEdge(connection, get().edges) });
+    if (get().simulationResult) get().resetSimulation();
   },
 
   addNode: (entityType, position) => {
@@ -315,6 +428,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       },
     };
     set({ nodes: [...get().nodes, node] });
+    if (get().simulationResult) get().resetSimulation();
   },
 
   removeNode: (id) => {
@@ -332,6 +446,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       ),
       selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
     });
+    if (get().simulationResult) get().resetSimulation();
   },
 
   setSelectedNode: (id) => {
@@ -363,7 +478,14 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   setScenarioDurationMs: (durationMs) => set({ scenarioDurationMs: durationMs }),
   setConnectionLatencyMs: (latencyMs) => set({ connectionLatencyMs: latencyMs }),
   setBudgetCheckingEnabled: (enabled) => set({ budgetCheckingEnabled: enabled }),
-  setComponentsPanelOpen: (open) => set({ componentsPanelOpen: open }),
+  setOpenComponentPack: (pack) => set({ openComponentPack: pack }),
+  // Both drawers share the identical fixed bottom-bar position (see
+  // TracePanel.tsx/ReliabilityPanel.tsx) — mutually exclusive, same
+  // "opening one closes the other" shape a tab strip would give for free,
+  // rather than letting them silently render on top of each other.
+  setTracePanelOpen: (open) => set({ tracePanelOpen: open, reliabilityPanelOpen: open ? false : get().reliabilityPanelOpen }),
+  setReliabilityPanelOpen: (open) => set({ reliabilityPanelOpen: open, tracePanelOpen: open ? false : get().tracePanelOpen }),
+  setVillainAttack: (id) => set({ activeVillainAttackId: id }),
 
   reset: () => {
     nodeIdCounter = 0;
@@ -377,10 +499,15 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackController: null,
       playbackState: null,
       playbackMetrics: null,
+      playbackVisibleEvents: null,
       cdnComparisons: null,
+      reliabilityScoreResult: null,
+      isComputingReliability: false,
+      reliabilityScoreError: null,
       activeScenarioId: null,
       viewingOptimalSolution: false,
       timedModeStartedAt: null,
+      activeVillainAttackId: null,
     });
   },
 
@@ -400,7 +527,11 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackController: null,
       playbackState: null,
       playbackMetrics: null,
+      playbackVisibleEvents: null,
       cdnComparisons: null,
+      reliabilityScoreResult: null,
+      isComputingReliability: false,
+      reliabilityScoreError: null,
       activeScenarioId: scenario.id,
       viewingOptimalSolution: false,
       // Any fresh scenario load exits timed mode by default — this is the
@@ -413,6 +544,7 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       // "silently exit timed mode."
       timedModeStartedAt: null,
       scenarioDurationMs: scenario.durationMs,
+      activeVillainAttackId: null,
     });
     recordAttempted(scenario.id);
   },
@@ -437,7 +569,11 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackController: null,
       playbackState: null,
       playbackMetrics: null,
+      playbackVisibleEvents: null,
       cdnComparisons: null,
+      reliabilityScoreResult: null,
+      isComputingReliability: false,
+      reliabilityScoreError: null,
       viewingOptimalSolution: true,
     });
   },
@@ -452,15 +588,9 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   runSimulation: () => {
     set({ isSimulating: true, simulationError: null });
 
-    const { nodes, edges, scenarioDurationMs, connectionLatencyMs, activeScenarioId } =
-      get();
-    const activeScenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
-    const built = buildSimulationConfig(nodes, edges, {
-      durationMs: scenarioDurationMs,
-      connectionLatencyMs,
-      seed: activeScenario?.seed,
-      trafficPattern: activeScenario?.trafficPattern,
-    });
+    const state = get();
+    const { nodes, edges } = state;
+    const built = buildCurrentSimulationConfig(state);
     if (!built.ok) {
       set({ isSimulating: false, simulationError: built.error });
       return;
@@ -521,11 +651,28 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackController: controller,
       playbackState: controller.getState(),
       playbackMetrics: controller.getMetrics(),
+      playbackVisibleEvents: controller.getVisibleEvents(),
     });
 
     // Simulation is instant; playback is what the user actually watches
     // (ARCHITECTURE.md §3 — Run Simulation starts playback immediately).
     controller.play();
+  },
+
+  runReliabilityScore: () => {
+    set({ isComputingReliability: true, reliabilityScoreError: null });
+
+    const built = buildCurrentSimulationConfig(get());
+    if (!built.ok) {
+      set({ isComputingReliability: false, reliabilityScoreError: built.error });
+      return;
+    }
+
+    // N full re-runs, not one — still comfortably instant at this app's
+    // scale (each run is well under 100ms), so no need to defer this off
+    // the main thread the way a much larger simulation might require.
+    const result = computeReliabilityScore(built.config);
+    set({ isComputingReliability: false, reliabilityScoreResult: result });
   },
 
   resetSimulation: () => {
@@ -536,7 +683,11 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       playbackController: null,
       playbackState: null,
       playbackMetrics: null,
+      playbackVisibleEvents: null,
       cdnComparisons: null,
+      reliabilityScoreResult: null,
+      isComputingReliability: false,
+      reliabilityScoreError: null,
       nodes: get().nodes.map((node) => ({
         ...node,
         data: { ...node.data, status: "idle" as const },

@@ -3,32 +3,45 @@
 /*
  * Engineering Studio — "Trace" Design Tokens
  *
- * Philosophy: the interface is an instrument, not an app. Warm void/paper
- * instead of cold SaaS navy-gray; one accent (signal copper) instead of the
- * default blue, reserved for actions and focus; status colors reserved
+ * Philosophy: the interface is an instrument, not an app. A cool near-black
+ * void (not the cold SaaS navy-gray this is still trying to avoid — see
+ * `--color-bg`'s hue/saturation, tuned closer to charcoal than to blue)
+ * paired with one warm accent (signal copper) instead of the default blue,
+ * reserved for actions and focus. The void used to be warm too (same hue
+ * family as the signal) — that read as an overall orange haze rather than
+ * a deliberate accent, so the void was cooled while the signal stayed
+ * copper: the contrast between them is what makes the accent read as an
+ * accent. Status colors reserved
  * exclusively for real simulated state (canvas nodes, metrics) so they never
  * stop meaning something. Two typefaces split strictly by role: serif for
  * anything meant to be read, mono for anything that is data or interface.
  * Radius is effectively zero throughout — hairline rules and corner-bracket
- * markers replace shadowed rounded cards. Dark-mode-first (the default — no
- * `data-theme` attribute needed), with a light theme layered on top under
- * `[data-theme="light"]`. See ThemeProvider.tsx for how that attribute gets
- * set. Every spacing/color/type value should come from here, nowhere else.
+ * markers replace shadowed rounded cards. Dark-only (the default — no
+ * `data-theme` attribute needed), with an experimental Night Ops variant
+ * layered on top under `[data-theme="night-ops"]`. See ThemeProvider.tsx
+ * for how that attribute gets set. Every spacing/color/type value should
+ * come from here, nowhere else.
  */
 
 :root {
   color-scheme: dark;
 
-  /* ---- Void / paper (warm, not cold navy-gray) ---- */
-  --color-bg: hsl(30 8% 6%);
-  --color-bg-elevated: hsl(30 7% 9%);
-  --color-bg-panel: hsl(28 6% 12%);
-  --color-border: hsl(30 10% 30% / 35%);
-  --color-border-hover: hsl(30 10% 45% / 50%);
+  /* ---- Void / paper (cool near-black, deliberately not warm anymore) ---- */
+  --color-bg: hsl(230 16% 5%);
+  --color-bg-elevated: hsl(228 14% 8%);
+  --color-bg-panel: hsl(228 12% 11%);
+  /* A dedicated "lift" tier, lighter than panel — cards used to hover from
+     bg-panel (11%) to bg-elevated (8%), i.e. they got *darker* on hover
+     despite elevated being the "raised" name. bg-hover is the tier that
+     was actually missing: every panel-resting interactive surface hovers
+     up into this instead. */
+  --color-bg-hover: hsl(228 12% 15%);
+  --color-border: hsl(230 8% 65% / 18%);
+  --color-border-hover: hsl(230 8% 65% / 30%);
 
-  --color-text: hsl(40 18% 92%);
-  --color-text-muted: hsl(35 10% 68%);
-  --color-text-subtle: hsl(30 7% 48%);
+  --color-text: hsl(220 10% 93%);
+  --color-text-muted: hsl(220 8% 66%);
+  --color-text-subtle: hsl(220 6% 44%);
 
   /* ---- Signal (the one accent — copper, not blue) ---- */
   --color-signal: hsl(28 85% 58%);
@@ -40,59 +53,29 @@
   --color-status-degraded: hsl(42 90% 55%);
   --color-status-critical: hsl(355 75% 58%);
 
+  /* ---- RAG pipeline phases — a deliberate, narrow exception to "color is
+     status, never category" above. Used by exactly one diagram (the
+     case-study RAG pipeline figure) to teach that embedding, retrieval,
+     and generation are three different pieces of machinery, not one blob
+     labeled "AI." Not general-purpose — don't reach for these outside
+     that one figure. */
+  --color-rag-embed: hsl(262 65% 72%);
+  --color-rag-retrieve: hsl(168 60% 55%);
+  --color-rag-generate: hsl(16 75% 62%);
+  --color-rag-corpus: hsl(46 45% 60%);
+
   --shadow-panel: none;
   --shadow-dropdown: 0 8px 20px -6px rgb(0 0 0 / 0.45);
   --shadow-elevated: none;
 }
 
 /*
- * Light theme — paper, not white. Same roles, inverted surface direction:
- * `bg` is the lightest warm paper tone and each raised surface goes a shade
- * *grayer* rather than lighter, since there's no headroom above paper.
- *
- * Tuned deliberately darker/higher-contrast than a first pass that read as
- * "poking white": that version spaced bg/elevated/panel only ~3 points of
- * lightness apart and ran hairline borders at 16–28% alpha, which is enough
- * contrast against a near-black dark bg but nearly disappears against
- * near-white paper (equal alpha reads as much fainter the lighter the
- * surface gets). Every panel, input, and card boundary in the product
- * leans on --color-border alone for definition, so this pair of tokens is
- * what actually keeps the light theme from collapsing into one flat wash.
- */
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --color-bg: hsl(38 30% 95%);
-  --color-bg-elevated: hsl(36 23% 89%);
-  --color-bg-panel: hsl(33 19% 83%);
-  --color-border: hsl(28 24% 22% / 32%);
-  --color-border-hover: hsl(28 24% 18% / 50%);
-
-  --color-text: hsl(28 24% 11%);
-  --color-text-muted: hsl(30 14% 30%);
-  --color-text-subtle: hsl(30 10% 41%);
-
-  --color-signal: hsl(22 85% 38%);
-  --color-signal-hover: hsl(22 87% 32%);
-  --color-signal-active: hsl(22 88% 27%);
-
-  --color-status-healthy: hsl(150 65% 26%);
-  --color-status-degraded: hsl(36 92% 34%);
-  --color-status-critical: hsl(355 75% 42%);
-
-  --shadow-panel: none;
-  --shadow-dropdown: 0 8px 20px -6px rgb(30 20% 10% / 0.18);
-  --shadow-elevated: none;
-}
-
-/*
- * Night Ops (PREVIEW) — an experimental third theme, not yet a default for
+ * Night Ops (PREVIEW) — an experimental second theme, not yet a default for
  * anyone. Same warm-void philosophy as Trace but pushed cold: true black
  * void instead of warm charcoal, and a hard saturated signal-yellow in
  * place of copper. Reachable by cycling ThemeToggle. Deliberately dark
- * only — there's no paper counterpart, since the whole point is testing
- * whether the colder, harder read is worth adopting before it's wired into
- * the light theme (or replaces the dark default) for real. See
+ * only, same as the default — the whole point is testing whether the
+ * colder, harder read is worth adopting as the default someday. See
  * docs/BROWSER-CHECKS.md for what to verify.
  */
 :root[data-theme="night-ops"] {
@@ -101,6 +84,7 @@
   --color-bg: hsl(240 18% 3%);
   --color-bg-elevated: hsl(228 15% 6%);
   --color-bg-panel: hsl(230 12% 10%);
+  --color-bg-hover: hsl(230 12% 14%);
   --color-border: hsl(240 7% 73% / 16%);
   --color-border-hover: hsl(240 7% 73% / 28%);
 
@@ -116,9 +100,92 @@
   --color-status-degraded: hsl(39 100% 56%);
   --color-status-critical: hsl(353 74% 56%);
 
+  /* Same four RAG-pipeline phase colors, re-tuned so they don't fight
+     Night Ops's colder void and gold signal — corpus in particular moves
+     off khaki (too close to the gold signal here) to a cool grey-blue. */
+  --color-rag-embed: hsl(262 72% 78%);
+  --color-rag-retrieve: hsl(168 65% 62%);
+  --color-rag-generate: hsl(16 80% 68%);
+  --color-rag-corpus: hsl(220 22% 64%);
+
   --shadow-panel: none;
   --shadow-dropdown: 0 8px 20px -6px rgb(0 0 0 / 0.6);
   --shadow-elevated: none;
+}
+
+/*
+ * Night Ops snowfall — the tail end of Night Ops's automatic weather loop
+ * (see weatherCycle.ts): NightOpsAtmosphere sets/clears `data-weather` on
+ * <html> as the cycle enters/leaves its snow phase, layered on top of
+ * `data-theme="night-ops"` the same way that attribute itself layers on
+ * top of the plain :root defaults above. Swaps the hard signal-yellow for
+ * a cold blue while snow is falling; every other Night Ops token
+ * (void/text/status colors) is untouched.
+ */
+:root[data-theme="night-ops"][data-weather="snow"] {
+  --color-signal: hsl(205 90% 62%);
+  --color-signal-hover: hsl(205 90% 68%);
+  --color-signal-active: hsl(205 90% 74%);
+}
+
+/*
+ * Paper (Light, PREVIEW) — the "paper" half of the void/paper pairing named
+ * above. Warm off-white rather than clinical pure white, with the same
+ * signal/status hue families as Trace re-tuned darker so they still hold
+ * contrast on a light ground (a bare lightness-only swap of the dark
+ * values would wash out to near-invisible). Reachable by cycling
+ * ThemeToggle, same mechanism as Night Ops.
+ *
+ * Landing-page-first: the `--landing-*` tokens below are this theme's one
+ * deliberate departure from Trace's zero-radius/no-shadow/no-scroll-motion
+ * rules (see page.tsx's file-level comment and Reveal.tsx) — soft rounded
+ * cards, real shadows, and a fade-up-on-scroll reveal, all scoped to only
+ * take effect under `data-theme="light"` so the dark theme's flat hairline
+ * instrument aesthetic is untouched. Every other page still just inherits
+ * this theme's plain color tokens (bg/text/border/signal/status) and
+ * hasn't been individually redesigned for a light ground yet.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: hsl(40 30% 98%);
+  --color-bg-elevated: hsl(0 0% 100%);
+  --color-bg-panel: hsl(36 24% 95%);
+  /* Paper's panel(95%) → elevated(100%) already lightens on hover, unlike
+     Trace/Night Ops — bg-hover just names that existing correct direction
+     so card components can reach for one token across all three themes. */
+  --color-bg-hover: hsl(0 0% 100%);
+  --color-border: hsl(230 14% 20% / 10%);
+  --color-border-hover: hsl(230 14% 20% / 20%);
+
+  --color-text: hsl(230 22% 13%);
+  --color-text-muted: hsl(230 10% 38%);
+  --color-text-subtle: hsl(230 8% 56%);
+
+  --color-signal: hsl(28 82% 45%);
+  --color-signal-hover: hsl(28 85% 39%);
+  --color-signal-active: hsl(28 88% 34%);
+
+  --color-status-healthy: hsl(150 58% 34%);
+  --color-status-degraded: hsl(38 88% 40%);
+  --color-status-critical: hsl(355 68% 45%);
+
+  --color-rag-embed: hsl(262 55% 54%);
+  --color-rag-retrieve: hsl(168 58% 36%);
+  --color-rag-generate: hsl(16 70% 46%);
+  --color-rag-corpus: hsl(42 40% 40%);
+
+  --shadow-panel: none;
+  --shadow-dropdown: 0 8px 24px -8px rgb(30 27 20 / 0.14);
+  --shadow-elevated: none;
+
+  /* ---- Landing-only softness (see banner comment above) ---- */
+  --landing-radius: 20px;
+  --landing-radius-lg: 28px;
+  --landing-shadow-card: 0 1px 2px rgb(30 27 20 / 0.04), 0 24px 48px -20px rgb(30 27 20 / 0.16);
+  --landing-shadow-hover: 0 1px 2px rgb(30 27 20 / 0.06), 0 32px 64px -20px rgb(30 27 20 / 0.22);
+  --landing-glow: radial-gradient(42rem 26rem at 12% -10%, hsl(28 90% 88% / 0.6), transparent 60%),
+    radial-gradient(38rem 24rem at 90% 5%, hsl(150 55% 88% / 0.45), transparent 60%);
 }
 
 :root {
@@ -179,15 +246,32 @@
   --radius-lg: 0px;
   --radius-xl: 0px;
 
+  /* ---- Landing-only softness — 0/none by default so Trace's
+     zero-radius/no-shadow rule holds on every theme except Paper, which
+     overrides these under `:root[data-theme="light"]` above. ---- */
+  --landing-radius: 0px;
+  --landing-radius-lg: 0px;
+  --landing-shadow-card: none;
+  --landing-shadow-hover: none;
+  --landing-glow: none;
+
   /* ---- Motion ---- */
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
   /* For the canvas request-pulse (M4) — steady, mechanical, not eased. */
   --duration-pulse: 900ms;
+  /* For Paper's landing-page reveal only (see .landing-reveal below) — a
+     slower, floatier settle than any of the UI-chrome durations above,
+     which are all tuned for hover/press feedback, not entrance motion. */
+  --duration-reveal: 700ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --ease-mechanical: linear;
+  /* A soft decelerate ("expo-out") for Paper's reveal — noticeably
+     gentler/floatier than --ease-standard, which is tuned for snappy
+     hover/press feedback rather than an entrance. */
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
@@ -195,6 +279,7 @@
   --color-bg: var(--color-bg);
   --color-bg-elevated: var(--color-bg-elevated);
   --color-bg-panel: var(--color-bg-panel);
+  --color-bg-hover: var(--color-bg-hover);
   --color-border: var(--color-border);
   --color-border-hover: var(--color-border-hover);
 
@@ -209,6 +294,11 @@
   --color-status-healthy: var(--color-status-healthy);
   --color-status-degraded: var(--color-status-degraded);
   --color-status-critical: var(--color-status-critical);
+
+  --color-rag-embed: var(--color-rag-embed);
+  --color-rag-retrieve: var(--color-rag-retrieve);
+  --color-rag-generate: var(--color-rag-generate);
+  --color-rag-corpus: var(--color-rag-corpus);
 
   /* ---- Layout ---- */
   --size-sidebar: var(--size-sidebar);
@@ -310,6 +400,314 @@
 .react-flow__connection-path {
   stroke: var(--color-signal) !important;
   stroke-width: 1.5 !important;
+}
+
+/* ---- React Flow attribution — themed, not removed ---- */
+/* XY Flow's license requires this link stay visible and functional unless
+   the project's on a paid plan (we aren't) — restyling it to match the
+   rest of the interface, rather than hiding it, is what's actually
+   allowed. `--xy-attribution-background-color` is the library's own
+   supported override hook (see its stylesheet); font/color/border aren't
+   exposed as variables, so those need a direct, `!important` override of
+   the vendor default the same way the edge-path rules above do. */
+.react-flow {
+  --xy-attribution-background-color: var(--color-bg-elevated);
+}
+.react-flow__attribution {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 1px 5px !important;
+  margin: 6px !important;
+}
+.react-flow__attribution a {
+  font-family: var(--font-mono) !important;
+  font-size: 9px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--color-text-subtle) !important;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+.react-flow__attribution a:hover {
+  color: var(--color-text-muted) !important;
+}
+
+/* ---- Electric loader (ElectricLoader.tsx / route loading.tsx files) ---- */
+/* Irregular flicker rather than a steady pulse — real current isn't even. */
+@keyframes electric-flicker {
+  0%,
+  19%,
+  21%,
+  100% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.35;
+  }
+  55% {
+    opacity: 1;
+  }
+  56% {
+    opacity: 0.6;
+  }
+  58% {
+    opacity: 1;
+  }
+}
+@keyframes electric-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.animate-electric-flicker {
+  animation: electric-flicker 1.8s var(--ease-mechanical) infinite;
+}
+.animate-electric-sweep {
+  animation: electric-sweep 1s var(--ease-mechanical) infinite;
+}
+
+/* `/foundations` forest map: three-stage reveal of a real progress delta
+   since the reader's last visit (`FoundationsMap`'s `reveal` diff, "seen"
+   snapshot in `foundationsProgress.ts`) — not a generic replay of the
+   current frontier on every mount, which is what an earlier pass did.
+   Stage 1 (0ms–~2.5s: a 1s hold at the old "available" look, then a
+   1500ms `node-complete-wipe` below): a just-finished lesson's card turns
+   yellow→green as a slow left-to-right sweep, not a uniform crossfade — a
+   plain `transition-colors` read as the whole card flashing green at once,
+   reported back as not actually looking like "progress," and a first,
+   quicker (700ms) version of the sweep itself was reported back as still
+   too fast to actually watch the color "progress" across the card rather
+   than just noticing it had. Stage 2 (2.45s in, 900ms long, `edge-draw-in`
+   below): the trail into whatever that unlocks fades in. Stage 3 (3.35s
+   in, 900ms long, `node-light-in`): that newly-unlocked node pops from
+   dark to lit. "The path appears, then the
+   destination lights up," three visible beats, not one instant blip. Slow
+   and staged on purpose — reported back three times now: first that it
+   wasn't noticeable at all (500ms, no delay, competing with the also-instant
+   auto-scroll-to-frontier jump), then that it needed to tell the *actual*
+   story (which lesson just finished, what that specifically opened) rather
+   than "the current frontier pops on every single visit regardless of
+   whether anything changed," then that stage 1 itself was still too quick
+   to actually see the "before" (a 50ms hold before the transition — long
+   enough for two commits to animate between, too short for a reader to
+   register the yellow before it started going green). Stages 2/3's delays
+   below are offset later to match stage 1's longer hold. Deliberately no
+   `animation-fill-mode:
+   forwards` on `node-light-in`: `MapNode`'s available state also has a
+   `hover:` transform (lift on hover), and a `forwards`-held animation
+   would pin `transform` past the animation's own end, permanently
+   shadowing that hover effect. Not needed anyway — its `to` state already
+   matches the element's normal resting style (the same inline
+   `translate(-50%, -50%)` `MapNode` sets), so the animation can just end
+   and hand back to the normal cascade with no visible snap. */
+/* Stage 1's wipe: `MapNode` stacks the same card twice while a lesson is
+   `"completing"` — the real completed-status card underneath (already its
+   true final colors, painted from the first frame), and a decorative
+   available-styled duplicate on top that clips itself away from the left
+   edge, like a progress bar's fill sweeping rightward and uncovering the
+   real card as it goes. Only the `inset()` shorthand's *left* offset
+   moves (0% → 100%); the right stays pinned at 0, so the strip that's
+   still covering the card is always anchored to the right edge and the
+   one visible boundary — where yellow ends and green has already been
+   revealed — travels left-to-right, not the other way. Ends fully clipped
+   (nothing left to paint), so `forwards` is safe here — unlike
+   `node-light-in` below, there's no resting style on this decorative
+   layer that could get pinned past its intended end; `MapNode` never
+   removes it from the DOM afterward for exactly that reason. `linear`,
+   not `var(--ease-emphasized)` — a progress fill reads as a constant-speed
+   sweep, not an eased flourish. */
+@keyframes node-complete-wipe {
+  from {
+    clip-path: inset(0 0 0 0%);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+.animate-node-complete-wipe {
+  animation: node-complete-wipe 1500ms linear 1000ms forwards;
+}
+@keyframes node-light-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+.animate-node-light-in {
+  animation: node-light-in 900ms var(--ease-emphasized) 3350ms backwards;
+}
+/* A quick pop for the checkmark icon replacing the "available" dot the
+   instant a card's stage-1 color transition settles — cheap enough to be
+   a generic reusable entrance (no translate baked in, unlike
+   `node-light-in`, which is why that one can't just be reused here). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-pop-in {
+  animation: pop-in 300ms var(--ease-emphasized);
+}
+/* A true stroke-by-stroke draw-in (`pathLength="1"` + animated
+   `stroke-dashoffset`, so `stroke-dasharray` can use normalized 0–1 units
+   regardless of the curve's real rendered length) was tried first and
+   dropped — live-checked, and Chrome wasn't actually rescaling
+   `stroke-dasharray` by `pathLength` here (computed style showed a literal
+   `1px` dash, not `pathLength`-normalized, likely an interaction with
+   `vector-effect: non-scaling-stroke` on the same `<path>`), so it
+   rendered as a repeating micro-dash pattern instead of one solid,
+   growing line. A plain opacity fade reads less literally as "drawing
+   in," but it's reliable across the one thing that actually matters here
+   (this browser, this exact SVG setup) instead of a fragile trick. */
+@keyframes edge-draw-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-edge-draw-in {
+  animation: edge-draw-in 900ms var(--ease-emphasized) 2450ms backwards;
+}
+
+/* `/foundations` cave treatment (Batman Mode only — `FoundationsMap`'s
+   `cave` flag, `CaveShroud`, `TorchCursor`, `TorchToggle`): the "dark →
+   glow" reuse of the yellow→green reveal above reuses `node-complete-wipe`/
+   `node-light-in`/`edge-draw-in` unchanged for *when* something lights up;
+   these two are purely decorative idle animations for things that are
+   already lit. A gentle flicker/breathe, not a hard blink — a torch flame
+   and a beacon both read as "a real light," not "a UI element pulsing for
+   attention." */
+@keyframes torch-flicker {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.94);
+  }
+  75% {
+    opacity: 0.95;
+    transform: scale(1.03);
+  }
+}
+.animate-torch-flicker {
+  animation: torch-flicker 1.6s ease-in-out infinite;
+}
+@keyframes cave-beacon-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 20px 4px var(--color-signal);
+  }
+  50% {
+    box-shadow:
+      0 0 28px 7px var(--color-signal);
+  }
+}
+.animate-cave-beacon-pulse {
+  animation: cave-beacon-pulse 3s ease-in-out infinite;
+}
+
+/* Hides a scrollable element's native scrollbar while keeping it fully
+   scrollable (wheel/trackpad/keyboard/programmatic `scrollTo` all still
+   work) — for surfaces meant to read as an open canvas (the `/foundations`
+   forest map) rather than a scrolled document, where a visible scrollbar
+   track reads as leftover browser chrome. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* older Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/new Edge */
+}
+
+/* `/foundations` (default theme only — night-ops has its own cave
+   atmosphere) base texture: an extremely faint dot grid evoking technical/
+   graph paper, not an illustrated shape — the "subtle blueprint cue"
+   this page asked for, deliberately restrained after an earlier pass here
+   (a circuit-schematic/wires/neumorphic-tile *background layer*) read as
+   disconnected decorative noise. One step fainter than --color-border on
+   purpose: this tiles across the entire page, so even --color-border's
+   own 18% alpha would add up to something much louder than a single
+   hairline rule ever reads as. */
+.bg-blueprint-grid {
+  background-image: radial-gradient(circle, hsl(230 8% 65% / 7%) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Shared page background for the five reading-room index pages (Learn hub,
+   Foundations, LLD, Entities, Agentic, Case Studies): identical to
+   `--color-bg` everywhere except Paper, where it's swapped for the
+   slightly darker `--color-bg-panel` — flagged back as "piercing" white on
+   /foundations once its cards needed a real edge to read against, and
+   extended here to every other reading room for the same reason. A plain
+   class (not a per-page `theme === "light"` JS check) so a server
+   component like `/learn`'s page.tsx — no `useTheme()`, no client
+   boundary — gets the same fix as the client-rendered index views. */
+.bg-reading-room {
+  background-color: var(--color-bg);
+}
+:root[data-theme="light"] .bg-reading-room {
+  background-color: var(--color-bg-panel);
+}
+
+/* `Card.tsx`'s surface — plain `--color-bg-panel` fill everywhere except
+   Paper (unchanged from before this rule existed), which gets a real
+   border, a rounded corner, and a resting/hover shadow layered on top of
+   the corner-bracket reticle those same cards already draw — the "boxes
+   match the background" fix `/foundations`'s own cards went through
+   first. A plain CSS class rather than a `Card`-internal `useTheme()`
+   check — see `Card.tsx`'s own doc comment for why that specific
+   component can't hold one. `1px 2px`/`10px 24px` shadow values match
+   `/foundations`'s cards exactly, for one consistent "resting card" feel
+   across every reading room. */
+.reading-room-card {
+  background-color: var(--color-bg-panel);
+}
+.reading-room-card:hover {
+  background-color: var(--color-bg-hover);
+  box-shadow: var(--shadow-dropdown);
+}
+:root[data-theme="light"] .reading-room-card {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--landing-radius);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+:root[data-theme="light"] .reading-room-card:hover {
+  background-color: var(--color-bg-elevated);
+  box-shadow: 0 10px 24px -16px rgb(15 23 42 / 0.16);
+}
+
+/* ---- Landing page reveal (Reveal.tsx) — Paper theme only. Outside
+   `data-theme="light"` these selectors match nothing, so the dark theme
+   keeps page.tsx's documented "nothing fades in on mount/scroll" rule
+   exactly as it was. Reveal.tsx adds `.is-visible` via IntersectionObserver
+   regardless of theme; only Paper gives that class anything to transition
+   from. */
+:root[data-theme="light"] .landing-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity var(--duration-reveal) var(--ease-smooth),
+    transform var(--duration-reveal) var(--ease-smooth);
+}
+:root[data-theme="light"] .landing-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ---- Reduced motion ---- */

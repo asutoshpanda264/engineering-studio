@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { TourStep } from "@/components/tour/types";
-import { useLiveRect } from "@/components/tour/useLiveRect";
+import { useLiveRect } from "@/lib/useLiveRect";
 
 const SPOTLIGHT_PADDING = 8;
 const CALLOUT_WIDTH = 320;

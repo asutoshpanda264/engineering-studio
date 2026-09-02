@@ -26,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           id={inputId}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${inputId}-error` : undefined}
-          className={`h-9 rounded-md border bg-bg-elevated px-3 text-sm text-text
+          className={`h-9 border bg-bg-elevated px-3 text-sm text-text
             placeholder:text-text-subtle
             transition-colors duration-fast ease-standard
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg

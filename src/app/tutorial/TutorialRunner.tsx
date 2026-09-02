@@ -29,7 +29,7 @@ export function TutorialRunner() {
   const edges = useWorkshopStore((s) => s.edges);
   const selectedNodeId = useWorkshopStore((s) => s.selectedNodeId);
   const simulationResult = useWorkshopStore((s) => s.simulationResult);
-  const setComponentsPanelOpen = useWorkshopStore((s) => s.setComponentsPanelOpen);
+  const setOpenComponentPack = useWorkshopStore((s) => s.setOpenComponentPack);
 
   const [activeTarget, setActiveTarget] = useState<EntityType | null>(null);
   const [paused, setPaused] = useState(false);
@@ -53,10 +53,13 @@ export function TutorialRunner() {
   // ComponentSidebar's catalog list is on-demand now (not a permanent
   // dock) — a step that spotlights it (see `requiresComponentsPanel`)
   // would otherwise highlight nothing until the user finds the toggle
-  // themselves, defeating the point of a guided step.
+  // themselves, defeating the point of a guided step. `requiresComponentsPanel`
+  // names exactly which of the two mutually-exclusive packs the target
+  // lives in, so this force-opens that one (and implicitly closes the
+  // other, same as clicking its trigger button would).
   useEffect(() => {
-    if (currentStep?.requiresComponentsPanel) setComponentsPanelOpen(true);
-  }, [currentStep, setComponentsPanelOpen]);
+    if (currentStep?.requiresComponentsPanel) setOpenComponentPack(currentStep.requiresComponentsPanel);
+  }, [currentStep, setOpenComponentPack]);
 
   const pickTarget = (type: EntityType) => {
     setActiveTarget(type);

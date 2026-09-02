@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { LessonBlock } from "@/content/shared/lesson";
+import type { BoxTone } from "@/components/content/diagrams/primitives";
 import { DIAGRAM_REGISTRY } from "@/components/content/diagrams/registry";
+import { CodeBlock } from "@/components/content/CodeBlock";
 import { FigureFrame } from "@/components/content/FigureFrame";
 import { FlowDiagram } from "@/components/content/diagrams/generic/FlowDiagram";
 import { SequenceDiagram } from "@/components/content/diagrams/generic/SequenceDiagram";
@@ -11,6 +13,8 @@ import { UmlDiagram } from "@/components/content/diagrams/generic/UmlDiagram";
 import { TimelineDiagram } from "@/components/content/diagrams/generic/TimelineDiagram";
 import { VennDiagram } from "@/components/content/diagrams/generic/VennDiagram";
 import { GraphDiagram } from "@/components/content/diagrams/generic/GraphDiagram";
+import { PipelineDiagram } from "@/components/content/diagrams/generic/PipelineDiagram";
+import { PipelinePhaseDiagram } from "@/components/content/diagrams/generic/PipelinePhaseDiagram";
 
 /**
  * Tiny inline-markdown subset for body text authored in `src/content/`:
@@ -32,7 +36,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={`${keyPrefix}-${i}`}
-          className="rounded-sm bg-bg-elevated px-1 py-0.5 font-mono text-[0.85em] text-signal"
+          className="bg-bg-elevated px-1 py-0.5 font-mono text-[0.85em] text-signal"
         >
           {match[1]}
         </code>,
@@ -54,6 +58,19 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 /**
+ * Bullet color for a `list` item's `tone` — same healthy/critical hues a
+ * diagram's status dot uses, so "good fit" / "bad fit" points read the
+ * same color language as everywhere else in the app instead of an inline
+ * ✅/❌ glyph doing the same job in a louder, less consistent way.
+ */
+const LIST_TONE_DOT: Record<BoxTone, string> = {
+  neutral: "bg-text-subtle",
+  signal: "bg-signal",
+  healthy: "bg-status-healthy",
+  critical: "bg-status-critical",
+};
+
+/**
  * Renders one `LessonBlock` in the visual language `/entities/[slug]`
  * already established (hairline borders, `bg-bg-panel` boxes, mono
  * uppercase micro-labels, numbered-circle vs. dot list markers) so every
@@ -69,7 +86,7 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
 
     case "diagram":
       return (
-        <pre className="overflow-x-auto border border-border bg-bg-panel p-4 font-mono text-xs leading-relaxed text-text-muted">
+        <pre className="overflow-x-auto bg-bg-panel p-4 font-mono text-xs leading-relaxed text-text-muted">
           {block.lines.join("\n")}
         </pre>
       );
@@ -150,23 +167,36 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
         </FigureFrame>
       );
 
-    case "code":
+    case "pipeline":
+      // The "phase" variant renders free-standing, no FigureFrame — its own
+      // per-node color already gives it enough visual weight that the
+      // shared bordered panel (every other diagram's frame) read as a box
+      // around a box. Still wrapped for horizontal-scroll safety only, same
+      // as FigureFrame itself provides for a diagram wider than its column.
+      if (block.variant === "phase") {
+        return (
+          <div className="overflow-x-auto">
+            <PipelinePhaseDiagram
+              nodes={block.nodes}
+              edgeLabels={block.edgeLabels}
+              sideNodes={block.sideNodes}
+              animated={block.animated}
+            />
+          </div>
+        );
+      }
       return (
-        <div className="overflow-hidden border border-border">
-          {block.language && (
-            <div className="border-b border-border bg-bg-elevated px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-text-subtle">
-              {block.language}
-            </div>
-          )}
-          <pre className="overflow-x-auto bg-bg-panel p-4 font-mono text-xs leading-relaxed text-text">
-            {block.code}
-          </pre>
-        </div>
+        <FigureFrame>
+          <PipelineDiagram nodes={block.nodes} edgeLabels={block.edgeLabels} sideNodes={block.sideNodes} />
+        </FigureFrame>
       );
+
+    case "code":
+      return <CodeBlock language={block.language} code={block.code} />;
 
     case "table":
       return (
-        <div className="overflow-x-auto border border-border">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-border bg-bg-elevated">
@@ -220,29 +250,36 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
     case "list":
       return block.ordered ? (
         <ol className="flex flex-col gap-3">
-          {block.items.map((item, i) => (
-            <li key={i} className="flex gap-2.5 text-sm text-text-muted">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center border border-signal/40 font-mono text-[11px] font-medium text-signal">
-                {i + 1}
-              </span>
-              <span className="leading-relaxed">{renderInline(item, `l${i}`)}</span>
-            </li>
-          ))}
+          {block.items.map((item, i) => {
+            const text = typeof item === "string" ? item : item.text;
+            return (
+              <li key={i} className="flex gap-2.5 text-sm text-text-muted">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center border border-signal/40 font-mono text-[11px] font-medium text-signal">
+                  {i + 1}
+                </span>
+                <span className="leading-relaxed">{renderInline(text, `l${i}`)}</span>
+              </li>
+            );
+          })}
         </ol>
       ) : (
         <ul className="flex flex-col gap-3">
-          {block.items.map((item, i) => (
-            <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
-              <span className="mt-1.5 size-1 shrink-0 rounded-full bg-signal" aria-hidden />
-              <span>{renderInline(item, `l${i}`)}</span>
-            </li>
-          ))}
+          {block.items.map((item, i) => {
+            const text = typeof item === "string" ? item : item.text;
+            const tone = typeof item === "string" ? undefined : item.tone;
+            return (
+              <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
+                <span className={`mt-1.5 size-1 shrink-0 rounded-full ${LIST_TONE_DOT[tone ?? "signal"]}`} aria-hidden />
+                <span>{renderInline(text, `l${i}`)}</span>
+              </li>
+            );
+          })}
         </ul>
       );
 
     case "qa":
       return (
-        <div className="flex flex-col gap-1.5 border border-border bg-bg-panel p-4">
+        <div className="flex flex-col gap-1.5 bg-bg-panel p-4">
           <p className="text-sm font-medium text-text">&ldquo;{renderInline(block.question, "q")}&rdquo;</p>
           <p className="text-sm leading-relaxed text-text-muted">{renderInline(block.answer, "a")}</p>
         </div>

@@ -102,7 +102,7 @@ function CollapsibleSection({
 
   return (
     <div
-      className={`rounded-md border transition-colors duration-fast ease-standard ${
+      className={`border transition-colors duration-fast ease-standard ${
         highlighted ? "border-signal/40 bg-signal/5" : "border-border bg-bg-panel"
       }`}
     >
@@ -110,7 +110,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-md p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+        className="flex w-full items-center gap-2 p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
       >
         <ChevronRight
           className={`size-3.5 shrink-0 text-text-subtle transition-transform duration-fast ${open ? "rotate-90" : ""}`}
@@ -299,7 +299,7 @@ function StampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) {
   ];
 
   return (
-    <div className="rounded-md bg-bg-elevated p-2.5">
+    <div className="bg-bg-elevated p-2.5">
       <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-subtle">
         Stampede — {stampede.coalescedMisses} avoided
       </p>
@@ -314,9 +314,9 @@ function StampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) {
                   {bar.value} ({(fraction * 100).toFixed(0)}%)
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-panel">
+              <div className="h-1.5 overflow-hidden bg-bg-panel">
                 <div
-                  className={`h-full rounded-full ${bar.color}`}
+                  className={`h-full ${bar.color}`}
                   style={{ width: `${fraction * 100}%` }}
                 />
               </div>
@@ -330,7 +330,7 @@ function StampedeSection({ stampede }: { stampede: CacheStampedeMetrics }) {
 
 function MetricStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-bg-elevated px-2 py-1.5">
+    <div className="bg-bg-elevated px-2 py-1.5">
       <p className="text-[11px] uppercase tracking-wide text-text-subtle">{label}</p>
       <p className="text-sm font-medium text-text">{value}</p>
     </div>

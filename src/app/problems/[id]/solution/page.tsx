@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Lightbulb } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Badge } from "@/components/ui/Badge";
 import { ArticleSection } from "@/components/ui/ArticleSection";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { GraphDiagram } from "@/components/content/diagrams/generic/GraphDiagram";
 import type { GraphDiagramEdge, GraphDiagramNode } from "@/content/shared/lesson";
 import { getScenario, SCENARIOS, SCENARIO_TOPIC_LABEL } from "@/scenarios";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
-import { difficultyColorClass, difficultyMeter } from "@/lib/difficultyDisplay";
+import { DifficultyMeter } from "@/components/ui/DifficultyMeter";
 import type { OptimalSolution } from "@/scenarios";
 
 export function generateStaticParams() {
@@ -75,23 +75,18 @@ export default async function ProblemSolutionPage({
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
-          <Link
-            href="/problems"
-            className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Problems
-          </Link>
-          <div className="flex items-center gap-3">
+      <AppHeader
+        back={{ href: "/problems", label: "Problems" }}
+        maxWidthClassName="max-w-3xl"
+        right={
+          <>
             <ThemeToggle />
             <LinkButton href={`/workshop?scenario=${scenario.id}`} variant="secondary" size="sm" className="bg-bg-elevated">
               Try it yourself
             </LinkButton>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="mx-auto w-full max-w-3xl px-6 py-12">
         <div className="mb-10 flex flex-col gap-3">
@@ -103,9 +98,7 @@ export default async function ProblemSolutionPage({
             ))}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-text">{scenario.title} — Solution</h1>
-          <p className={`font-mono text-[11px] tracking-wide ${difficultyColorClass(scenario.difficulty)}`}>
-            {difficultyMeter(scenario.difficulty)} {scenario.difficulty}/5
-          </p>
+          <DifficultyMeter level={scenario.difficulty} />
           <p className="max-w-xl text-sm text-text-muted">{scenario.story}</p>
         </div>
 
@@ -114,7 +107,7 @@ export default async function ProblemSolutionPage({
             <Lightbulb className="mt-0.5 size-4 shrink-0 text-signal" aria-hidden />
             <p className="text-sm text-text">{solution.summary}</p>
           </div>
-          <div className="border border-border bg-bg-panel p-4">
+          <div className="bg-bg-panel p-4">
             <GraphDiagram nodes={nodes} edges={edges} />
           </div>
           <p className="mt-3 text-xs text-text-subtle">

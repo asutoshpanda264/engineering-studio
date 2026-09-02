@@ -1,6 +1,6 @@
 import type { EntityType } from "@/simulation/types";
 import type { ArchitectureEdge, ArchitectureNode } from "@/store/workshopStore";
-import { getEntityCatalogItem } from "@/lib/entityCatalog";
+import { getEntityCatalogItem, packIdForItem } from "@/lib/entityCatalog";
 import type { TourStep } from "@/components/tour/types";
 
 /**
@@ -45,6 +45,40 @@ export const TUTORIAL_RECIPES: Record<EntityType, EntityType[]> = {
   replica_pool: ["client", "api", "replica_pool", "database"],
   reverse_proxy: ["client", "reverse_proxy", "api"],
   kafka: ["client", "api", "kafka", "database"],
+  // Agentic AI domain (docs/Agentic_AI.md) — Tool Use, the simplest of the
+  // six canonical patterns: an llm_call reasoning step calling a tool_call
+  // action. Separate curriculum from the chains above; reachable from
+  // TutorialPanel.tsx's own "Agentic AI" group (mirroring
+  // ComponentSidebar.tsx's), not just featured as Core Flow is.
+  llm_call: ["client", "llm_call"],
+  tool_call: ["client", "llm_call", "tool_call"],
+  agent_orchestrator: ["client", "agent_orchestrator", "llm_call"],
+  // Doesn't require anything downstream either (see class doc — "safe to
+  // end a chain on"), so it closes its own recipe the same way llm_call
+  // does rather than needing a real terminal entity after it.
+  memory_context_store: ["client", "llm_call", "memory_context_store"],
+  // Also safe to end a chain on. Sits upstream of the llm_call it feeds,
+  // not downstream of one — a retriever fetches context an llm_call then
+  // reasons over, the reverse order from memory_context_store above.
+  retriever: ["client", "retriever", "llm_call"],
+  // Downstream of the llm_call it checks — Reflection's own topology
+  // (see GuardrailValidator.ts's class doc), minus the Agent Orchestrator
+  // that turns a single check into a real retry loop; this recipe is
+  // just "how do I add and wire this one thing," not the full pattern.
+  guardrail_validator: ["client", "llm_call", "guardrail_validator"],
+  // Ends on a single llm_call — a tutorial recipe only needs one
+  // downstream target to demonstrate wiring; the SLM/LLM cascade itself
+  // needs a second llm_call wired alongside it, which this "how do I add
+  // this one thing" scaffold deliberately doesn't try to teach (see
+  // ModelRouter.ts's own class doc on the wiring-order convention).
+  model_router: ["client", "model_router", "llm_call"],
+  // Sits directly in front of the irreversible tool_call it gates — the
+  // lesson content written ahead of this entity already argues for this
+  // exact placement (01-what-is-an-agent.ts, 04-tool-use-and-the-tool-
+  // call-boundary.ts). Also safe to end a chain on (see class doc), so
+  // this recipe closes on the gate itself rather than needing one more
+  // real entity after it.
+  human_in_loop_gate: ["client", "llm_call", "tool_call", "human_in_loop_gate"],
 };
 
 /**
@@ -189,7 +223,7 @@ export function computeCurrentStep({
             : `Drag or click ${label(type)} to add it — it ${lowercaseFirst(catalogItem.description)}.`,
         getTarget: () => byTourId(`sidebar-component-${type}`),
         placement: "right",
-        requiresComponentsPanel: true,
+        requiresComponentsPanel: packIdForItem(catalogItem),
       };
     }
     if (prevType) {
@@ -233,7 +267,7 @@ export function computeCurrentStep({
         body: `In production, ${targetLabel} always sits in front of more than one ${followLabel} — with only one, there's nothing behind it to actually spread work across. Drag or click ${followLabel} again to add a second one.`,
         getTarget: () => byTourId(`sidebar-component-${fanOutType}`),
         placement: "right",
-        requiresComponentsPanel: true,
+        requiresComponentsPanel: packIdForItem(getEntityCatalogItem(fanOutType)),
       };
     }
   }

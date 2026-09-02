@@ -1,32 +1,31 @@
 import type { SVGProps } from "react";
 
 /**
- * A generic bat silhouette — not a reproduction of any specific
- * trademarked logo mark, just a bat shape: two pointed ears with a notch
- * between them, two wide wings each sweeping out to a single tip with one
- * gentle scallop on the trailing edge, tapering to a single point below.
- * Used for the Night Ops theme-toggle icon, the flying swarm transition,
- * and the ambient spotlight symbol (see `night-ops/`).
+ * The bat-signal mark. Two earlier versions of this component were a
+ * hand-drawn *generic* bat silhouette, deliberately not the actual
+ * trademarked Batman emblem — both were live-checked and rejected as
+ * "still looks weird." The path below is instead traced from a real
+ * bat-signal SVG the user supplied (recolored, bounding box tightened to
+ * this viewBox) — this is knowingly the real DC/Batman logo shape, not a
+ * generic approximation; that trade-off (fidelity over originality) was
+ * an explicit call by the user for this project, not a default to repeat
+ * without asking elsewhere.
  *
- * Deliberately few points, concentrated at the ears/wingtips/tail rather
- * than spread evenly around a center — an earlier version alternated
- * in/out points uniformly all the way around, which read as a
- * many-legged bug instead of two solid wings.
+ * Used for the Night Ops theme-toggle icon and the bat-signal transition
+ * (see `night-ops/`) — both via `currentColor`, so this file owns shape
+ * only, never color.
  */
 export function BatMark({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      viewBox="0 0 200 100"
+      viewBox="0.5 5.5 38 20"
       fill="currentColor"
       className={className}
       aria-hidden
       {...rest}
     >
-      <polygon
-        points="
-          100,16 114,0 128,22 200,26 176,50 140,40 108,62 100,80
-          92,62 60,40 24,50 0,26 72,22 86,0
-        "
+      <path
+        d="M30.555 23.53c0 0.062 1.951-2.357 0.39-3.981-1.874-2.124-5.116 1.056-5.116 1.056-2.562-5.059-6.424 3.145-6.424 3.145s-3.348-7.731-6.221-3.047c0.062 0-2.383-2.793-4.819-1.481-1.749 1.749 0 4.091 0 4.091-9.119-3.186-9.712-12.492 2.952-16.286-3.576 4.481 6.59 10.649 5.84-0.344l2.155 1.89c0 0 2.171-1.796 2.171-1.921-0.25 10.993 9.369 4.544 6.121 0.484 11.429 3.308 13.381 11.21 2.951 16.394z"
       />
     </svg>
   );

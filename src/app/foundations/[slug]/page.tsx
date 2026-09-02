@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import { ArticleSection as Section } from "@/components/ui/ArticleSection";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { EntityTableOfContents } from "@/components/entities/EntityTableOfContents";
 import type { TocSection } from "@/components/entities/EntityTableOfContents";
@@ -13,6 +14,7 @@ import { LockInPanel } from "@/components/lockIn/LockInPanel";
 import { LockInHeaderNav } from "@/components/lockIn/LockInHeaderNav";
 import { LockInChapterAction } from "@/components/lockIn/LockInChapterAction";
 import { HideWhileLockedIn } from "@/components/lockIn/HideWhileLockedIn";
+import { MarkCompleteButton } from "@/components/foundations/MarkCompleteButton";
 import { FOUNDATION_LESSONS, getFoundationLesson } from "@/content/foundations";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import { slugFromEntityType } from "@/lib/entityDeepDive";
@@ -60,29 +62,27 @@ export default async function FoundationLessonPage({
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
-          <LockInHeaderNav
-            left={
-              <Link
-                href="/foundations"
-                className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-              >
-                <ArrowLeft className="size-3.5" aria-hidden />
-                All lessons
-              </Link>
-            }
-            right={
-              <div className="flex items-center gap-3">
-                <ThemeToggle />
-                <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-                  Open Workshop
-                </LinkButton>
-              </div>
-            }
-          />
-        </div>
-      </header>
+      <AppHeader maxWidthClassName="max-w-7xl">
+        <LockInHeaderNav
+          left={
+            <Link
+              href="/foundations"
+              className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+            >
+              <ArrowLeft className="size-3.5" aria-hidden />
+              All lessons
+            </Link>
+          }
+          right={
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+                Open Workshop
+              </LinkButton>
+            </div>
+          }
+        />
+      </AppHeader>
 
       <div className="mx-auto flex w-full max-w-7xl items-start gap-20 px-6 py-16">
         <EntityTableOfContents sections={tocSections} />
@@ -117,7 +117,7 @@ export default async function FoundationLessonPage({
           {/* Summary + key takeaways */}
           <Section index={lesson.sections.length + 1} id="summary" title="Summary">
             <p className="mb-5 text-sm leading-relaxed text-text-muted">{lesson.summary}</p>
-            <div className="border border-border bg-bg-panel p-5">
+            <div className="bg-bg-panel p-5">
               <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Key takeaways
               </h3>
@@ -134,7 +134,7 @@ export default async function FoundationLessonPage({
 
           {/* Exercise — worked answer hidden behind a native disclosure, not shown upfront */}
           <Section index={lesson.sections.length + 2} id="exercise" title="Exercise">
-            <div className="flex flex-col gap-4 border border-border bg-bg-panel p-5">
+            <div className="flex flex-col gap-4 bg-bg-panel p-5">
               <p className="text-sm leading-relaxed text-text-muted">{lesson.exercise.prompt}</p>
               {lesson.exercise.guidance && (
                 <details className="group">
@@ -156,7 +156,7 @@ export default async function FoundationLessonPage({
               the prev/next nav below. */}
           {relatedEntities.length > 0 && (
             <HideWhileLockedIn>
-              <div className="border border-border bg-bg-panel p-5">
+              <div className="bg-bg-panel p-5">
                 <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                   See this simulated in the Workshop
                 </h3>
@@ -181,6 +181,14 @@ export default async function FoundationLessonPage({
               replacing the prev/next nav below when this lesson is the
               active chapter. */}
           <LockInChapterAction courseModule="foundations" slug={lesson.slug} />
+
+          {/* Marks this lesson complete on the /foundations forest map —
+              hidden during lock-in same as prev/next below, since
+              LockInChapterAction is already that run's sanctioned
+              completion action (and calls markLessonComplete itself). */}
+          <HideWhileLockedIn>
+            <MarkCompleteButton slug={lesson.slug} />
+          </HideWhileLockedIn>
 
           {/* Prev / next — hidden during an active lock-in run: it walks the
               whole course sequence, not the trilogy's 3 chapters, and is a

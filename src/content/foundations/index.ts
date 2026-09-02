@@ -18,7 +18,11 @@ import { MESSAGE_QUEUES } from "./lessons/16-message-queues";
 import { KAFKA_DEEP_DIVE } from "./lessons/17-kafka-deep-dive";
 import { CDN } from "./lessons/18-cdn";
 import { CONSISTENT_HASHING } from "./lessons/19-consistent-hashing";
-import { ESTIMATION_AND_INTERVIEW_FRAMEWORK } from "./lessons/20-estimation-and-interview-framework";
+import { DATABASE_SHARDING } from "./lessons/20-database-sharding";
+import { DATABASE_REPLICATION } from "./lessons/21-database-replication";
+import { RATE_LIMITING } from "./lessons/22-rate-limiting";
+import { CIRCUIT_BREAKERS } from "./lessons/23-circuit-breakers";
+import { ESTIMATION_AND_INTERVIEW_FRAMEWORK } from "./lessons/24-estimation-and-interview-framework";
 
 export type { FoundationLesson, LessonBlock, LessonExercise, LessonSection } from "./types";
 
@@ -48,6 +52,10 @@ export const FOUNDATION_LESSONS: FoundationLesson[] = [
   KAFKA_DEEP_DIVE,
   CDN,
   CONSISTENT_HASHING,
+  DATABASE_SHARDING,
+  DATABASE_REPLICATION,
+  RATE_LIMITING,
+  CIRCUIT_BREAKERS,
   ESTIMATION_AND_INTERVIEW_FRAMEWORK,
 ];
 
