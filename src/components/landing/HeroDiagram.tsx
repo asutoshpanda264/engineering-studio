@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { RotateCw } from "lucide-react";
 import { runSimulation } from "@/simulation/engine/Simulator";
 import type { MetricsSnapshot, SimulationConfig } from "@/simulation/types";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { getTrackAccent, TRACK_ACCENTS, TRACK_ACCENTS_DARK, type TrackAccentClasses } from "@/components/foundations/trackAccent";
 
 /**
  * The hero's centerpiece: a small fixed Client -> API -> Cache -> Database
@@ -19,6 +22,15 @@ import { getEntityCatalogItem } from "@/lib/entityCatalog";
  * browser on mount, same engine the Workshop runs. We only claim what's
  * true (README/docs/CLAUDE.md differentiator #1 — a real engine, not a
  * scripted animation) about the part that's actually real.
+ *
+ * "Run it again" re-seeds and recomputes that same real simulation on
+ * click — the one piece of this hero a static screenshot could never fake,
+ * and landing-page feedback specifically wanted the live demo to *read* as
+ * alive rather than sit at the same visual weight as everything else on
+ * the page. Each `StatTile` gets its own `trackAccent` color (the same
+ * five-hue palette `/learn` and `/problems` use) so the three numbers are
+ * visually distinct at a glance, and its value cross-fades in when the
+ * seed changes rather than jumping instantly.
  */
 
 const NODE_ORDER = ["client", "api", "cache", "database"] as const;
@@ -110,23 +122,52 @@ function NodeCard({ id }: { id: NodeId }) {
   );
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+/**
+ * One colored readout — `accent` is a `trackAccent` entry rather than a
+ * plain gray, so the three metrics are distinguishable at a glance instead
+ * of reading as one undifferentiated gray block (this hero used to be the
+ * only spot on the page with three numbers all in the exact same color).
+ * The value cross-fades on change (keyed by its own text, so identical
+ * consecutive re-runs don't replay the transition) rather than snapping
+ * instantly — the one visible cue, alongside the "Run it again" button
+ * itself, that this number is live rather than a static label.
+ */
+function StatTile({ label, value, accent, prefersReducedMotion }: { label: string; value: string; accent: TrackAccentClasses; prefersReducedMotion: boolean | null }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="font-mono text-lg font-semibold text-text sm:text-xl">{value}</span>
-      <span className="text-[11px] text-text-subtle">{label}</span>
+    <div className="flex flex-col items-center gap-1">
+      <span className="font-mono text-lg font-semibold text-text sm:text-xl">
+        {prefersReducedMotion ? (
+          value
+        ) : (
+          <motion.span
+            key={value}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="inline-block"
+          >
+            {value}
+          </motion.span>
+        )}
+      </span>
+      <span className={`rounded-full px-2 py-0.5 text-[11px] ${accent.soft} ${accent.text}`}>{label}</span>
     </div>
   );
 }
 
 export function HeroDiagram() {
   const prefersReducedMotion = useReducedMotion();
-  // A lazy initializer, not an effect: runSimulation is a pure, seeded,
-  // sub-100ms computation with no side effects, so it's safe to run once
-  // as part of first render (including SSR) rather than after mount —
-  // that also means the stat readout below is never a placeholder flash
-  // waiting on a client-only effect.
-  const [metrics] = useState<MetricsSnapshot>(() => runSimulation(buildConfig(7)).metrics);
+  const { theme } = useTheme();
+  const accentTable = theme === "light" ? TRACK_ACCENTS : TRACK_ACCENTS_DARK;
+
+  // The simulation seed is state (not a one-time lazy initializer) so
+  // "Run it again" can recompute it — still a pure, seeded, sub-100ms
+  // computation with no side effects, so deriving `metrics` from it via
+  // `useMemo` (rather than an effect) keeps the first paint's numbers
+  // real rather than a placeholder waiting on a client-only effect,
+  // exactly like the lazy-`useState` version this replaces.
+  const [seed, setSeed] = useState(7);
+  const metrics = useMemo<MetricsSnapshot>(() => runSimulation(buildConfig(seed)).metrics, [seed]);
 
   const cacheHitRate = metrics.entityMetrics.cache?.cacheHitRate;
 
@@ -151,17 +192,39 @@ export function HeroDiagram() {
       </div>
 
       <div className="mt-8 flex items-center justify-center gap-8 border-t border-border pt-6 sm:gap-16">
-        <StatTile label="success rate" value={`${(metrics.successRate * 100).toFixed(0)}%`} />
-        <StatTile label="avg latency" value={`${metrics.averageLatency.toFixed(0)}ms`} />
+        <StatTile
+          label="success rate"
+          value={`${(metrics.successRate * 100).toFixed(0)}%`}
+          accent={accentTable[getTrackAccent(0)]}
+          prefersReducedMotion={prefersReducedMotion}
+        />
+        <StatTile
+          label="avg latency"
+          value={`${metrics.averageLatency.toFixed(0)}ms`}
+          accent={accentTable[getTrackAccent(1)]}
+          prefersReducedMotion={prefersReducedMotion}
+        />
         <StatTile
           label="cache hit rate"
           value={cacheHitRate !== undefined ? `${(cacheHitRate * 100).toFixed(0)}%` : "—"}
+          accent={accentTable[getTrackAccent(2)]}
+          prefersReducedMotion={prefersReducedMotion}
         />
       </div>
-      <p className="mt-3 text-center text-[11px] text-text-subtle">
-        Live numbers from a real run of this architecture — computed by Engineering Studio&apos;s
-        actual discrete-event simulation engine, in your browser, just now.
-      </p>
+      <div className="mt-4 flex flex-col items-center gap-2">
+        <p className="text-center text-[11px] text-text-subtle">
+          Live numbers from a real run of this architecture — computed by Engineering Studio&apos;s
+          actual discrete-event simulation engine, in your browser, just now.
+        </p>
+        <button
+          type="button"
+          onClick={() => setSeed(Math.floor(Math.random() * 1_000_000))}
+          className="group inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+        >
+          <RotateCw className="size-3.5 transition-transform duration-slow ease-standard group-active:-rotate-180" aria-hidden />
+          Run it again
+        </button>
+      </div>
     </div>
   );
 }

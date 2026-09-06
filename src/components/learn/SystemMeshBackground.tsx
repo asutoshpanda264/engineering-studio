@@ -5,15 +5,15 @@ import { useTheme } from "@/components/theme/ThemeProvider";
 
 /**
  * Decorative full-bleed background for `/learn` — a loosely-clustered
- * network topology (not a repeating grid) with one highlighted request
- * path threading through a central hub.
+ * network topology (not a repeating grid), plain and uniform except for
+ * one small glowing packet touring almost the whole graph.
  *
  * Used to also scatter real system-design vocabulary ("p95 latency",
  * "round robin", ...) across the mesh as faint blueprint annotations —
  * pulled after feedback that legible words sitting behind scrolling cards
  * read as clutter rather than texture, especially once a card's own copy
- * happened to land near-overlapping one. The graph (nodes/edges/highlighted
- * path) carries the "this is a system" read on its own without needing
+ * happened to land near-overlapping one. The graph (nodes/edges/traveling
+ * packet) carries the "this is a system" read on its own without needing
  * text.
  *
  * Replaces the earlier `.bg-blueprint-grid` tile, which was flat/uniform
@@ -21,17 +21,20 @@ import { useTheme } from "@/components/theme/ThemeProvider";
  * actual subject matter. All coordinates are hand-placed, not derived from
  * real content.
  *
- * Was static (no loop) until direct feedback specifically asked for motion
- * on this exact background — "add moving dots animation to the line, or
- * just glow up and fade in to the existing dots." `Packet` below is the
- * former: one small glowing dot traveling the highlighted path node to
- * node and looping, the same "one real path picked out of the noise, a
- * packet actually moving along it" idea the landing page's `HeroDiagram`
- * already uses, just applied to this mesh's own accent path instead of a
- * new element. Everything else — the base graph, the static accent
- * line/nodes underneath the packet — stays exactly as still as before;
- * this adds one small moving accent, it doesn't turn the whole background
- * into a texture that's constantly in motion. `useReducedMotion` skips the
+ * Originally a short, permanently-highlighted 4-edge path (a static
+ * signal-colored line plus matching lit nodes) with the packet riding just
+ * that segment — reworked after two rounds of direct feedback: first to
+ * add the packet at all ("add moving dots animation to the line"), then,
+ * once the page's hero content sat on top of it, that the static line
+ * itself visibly cut across the small room-path icons in the hero and
+ * should go entirely — "remove this blue line and have the same pulse
+ * movement in the structure in the background... a packet going around
+ * the world." `ACCENT_PATH` (see `Packet` below) now strings together
+ * ~20 real edges into one long tour sweeping through every cluster, with
+ * no line or node anywhere drawn any differently from the rest of the
+ * graph — the traveling glow is the only accent left, exactly the "packet
+ * going around the world" asked for. Everything else — the plain graph
+ * itself — stays exactly as still as before. `useReducedMotion` skips the
  * packet entirely, same convention `HeroDiagram` uses.
  *
  * All color comes from the existing design tokens (`stroke-border`,
@@ -125,30 +128,28 @@ const EDGES: [number, number][] = [
   [14, 21],
 ];
 
-// The one highlighted request path — client cluster → hub → cluster B —
-// rendered in the signal color, same "one real path picked out of the
-// noise" idea as the landing page's HeroDiagram packets.
-const ACCENT_EDGES: [number, number][] = [
-  [2, 18],
-  [18, 15],
-  [15, 17],
-  [17, 8],
+// The packet's route — no dedicated "accent" edges/nodes anymore (see this
+// file's own doc comment for why the old static highlighted path was
+// removed entirely). Chained by hand through ~20 real `EDGES` entries so
+// the dot only ever travels along a line that's actually drawn, sweeping
+// left cluster → the left/bottom bridges → cluster C → the right bridges
+// → cluster B → back toward the hub — a full lap of the graph, not one
+// short segment. Doesn't need to end back on its own start node: the fade
+// in/out below hides the instant reset back to index 0 every loop, same
+// as the short path already relied on.
+const ACCENT_PATH: readonly number[] = [
+  1, 0, 22, 20, 16, 15, 11, 10, 13, 12, 14, 21, 23, 7, 6, 9, 24, 19, 5, 8, 17,
 ];
-const ACCENT_NODES = new Set([2, 18, 15, 17, 8]);
-
-// The same chain as `ACCENT_EDGES`, in travel order — `Packet` below
-// animates `cx`/`cy` through these points in sequence rather than deriving
-// them from the edge list itself, since edge order alone doesn't guarantee
-// a single head-to-tail direction (it happens to here, but this makes the
-// travel path explicit rather than relying on that coincidence holding).
-const ACCENT_PATH: readonly number[] = [2, 18, 15, 17, 8];
 
 /**
- * One glowing dot traveling the accent path node to node, then looping —
- * see this file's own doc comment for why. Same keyframe-array-of-positions
- * recipe `HeroDiagram`'s `Packet` uses (there: `left` percentages along a
- * straight line; here: `cx`/`cy` pairs through several waypoints), just
- * animating SVG attributes instead of a CSS position.
+ * One glowing dot touring most of the graph, then looping — see this
+ * file's own doc comment for why. Same keyframe-array-of-positions recipe
+ * `HeroDiagram`'s `Packet` uses (there: `left` percentages along a
+ * straight line; here: `cx`/`cy` pairs through many waypoints), just
+ * animating SVG attributes instead of a CSS position. Duration is scaled
+ * up from the old 4-edge path's 3.2s (~0.8s/edge) to match this one's 20
+ * edges — a lap this long needs to read as an unhurried journey, not a
+ * frantic zip around the whole canvas.
  */
 function Packet() {
   const points = ACCENT_PATH.map((i) => NODES[i]);
@@ -159,29 +160,23 @@ function Packet() {
   // waypoints in between, fades out arriving at the last one — never just
   // pops in/out at the path's ends.
   const opacity = points.map((_, i) => (i === 0 || i === points.length - 1 ? 0 : 1));
-
   return (
     <motion.circle
       r={4}
       className="fill-signal"
       style={{ filter: "drop-shadow(0 0 6px var(--color-signal))" }}
       animate={{ cx, cy, opacity }}
-      transition={{ duration: 3.2, times, repeat: Infinity, repeatDelay: 1, ease: "easeInOut" }}
+      transition={{ duration: 16, times, repeat: Infinity, repeatDelay: 1, ease: "easeInOut" }}
     />
   );
 }
 
-function Node({ node, accent, isLight }: { node: MeshNode; accent: boolean; isLight: boolean }) {
-  const cls = accent
-    ? "fill-signal stroke-signal"
-    : isLight
-      ? "fill-bg-elevated stroke-text-subtle"
-      : "fill-bg-elevated stroke-border-hover";
+function Node({ node, isLight }: { node: MeshNode; isLight: boolean }) {
+  const cls = isLight ? "fill-bg-elevated stroke-text-subtle" : "fill-bg-elevated stroke-border-hover";
   if (node.shape === "square") {
-    const s = accent ? 9 : 7;
-    return <rect x={node.x - s / 2} y={node.y - s / 2} width={s} height={s} strokeWidth={1} className={cls} />;
+    return <rect x={node.x - 3.5} y={node.y - 3.5} width={7} height={7} strokeWidth={1} className={cls} />;
   }
-  return <circle cx={node.x} cy={node.y} r={accent ? 4.5 : 3.5} strokeWidth={1} className={cls} />;
+  return <circle cx={node.x} cy={node.y} r={3.5} strokeWidth={1} className={cls} />;
 }
 
 export function SystemMeshBackground() {
@@ -203,7 +198,7 @@ export function SystemMeshBackground() {
   // Tuned down once from an initial pass that read as too heavy next to
   // the hero content it's meant to sit quietly behind.
   const edgeCls = isLight ? "stroke-text-subtle" : "stroke-border";
-  const edgeOpacity = isLight ? 0.35 : 0.4;
+  const edgeOpacity = isLight ? 0.25 : 0.9;
   const nodeOpacity = 0.5;
 
   return (
@@ -222,17 +217,9 @@ export function SystemMeshBackground() {
         })}
       </g>
 
-      <g className="stroke-signal" strokeWidth={1.25} opacity={0.55}>
-        {ACCENT_EDGES.map(([a, b], i) => {
-          const na = NODES[a];
-          const nb = NODES[b];
-          return <line key={i} x1={na.x} y1={na.y} x2={nb.x} y2={nb.y} />;
-        })}
-      </g>
-
       <g opacity={nodeOpacity}>
         {NODES.map((node, i) => (
-          <Node key={i} node={node} accent={ACCENT_NODES.has(i)} isLight={isLight} />
+          <Node key={i} node={node} isLight={isLight} />
         ))}
       </g>
 

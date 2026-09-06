@@ -65,7 +65,16 @@ export function LearnHubView({ rooms }: { rooms: Room[] }) {
       />
 
       <div className="relative flex flex-1 flex-col overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10">
+        {/* `fixed`, not `absolute` — this div used to be sized to (and
+            scroll away with) the hero+cards container below it, since
+            `absolute inset-0` is just as tall as its positioned ancestor's
+            own content. `main`'s own `isolate` (see its className) is what
+            makes a `fixed -z-10` child here safe: without it, this would
+            escape to the page's root stacking context and sink below
+            `main`'s own opaque background fill instead of just below the
+            page's content — see `FoundationsIndexView`'s identical `main`
+            comment for the fuller reasoning this mirrors. */}
+        <div className="pointer-events-none fixed inset-0 -z-10">
           <SystemMeshBackground />
         </div>
 
@@ -116,18 +125,18 @@ function RoomPath({ rooms, isLight }: { rooms: Room[]; isLight: boolean }) {
         const Icon = ROOM_ICONS[room.icon];
         return (
           <div key={room.href} className="flex items-start">
-            <Link href={room.href} className="group flex flex-col items-center gap-1.5" aria-label={room.title}>
+            <Link href={room.href} className="group flex flex-col items-center gap-2" aria-label={room.title}>
               <span
-                className={`flex size-8 items-center justify-center rounded-full transition-transform duration-fast ease-standard group-hover:scale-110 ${accent.soft} ${accent.text}`}
+                className={`flex size-10 items-center justify-center rounded-full transition-transform duration-fast ease-standard group-hover:scale-110 ${accent.soft} ${accent.text}`}
               >
-                <Icon className="size-4" aria-hidden />
+                <Icon className="size-5" aria-hidden />
               </span>
-              <span className="max-w-16 text-center font-mono text-[9px] uppercase tracking-wide text-workspace-text-subtle sm:max-w-20">
+              <span className="max-w-20 text-center font-mono text-[11px] font-semibold uppercase tracking-wide text-workspace-text sm:max-w-24">
                 {room.title}
               </span>
             </Link>
             {index < rooms.length - 1 && (
-              <span aria-hidden className={`mx-1.5 mt-4 h-px w-4 shrink-0 sm:w-8 ${accent.lineFaint}`} />
+              <span aria-hidden className={`mx-1.5 mt-5 h-px w-4 shrink-0 sm:w-8 ${accent.lineFaint}`} />
             )}
           </div>
         );

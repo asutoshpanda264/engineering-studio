@@ -132,10 +132,11 @@ export function AgenticIndexView() {
       className={`relative isolate flex min-h-screen flex-col ${view === "journey" ? "bg-workspace-bg" : "bg-reading-room"}`}
     >
       {/* `bg-blueprint-grid` + `SystemMeshBackground`: identical to
-          `FoundationsIndexView`'s own `<main>` — see that file's comment for
-          why these are `absolute` (scroll with the page) rather than the
-          `fixed` layer `ReadingRoomAtlas`'s own `AtlasBackdrop` used to
-          paint the mesh on, and why `theme !== "light"` is redundant-but-
+          `FoundationsIndexView`'s own `<main>` — see that file's comment
+          for why the mesh layer is `fixed` (stays pinned to the viewport
+          as the page scrolls, per direct feedback on `/learn`'s identical
+          layer) while the grid texture behind it stays `absolute` (scrolls
+          with the page), and why `theme !== "light"` is redundant-but-
           defensive here (`view === "atlas"` already implies it). */}
       {view === "atlas" && (
         <>
@@ -144,7 +145,7 @@ export function AgenticIndexView() {
             className={`bg-blueprint-grid pointer-events-none absolute inset-0 -z-20 ${theme === "light" ? "opacity-60" : "opacity-70"}`}
           />
           {theme !== "light" && (
-            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
+            <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
               <SystemMeshBackground />
             </div>
           )}

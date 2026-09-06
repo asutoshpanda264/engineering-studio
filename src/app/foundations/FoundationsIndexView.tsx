@@ -155,14 +155,19 @@ export function FoundationsIndexView({ lessons }: { lessons: FoundationLesson[] 
               *entire* multi-zone scroll height (thousands of px) would
               force it to scale up until it covers that whole height,
               zooming the graph in until it's an illegible, mostly-empty
-              blob. Bounding it to one `h-screen` square pinned to the top
-              instead keeps it exactly the size it was always drawn at —
-              it now scrolls up and out of view with the hero above it,
-              rather than either staying frozen (the original complaint) or
-              being distorted (what naively reusing the grid's `inset-0`
-              approach here would have done). */}
+              blob. `h-screen` keeps it exactly the size it was always
+              drawn at without that distortion. `fixed`, not `absolute` —
+              direct feedback on `/learn`'s identical layer asked for the
+              opposite of this component's own original behavior ("it now
+              scrolls up and out of view with the hero above it"): the
+              graph (and its traveling packet, see `SystemMeshBackground`'s
+              own doc comment) should stay pinned to the viewport as the
+              page scrolls, not scroll away with it. `main`'s `isolate`
+              above is what makes a `fixed -z-20` child here safe — see
+              this file's other `isolate` comment for the fuller reasoning
+              that mirrors. */}
           {theme !== "light" && (
-            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
+            <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
               <SystemMeshBackground />
             </div>
           )}
