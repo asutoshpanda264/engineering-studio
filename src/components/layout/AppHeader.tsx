@@ -33,6 +33,19 @@ export interface AppHeaderProps {
   maxWidthClassName?: string;
   /** False for a header that scrolls away with the page instead of pinning. Default true. */
   sticky?: boolean;
+  /**
+   * Extra classes appended to the header's own `border-b bg-bg/90
+   * backdrop-blur` shell — an escape hatch for `/learn`/`/foundations`
+   * to swap in `!bg-workspace-bg/90` so the header's background matches
+   * their light-only workspace ground instead of the plain global one
+   * (a visible seam otherwise: the header stayed the old warm off-white
+   * while the page below it became the new cool blue-gray). `!important`
+   * needed since both are `bg-*` utilities targeting the same property —
+   * plain class order in source doesn't reliably win once Tailwind
+   * dedupes across the whole app's compiled CSS. Every other caller
+   * omits this and gets the exact shell it always has.
+   */
+  className?: string;
 }
 
 /**
@@ -62,10 +75,11 @@ export function AppHeader({
   children,
   maxWidthClassName = "max-w-6xl",
   sticky = true,
+  className = "",
 }: AppHeaderProps) {
   return (
     <header
-      className={`${sticky ? "sticky top-0" : ""} z-10 border-b border-border bg-bg/90 backdrop-blur`}
+      className={`${sticky ? "sticky top-0" : ""} z-10 border-b border-border bg-bg/90 backdrop-blur ${className}`}
     >
       <div className={`mx-auto flex h-14 ${maxWidthClassName} items-center justify-between gap-4 px-6`}>
         {children ?? (

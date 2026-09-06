@@ -82,7 +82,7 @@ const LIST_TONE_DOT: Record<BoxTone, string> = {
 export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
   switch (block.kind) {
     case "paragraph":
-      return <p className="text-sm leading-relaxed text-text-muted">{renderInline(block.text, "p")}</p>;
+      return <p className="text-base leading-relaxed text-text-muted">{renderInline(block.text, "p")}</p>;
 
     case "diagram":
       return (
@@ -243,7 +243,7 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
               {block.label}
             </p>
           )}
-          <p className="text-sm italic leading-relaxed text-text">{renderInline(block.text, "i")}</p>
+          <p className="text-base italic leading-relaxed text-text">{renderInline(block.text, "i")}</p>
         </div>
       );
 
@@ -253,7 +253,7 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
           {block.items.map((item, i) => {
             const text = typeof item === "string" ? item : item.text;
             return (
-              <li key={i} className="flex gap-2.5 text-sm text-text-muted">
+              <li key={i} className="flex gap-2.5 text-base text-text-muted">
                 <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center border border-signal/40 font-mono text-[11px] font-medium text-signal">
                   {i + 1}
                 </span>
@@ -268,7 +268,7 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
             const text = typeof item === "string" ? item : item.text;
             const tone = typeof item === "string" ? undefined : item.tone;
             return (
-              <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
+              <li key={i} className="flex gap-2.5 text-base leading-relaxed text-text-muted">
                 <span className={`mt-1.5 size-1 shrink-0 rounded-full ${LIST_TONE_DOT[tone ?? "signal"]}`} aria-hidden />
                 <span>{renderInline(text, `l${i}`)}</span>
               </li>
@@ -280,8 +280,8 @@ export function LessonBlockRenderer({ block }: { block: LessonBlock }) {
     case "qa":
       return (
         <div className="flex flex-col gap-1.5 bg-bg-panel p-4">
-          <p className="text-sm font-medium text-text">&ldquo;{renderInline(block.question, "q")}&rdquo;</p>
-          <p className="text-sm leading-relaxed text-text-muted">{renderInline(block.answer, "a")}</p>
+          <p className="text-base font-medium text-text">&ldquo;{renderInline(block.question, "q")}&rdquo;</p>
+          <p className="text-base leading-relaxed text-text-muted">{renderInline(block.answer, "a")}</p>
         </div>
       );
   }

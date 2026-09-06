@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Bot, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -12,8 +12,9 @@ import { useCaseStudyProgress } from "@/lib/caseStudyProgress";
 import { CaseStudiesMap } from "@/components/maps/CaseStudiesMap";
 import { ReadingRoomJourney } from "@/components/readingRoom/ReadingRoomJourney";
 import { ReadingRoomAtlas } from "@/components/readingRoom/ReadingRoomAtlas";
-import { ViewToggle, type ReadingRoomView } from "@/components/readingRoom/ViewToggle";
+import type { ReadingRoomView } from "@/components/readingRoom/ViewToggle";
 import type { ReadingRoomGroup } from "@/components/readingRoom/types";
+import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
 
 const CATEGORY_ORDER: CaseStudyCategory[] = ["agentic", "classic-hld"];
 
@@ -30,8 +31,9 @@ const CATEGORY_ICON: Record<CaseStudyCategory, ReadingRoomGroup["icon"]> = {
 
 /**
  * `/case-studies`' body — same `useTheme()` shape `AgenticIndexView`/
- * `FoundationsIndexView`/`LLDIndexView` use: a Journey/Atlas toggle in the
- * default theme, the arcade `CaseStudiesMap` in Batman Mode (`night-ops`).
+ * `FoundationsIndexView`/`LLDIndexView` use: Journey/Atlas in the default
+ * theme (now tied directly to theme, not a manual toggle — see `view`
+ * below), the arcade `CaseStudiesMap` in Batman Mode (`night-ops`).
  * Journey/Atlas themselves are the generic `ReadingRoomJourney`/
  * `ReadingRoomAtlas` fed `CASE_STUDIES` grouped by `CaseStudyCategory` —
  * replaces the original flat-grid `CaseStudiesList` (now deleted) in the
@@ -46,7 +48,14 @@ const CATEGORY_ICON: Record<CaseStudyCategory, ReadingRoomGroup["icon"]> = {
  */
 export function CaseStudiesIndexView() {
   const { theme } = useTheme();
-  const [view, setView] = useState<ReadingRoomView>("atlas");
+  // Paper gets Journey, dark gets Atlas — per the same explicit feedback
+  // that settled this for `FoundationsIndexView` (see that file's own
+  // comment): Atlas's environment-heavy treatment is tuned for dark's
+  // near-black ground, Journey's flatter bordered-panel treatment reads
+  // better against Paper's near-white ground. A manual `ViewToggle` used
+  // to sit in the hero section for comparing the two live; removed along
+  // with this, since the decision is no longer a per-visitor choice.
+  const view: ReadingRoomView = theme === "light" ? "journey" : "atlas";
   const completedSlugs = useCaseStudyProgress();
 
   const groups = useMemo<ReadingRoomGroup<CaseStudy>[]>(
@@ -102,17 +111,39 @@ export function CaseStudiesIndexView() {
   }
 
   return (
-    // `isolate`/`relative`/`bg-reading-room`/the grid layer: identical
-    // reasoning to `FoundationsIndexView`'s own `<main>` — see that file's
-    // comment for the full explanation of each piece.
+    // `isolate`/`relative`/the grid layer: identical reasoning to
+    // `FoundationsIndexView`'s own `<main>` — see that file's comment for
+    // the full explanation of each piece. Background follows the same
+    // per-view split Foundations settled on too: journey (light theme, the
+    // only branch that actually renders under Paper) gets the plain,
+    // uncluttered `bg-workspace-bg` ground its bordered/shadowed cards
+    // already have enough contrast against; only atlas (dark) keeps the
+    // darker `bg-reading-room` tint plus the dot-grid texture below.
+    // Previously both views shared `bg-reading-room` and journey additionally
+    // painted `bg-blueprint-grid` right on `<main>` — direct feedback that
+    // this page read "too blue" next to Foundations' whiter ground traced
+    // back to exactly that drift from what Foundations itself already does.
     <main
-      className={`relative isolate flex min-h-screen flex-col bg-reading-room ${view === "journey" ? "bg-blueprint-grid" : ""}`}
+      className={`relative isolate flex min-h-screen flex-col ${view === "journey" ? "bg-workspace-bg" : "bg-reading-room"}`}
     >
+      {/* `bg-blueprint-grid` + `SystemMeshBackground`: identical to
+          `FoundationsIndexView`'s own `<main>` — see that file's comment for
+          why these are `absolute` (scroll with the page) rather than the
+          `fixed` layer `ReadingRoomAtlas`'s own `AtlasBackdrop` used to
+          paint the mesh on, and why `theme !== "light"` is redundant-but-
+          defensive here (`view === "atlas"` already implies it). */}
       {view === "atlas" && (
-        <div
-          aria-hidden
-          className={`bg-blueprint-grid pointer-events-none absolute inset-0 -z-20 ${theme === "light" ? "opacity-60" : "opacity-70"}`}
-        />
+        <>
+          <div
+            aria-hidden
+            className={`bg-blueprint-grid pointer-events-none absolute inset-0 -z-20 ${theme === "light" ? "opacity-60" : "opacity-70"}`}
+          />
+          {theme !== "light" && (
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
+              <SystemMeshBackground />
+            </div>
+          )}
+        </>
       )}
       {header}
       <section className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6 pb-10 pt-16 text-center sm:pt-20">
@@ -124,7 +155,6 @@ export function CaseStudiesIndexView() {
           link into the real, simulatable version wherever one exists. Read in any order;
           nothing here is locked.
         </p>
-        <ViewToggle view={view} onChange={setView} label="Case Studies layout" />
       </section>
       {view === "atlas" ? (
         <ReadingRoomAtlas groups={groups} completedSlugs={completedSlugs} basePath="/case-studies" itemLabel={itemLabel} />

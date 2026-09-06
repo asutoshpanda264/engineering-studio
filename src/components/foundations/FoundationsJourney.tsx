@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Clock } from "lucide-react";
 import type { FoundationLesson } from "@/content/foundations/types";
-import { groupLessonsByTrack, type FoundationTrack } from "@/content/foundations/tracks";
+import { groupLessonsByTrack, type FoundationTrack, type FoundationTrackGroup } from "@/content/foundations/tracks";
 import { useFoundationsProgress } from "@/lib/foundationsProgress";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -84,23 +84,26 @@ export function FoundationsJourney({ lessons }: { lessons: FoundationLesson[] })
     [lessons, completed]
   );
   const trackGroups = useMemo(() => groupLessonsByTrack(lessons), [lessons]);
+  const currentTrackIndex = useMemo(() => {
+    if (!nextLesson) return trackGroups.length - 1;
+    const index = trackGroups.findIndex((group) => group.lessons.some((lesson) => lesson.slug === nextLesson.slug));
+    return index === -1 ? 0 : index;
+  }, [trackGroups, nextLesson]);
 
   return (
     <>
-      <div className="relative mx-auto w-full max-w-7xl px-6">
-        <ReadoutStrip
-          totalLessons={lessons.length}
-          completedCount={completedCount}
-          totalMinutes={totalMinutes}
-        />
-      </div>
-
-      {/* `pb-6` (on top of the track section's own `py-14` top padding
-          right below) — flagged back as too tight: the band and the first
-          zone panel read as one run-on block without a clearer gap
-          between "here's what's next" and "here's everything." */}
-      <div className="mx-auto w-full max-w-7xl px-6 pt-8 pb-6">
-        <ContinueBand nextLesson={nextLesson} totalLessons={lessons.length} completedCount={completedCount} />
+      {/* The dashboard row: a large primary "what's next" card next to a
+          small supporting progress card (the brief's "prominent
+          continue-learning card" + "compact progress card," as two
+          visually distinct cards rather than the single stacked
+          readout-row-then-band this used to be), plus a compact milestone
+          strip underneath summarizing all five tracks at a glance. */}
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pt-8 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <ContinueCard nextLesson={nextLesson} totalLessons={lessons.length} completedCount={completedCount} />
+          <ProgressCard totalLessons={lessons.length} completedCount={completedCount} totalMinutes={totalMinutes} />
+        </div>
+        <MilestoneStrip trackGroups={trackGroups} completed={completed} currentTrackIndex={currentTrackIndex} />
       </div>
 
       <section className="relative mx-auto flex w-full max-w-7xl flex-col gap-14 px-6 py-14">
@@ -112,7 +115,7 @@ export function FoundationsJourney({ lessons }: { lessons: FoundationLesson[] })
             through the five tracks, top to bottom. */}
         <div
           aria-hidden
-          className="absolute top-3 bottom-3 left-2.5 hidden w-px bg-border sm:block"
+          className="absolute top-3 bottom-3 left-2.5 hidden w-px bg-workspace-border sm:block"
         />
         {trackGroups.map((group, index) => (
           <TrackSection
@@ -122,10 +125,88 @@ export function FoundationsJourney({ lessons }: { lessons: FoundationLesson[] })
             lessons={group.lessons}
             completed={completed}
             isLight={isLight}
+            currentSlug={nextLesson?.slug}
           />
         ))}
       </section>
+
+      <div className="mx-auto w-full max-w-7xl px-6 pb-16">
+        <WorkshopCallout />
+      </div>
     </>
+  );
+}
+
+/**
+ * Compact five-circle summary of every track's completion state, sitting
+ * under the continue/progress row — the "milestone/path area" the brief
+ * asked for, a smaller sibling of `ReadingRoomAtlas`'s full `PhaseStepper`
+ * (that one anchors a whole hero; this just needs to say "here are the
+ * five tracks, here's where you are" in one thin strip).
+ */
+function MilestoneStrip({
+  trackGroups,
+  completed,
+  currentTrackIndex,
+}: {
+  trackGroups: FoundationTrackGroup[];
+  completed: Set<string>;
+  currentTrackIndex: number;
+}) {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto rounded-[var(--radius-workspace)] border border-workspace-border bg-workspace-surface px-5 py-3 shadow-[var(--shadow-workspace-card)]">
+      {trackGroups.map((group, index) => {
+        const done = group.lessons.length > 0 && group.lessons.every((lesson) => completed.has(lesson.slug));
+        const isCurrent = !done && index === currentTrackIndex;
+        const accent = TRACK_ACCENTS[getTrackAccent(index)];
+        return (
+          <div key={group.track.title} className="flex shrink-0 items-center gap-2">
+            <span
+              className={`flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold ${
+                done
+                  ? "bg-workspace-success text-white"
+                  : isCurrent
+                    ? `${accent.solid} text-white`
+                    : `${accent.soft} ${accent.text}`
+              }`}
+            >
+              {done ? <Check className="size-3" aria-hidden /> : index + 1}
+            </span>
+            <span className="hidden font-mono text-[10px] whitespace-nowrap uppercase tracking-wide text-workspace-text-subtle sm:inline">
+              {group.track.title}
+            </span>
+            {index < trackGroups.length - 1 && (
+              <span aria-hidden className={`h-px w-6 sm:w-10 ${done ? "bg-workspace-success/50" : accent.lineFaint}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A slim closing card linking to the Workshop — the brief's "visible
+ *  connection to the Workshop" beyond the header's own "Enter Workshop"
+ *  button, placed where a reader who just finished browsing lands next. */
+function WorkshopCallout() {
+  return (
+    <Link
+      href="/workshop"
+      className="group flex flex-col items-center justify-between gap-4 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-surface-soft p-6 text-center shadow-[var(--shadow-workspace-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--shadow-workspace-hover)] sm:flex-row sm:text-left"
+    >
+      <div>
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-workspace-accent">
+          Put it into practice
+        </span>
+        <p className="mt-1 text-lg font-semibold text-workspace-text">
+          Read the theory. Now go break it in the Workshop.
+        </p>
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-workspace-accent px-5 py-2.5 font-mono text-xs font-semibold uppercase tracking-wide text-white transition-transform duration-fast ease-standard group-hover:translate-x-0.5">
+        Open Workshop
+        <ArrowRight className="size-3.5" aria-hidden />
+      </span>
+    </Link>
   );
 }
 
@@ -138,13 +219,13 @@ export function formatTotalTime(totalMinutes: number): string {
 }
 
 /**
- * A single-row instrument readout, not a row of stat cards — this app's
- * own design language calls itself "an instrument, not an app"
- * (globals.css's banner comment), so lesson count / completion / total
- * time read as one hairline-bounded strip of mono figures rather than the
- * three-icon-tile stat-card recipe most SaaS dashboards reach for here.
+ * The compact supporting card next to `ContinueCard` — total lessons,
+ * completion, and a slim accent progress bar. Replaces the old single-row
+ * hairline "instrument readout" (this app's usual "instrument, not an app"
+ * treatment): the brief specifically asked for progress as its own small
+ * card alongside the continue action, not a full-width strip above it.
  */
-function ReadoutStrip({
+function ProgressCard({
   totalLessons,
   completedCount,
   totalMinutes,
@@ -155,37 +236,38 @@ function ReadoutStrip({
 }) {
   const percent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 border-y border-border py-4 font-mono text-xs uppercase tracking-wide text-text-subtle">
-      <span>
-        <strong className="text-text">{totalLessons}</strong> lessons
-      </span>
-      <span aria-hidden className="text-border">
-        /
-      </span>
-      <span>
-        <strong className={completedCount > 0 ? "text-status-healthy" : "text-text"}>
-          {completedCount}
-        </strong>{" "}
-        complete <span className="text-text-subtle">({percent}%)</span>
-      </span>
-      <span aria-hidden className="text-border">
-        /
-      </span>
-      <span>
-        <strong className="text-text">{formatTotalTime(totalMinutes)}</strong> total
-      </span>
+    <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-surface p-5 shadow-[var(--shadow-workspace-card)] lg:w-72 lg:shrink-0">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[11px] uppercase tracking-wide text-workspace-text-subtle">Your progress</span>
+        <span className="font-mono text-xs font-semibold text-workspace-accent">{percent}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-workspace-surface-soft">
+        <div
+          className="h-full rounded-full bg-workspace-accent transition-[width] duration-slow ease-standard"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between font-mono text-xs text-workspace-text-muted">
+        <span>
+          <strong className="text-workspace-text">{completedCount}</strong>/{totalLessons} lessons
+        </span>
+        <span>
+          <strong className="text-workspace-text">{formatTotalTime(totalMinutes)}</strong> total
+        </span>
+      </div>
     </div>
   );
 }
 
 /**
  * The one clear focal point on the page — everything else is a grid of
- * equal-weight entry points, this is the single "do this next" answer.
- * Same left-accent-border row shape `/problems` already uses for its list
- * rows, at a larger scale and in the signal accent, so it reads as
- * unmistakably different from a lesson card, not just a bigger one.
+ * equal-weight entry points, this is the single "do this next" answer. Now
+ * a large primary card (`ProgressCard`'s wider sibling in the dashboard
+ * row) rather than a full-width left-accent-border row — bigger, tinted
+ * with the accent-soft surface, and an explicit pill CTA instead of relying
+ * only on a hover-reveal arrow.
  */
-function ContinueBand({
+function ContinueCard({
   nextLesson,
   totalLessons,
   completedCount,
@@ -196,9 +278,11 @@ function ContinueBand({
 }) {
   if (!nextLesson) {
     return (
-      <div className="flex items-center gap-3 border-l-2 border-status-healthy bg-bg-panel px-6 py-5">
-        <Check className="size-4 shrink-0 text-status-healthy" aria-hidden />
-        <p className="text-sm text-text-muted">
+      <div className="flex flex-1 items-center gap-3 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-surface p-6 shadow-[var(--shadow-workspace-card)]">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-workspace-success/10 text-workspace-success">
+          <Check className="size-5" aria-hidden />
+        </span>
+        <p className="text-sm text-workspace-text-muted">
           All {totalLessons} lessons complete — nice work. Revisit any of them below, any time.
         </p>
       </div>
@@ -208,23 +292,20 @@ function ContinueBand({
   return (
     <Link
       href={`/foundations/${nextLesson.slug}`}
-      className="group flex flex-col gap-3 border-l-2 border-signal bg-bg-panel px-6 py-5 transition-colors duration-fast ease-standard hover:bg-bg-hover sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+      className="group flex flex-1 flex-col justify-between gap-4 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-accent-soft p-6 shadow-[var(--shadow-workspace-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--shadow-workspace-hover)] sm:flex-row sm:items-center sm:gap-6"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-signal">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-workspace-accent">
           {completedCount === 0 ? "Start here" : "Continue learning"}
         </span>
-        <span className="text-lg font-semibold text-text">
+        <span className="truncate text-lg font-semibold text-workspace-text">
           {String(nextLesson.number).padStart(2, "0")} — {nextLesson.title}
         </span>
-        <span className="text-sm text-text-muted">{nextLesson.tagline}</span>
+        <span className="text-sm text-workspace-text-muted">{nextLesson.tagline}</span>
       </div>
-      <span className="flex shrink-0 items-center gap-2 self-start font-mono text-xs uppercase tracking-wide text-signal sm:self-auto">
+      <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-workspace-accent px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-white transition-transform duration-fast ease-standard group-hover:translate-x-0.5 sm:self-auto">
         {nextLesson.estimatedMinutes} min
-        <ArrowRight
-          className="size-4 transition-transform duration-fast ease-standard group-hover:translate-x-1"
-          aria-hidden
-        />
+        <ArrowRight className="size-3.5" aria-hidden />
       </span>
     </Link>
   );
@@ -236,11 +317,13 @@ function TrackSection({
   lessons,
   completed,
   isLight,
+  currentSlug,
 }: {
   index: number;
   track: FoundationTrack;
   lessons: FoundationLesson[];
   completed: Set<string>;
+  currentSlug?: string;
   isLight: boolean;
 }) {
   const trackDone = lessons.length > 0 && lessons.every((lesson) => completed.has(lesson.slug));
@@ -262,7 +345,7 @@ function TrackSection({
         aria-hidden
         className={`absolute top-0.5 left-0 hidden size-5 items-center justify-center border font-mono text-[10px] sm:flex ${
           trackDone
-            ? "border-status-healthy bg-status-healthy/10 text-status-healthy"
+            ? "border-workspace-success bg-workspace-success/10 text-workspace-success"
             : accent
               ? `${accent.border} ${accent.soft} ${accent.text}`
               : "border-border bg-bg text-text-subtle"
@@ -284,20 +367,19 @@ function TrackSection({
           than the sticky `AppHeader` (also `z-10`) meant it painted on
           *top* of the header while scrolling. */}
       <div
-        className={`relative isolate overflow-hidden rounded-[var(--landing-radius-lg)] ${
+        className={`relative isolate overflow-hidden rounded-[var(--radius-workspace-lg)] ${
           accent
             ? // A real resting elevation shadow, not the barely-visible
               // 1px/2px contact shadow this panel (and the equivalent
               // `AtlasZone` panel) used to share with every other bordered
               // surface in the app — flagged back as too flat to read as
-              // "raised" at this panel's size. Plain neutral gray (not the
-              // track's own hue — this is a whole content block, not a
-              // per-track logo like `iconShadow`), a tight contact layer
-              // plus a soft, wider lift so the whole track section reads
-              // as sitting a little above the page. Paper only (`accent`
-              // is already the light-mode gate); dark/night-ops keep the
-              // flat, borderless look this `div` has always had there.
-              `border ${accent.borderFaint} bg-bg-elevated/50 p-4 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_16px_32px_-16px_rgba(15,23,42,0.18)] sm:p-6`
+              // "raised" at this panel's size. `--shadow-workspace-card`
+              // (globals.css) is that same two-layer recipe, now named and
+              // shared with every other workspace surface on this page.
+              // Paper only (`accent` is already the light-mode gate);
+              // dark/night-ops keep the flat, borderless look this `div`
+              // has always had there.
+              `border ${accent.borderFaint} bg-workspace-surface/70 p-4 shadow-[var(--shadow-workspace-card)] sm:p-6`
             : ""
         }`}
       >
@@ -340,10 +422,10 @@ function TrackSection({
                 >
                   {`Track ${String(index + 1).padStart(2, "0")}`}
                 </h2>
-                <h3 className="mt-1.5 text-lg font-semibold text-text">{track.title}</h3>
+                <h3 className="mt-1.5 text-lg font-semibold text-workspace-text">{track.title}</h3>
               </div>
             </div>
-            <p className="max-w-sm text-xs text-text-subtle sm:text-right">{track.description}</p>
+            <p className="max-w-sm text-xs text-workspace-text-subtle sm:text-right">{track.description}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -352,6 +434,7 @@ function TrackSection({
                 key={lesson.slug}
                 lesson={lesson}
                 completed={completed.has(lesson.slug)}
+                current={lesson.slug === currentSlug}
                 featured={i === 0}
                 accent={accent}
               />
@@ -372,11 +455,17 @@ function TrackSection({
 function LessonCard({
   lesson,
   completed,
+  current,
   featured,
   accent,
 }: {
   lesson: FoundationLesson;
   completed: boolean;
+  /** The reader's next not-yet-done lesson — reads as selected (a solid
+   *  accent border + glow, no text label), not just numbered like every
+   *  other upcoming card. Addresses the brief's own complaint that a
+   *  "Current" text badge alone doesn't read as *selected*. */
+  current: boolean;
   featured: boolean;
   accent: TrackAccentClasses | null;
 }) {
@@ -388,10 +477,16 @@ function LessonCard({
   // though, same reasoning as that file: an upcoming lesson gets a bare
   // colored icon, no box; only a finished one earns the filled, shadowed chip.
   const iconClasses = accent
-    ? completed
+    ? completed || current
       ? `${accent.soft} ${accent.text} ${accent.iconShadow}`
       : accent.text
     : "text-text-subtle";
+
+  const borderAndShadow = current
+    ? accent
+      ? `${accent.border} ${accent.glow}`
+      : "border-signal shadow-[0_0_0_1px_var(--color-signal)]"
+    : `${accent ? accent.borderFaint : "border-border"} shadow-[var(--shadow-workspace-card)] hover:shadow-[var(--shadow-workspace-hover)]`;
 
   return (
     <Link
@@ -400,10 +495,9 @@ function LessonCard({
       // one a full accent-tinted fill — both replaced with the same plain
       // bordered white surface (see the file's doc comment above): the
       // `Badge` already says "Done," and a full-card tint fought the
-      // zone's own accent color underneath it either way.
-      className={`group relative flex flex-col gap-3 rounded-[var(--landing-radius)] border bg-bg-elevated p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(15,23,42,0.16)] ${
-        accent ? accent.borderFaint : "border-border"
-      } ${featured ? "sm:col-span-2" : ""}`}
+      // zone's own accent color underneath it either way. `current` is the
+      // one exception — see `borderAndShadow` above.
+      className={`group relative flex flex-col gap-3 rounded-[var(--radius-workspace)] border bg-workspace-surface p-5 transition-all duration-fast ease-standard hover:-translate-y-0.5 ${borderAndShadow} ${featured ? "sm:col-span-2" : ""}`}
     >
       <LessonCardCorners accent={accent} />
       <div className="flex items-start justify-between gap-3">
@@ -415,20 +509,20 @@ function LessonCard({
             Done
           </Badge>
         ) : (
-          <span className="pt-1 font-mono text-[10px] text-text-subtle">
+          <span className="pt-1 font-mono text-[10px] text-workspace-text-subtle">
             {String(lesson.number).padStart(2, "0")}
           </span>
         )}
       </div>
-      <h4 className={`font-semibold text-text ${featured ? "text-lg" : "text-base"}`}>{lesson.title}</h4>
-      <p className={`text-sm leading-relaxed text-text-muted ${featured ? "" : "line-clamp-2"}`}>
+      <h4 className={`font-semibold text-workspace-text ${featured ? "text-lg" : "text-base"}`}>{lesson.title}</h4>
+      <p className={`text-sm leading-relaxed text-workspace-text-muted ${featured ? "" : "line-clamp-2"}`}>
         {lesson.tagline}
       </p>
-      <div className="mt-auto flex items-center gap-1.5 pt-2 font-mono text-[11px] uppercase tracking-wide text-text-subtle">
+      <div className="mt-auto flex items-center gap-1.5 pt-2 font-mono text-[11px] uppercase tracking-wide text-workspace-text-subtle">
         <Clock className="size-3" aria-hidden />
         {lesson.estimatedMinutes} min
         <ArrowRight
-          className="ml-auto size-3.5 shrink-0 text-signal opacity-0 transition-all duration-fast ease-standard group-hover:translate-x-0.5 group-hover:opacity-100"
+          className="ml-auto size-3.5 shrink-0 text-workspace-accent opacity-0 transition-all duration-fast ease-standard group-hover:translate-x-0.5 group-hover:opacity-100"
           aria-hidden
         />
       </div>
@@ -446,7 +540,7 @@ function LessonCard({
  */
 function LessonCardCorners({ accent }: { accent: TrackAccentClasses | null }) {
   const base = "pointer-events-none absolute size-2 transition-colors duration-fast ease-standard";
-  const color = accent ? `border-border ${accent.cornerHover}` : "border-border group-hover:border-signal/70";
+  const color = accent ? `border-workspace-border ${accent.cornerHover}` : "border-border group-hover:border-signal/70";
   return (
     <>
       <span aria-hidden className={`${base} ${color} top-0 left-0 border-t border-l`} />

@@ -4,6 +4,7 @@ import type { NodeProps } from "@xyflow/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Flame, Lock } from "lucide-react";
 import { getEntityCatalogItem } from "@/lib/entityCatalog";
+import type { EntityCatalogItem } from "@/lib/entityCatalog";
 import { ENTITY_CONFIG_SCHEMA } from "@/lib/entityConfigSchema";
 import { estimateCost } from "@/lib/costEngine";
 import { findBottleneckNodeId } from "@/lib/bottleneckDetection";
@@ -13,7 +14,23 @@ import { getScenario } from "@/scenarios";
 import { isGivenNode } from "@/lib/scenarioLocking";
 import { CornerBrackets } from "@/components/workshop/CornerBrackets";
 import { Badge } from "@/components/ui/Badge";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { getTrackAccent, TRACK_ACCENTS, TRACK_ACCENTS_DARK } from "@/components/foundations/trackAccent";
 import type { EntityType } from "@/simulation/types";
+
+/**
+ * Which of the sidebar's three sections (Core / Modules / Agentic AI) an
+ * entity belongs to, as an index into `TRACK_ACCENTS`/`_DARK` — reusing the
+ * reading-rooms' five-hue accent table rather than hand-tuning a color per
+ * entity type (~20 of them) or inventing a second palette. Three colors,
+ * not per-entity, so the canvas still reads as one coherent system: "this
+ * is a Core building block" vs. "this is an Agentic primitive," not twenty
+ * arbitrary hues.
+ */
+function categoryAccentIndex(item: EntityCatalogItem): number {
+  if (item.domain === "agentic") return 2;
+  return item.phase === 1 ? 0 : 1;
+}
 
 const STATUS_DOT_CLASSES: Record<NodeStatus, string> = {
   idle: "bg-text-subtle",
@@ -77,6 +94,24 @@ const HANDLE_CLASSES =
 function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) {
   const catalogItem = getEntityCatalogItem(data.entityType);
   const Icon = catalogItem.icon;
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+  // Card and icon-chip surfaces swap which of the two neutral tiers is
+  // "the card" vs. "an inset strip inside it" per theme — Paper's
+  // panel(#eef4ff)/bg(#f4f7fc) sit almost on top of each other (a panel
+  // card on the canvas's own panel-tinted gradient read as "the same
+  // color," reported back directly as hard to see), so light flips to the
+  // brighter `bg-elevated` (white) for the card and `bg-panel` for its
+  // inset strips — the reverse of dark, where `bg-panel` (11% lightness)
+  // already reads as clearly raised off the near-black canvas and
+  // `bg-elevated` (8%) is what the two inset strips use instead.
+  const cardBg = isLight ? "bg-bg-elevated" : "bg-bg-panel";
+  const insetBg = isLight ? "bg-bg-panel" : "bg-bg-elevated";
+  // Per-category color (Core/Modules/Agentic, see `categoryAccentIndex`)
+  // instead of every icon chip sharing one flat `text-text-muted` gray —
+  // reported back alongside the card-blends-into-background issue above,
+  // same fix either way: more visual separation, not just a darker border.
+  const accent = (isLight ? TRACK_ACCENTS : TRACK_ACCENTS_DARK)[getTrackAccent(categoryAccentIndex(catalogItem))];
   const status = data.status ?? "idle";
   const disabled = status === "disabled";
   const fields = ENTITY_CONFIG_SCHEMA[data.entityType] ?? [];
@@ -130,7 +165,7 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
   return (
     <div
       data-node-card
-      className={`group relative w-56 overflow-hidden border bg-bg-panel shadow-elevated
+      className={`group relative w-56 overflow-hidden border ${cardBg} shadow-[var(--shadow-workspace-card)]
         transition-all duration-fast ease-standard
         ${selected ? "border-signal" : "border-border hover:-translate-y-0.5 hover:border-border-hover hover:shadow-dropdown"}
         ${disabled ? "opacity-50" : ""}`}
@@ -139,7 +174,7 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
         <>
           <Badge
             variant="warning"
-            className="absolute -top-2 -right-2 z-10 bg-bg-panel"
+            className={`absolute -top-2 -right-2 z-10 ${cardBg}`}
           >
             <Flame className="size-2.5" aria-hidden />
             Bottleneck
@@ -188,10 +223,10 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
             `nextLabelFor`), so it just repeated the same text twice in two
             type treatments on every node, for no added information. */}
         <span
-          className="flex size-7 shrink-0 items-center justify-center border border-border bg-bg-elevated"
+          className={`flex size-7 shrink-0 items-center justify-center ${accent.soft} ${accent.text} ${accent.iconShadow} ${accent.iconGlow}`}
           title={catalogItem.name}
         >
-          <Icon className="size-3.5 text-text-muted" aria-hidden />
+          <Icon className="size-3.5" aria-hidden />
           <span className="sr-only">{catalogItem.name}</span>
         </span>
 
@@ -260,7 +295,7 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
           per target. */}
       {distribution && distribution.length > 0 && distributionTotal > 0 && (
         <div
-          className="flex h-1.5 w-full overflow-hidden border-t border-border bg-bg-elevated"
+          className={`flex h-1.5 w-full overflow-hidden border-t border-border ${insetBg}`}
           role="img"
           aria-label={`Traffic split across ${distribution.length} targets`}
           title={`Traffic split across ${distribution.length} targets`}
@@ -277,7 +312,7 @@ function ComponentNodeImpl({ id, data, selected }: NodeProps<ArchitectureNode>) 
 
       {utilization !== undefined && (
         <div
-          className="h-1 w-full bg-bg-elevated"
+          className={`h-1 w-full ${insetBg}`}
           role="img"
           aria-label={`Utilization ${(utilization * 100).toFixed(0)}%`}
           title={`Utilization ${(utilization * 100).toFixed(0)}%`}

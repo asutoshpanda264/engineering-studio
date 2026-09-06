@@ -2,17 +2,19 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Clock, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
 import {
   getTrackAccent,
   TRACK_ACCENTS,
   TRACK_ACCENTS_DARK,
   type TrackAccentClasses,
 } from "@/components/foundations/trackAccent";
+import { sectionRevealVariants, staticRevealVariants } from "@/components/foundations/sectionRevealVariants";
 import { formatTotalTime } from "./ReadingRoomJourney";
+import { ReadingRoomBadge } from "./ReadingRoomBadge";
 import type { ReadingRoomGroup, ReadingRoomItem } from "./types";
 
 /**
@@ -29,10 +31,17 @@ import type { ReadingRoomGroup, ReadingRoomItem } from "./types";
  * dark/night-ops keep the app's plain copper "signal" accent for all of
  * that chrome, with per-track color narrowed to exactly two places — the
  * lesson card's icon chip (`iconAccent`, always colored, both themes) and
- * a single oversized low-opacity watermark icon bleeding off each zone's
- * corner (reusing `group.icon`, the same icon the cards already show) —
- * see `FoundationsAtlas`'s own doc comment for the fuller history of why
- * dark stopped short of full per-track color.
+ * each zone's `ReadingRoomBadge` (the generic form of `TrackBadge` — see
+ * that component's own doc comment) — see `FoundationsAtlas`'s own doc
+ * comment for the fuller history of why dark stopped short of full
+ * per-track color. Previously drifted from that mirror in two ways, both
+ * fixed here: `AtlasBackdrop` still painted `SystemMeshBackground` as a
+ * `fixed` layer (the exact "stays frozen while the page scrolls" bug
+ * Foundations' own copy of this was already flagged back for and moved
+ * out to `*IndexView`'s `<main>` — see this file's own `AtlasBackdrop` doc
+ * comment), and `AtlasZone` still drew the old oversized low-opacity
+ * watermark icon `TrackBadge` replaced on Foundations, with no scroll-
+ * reveal animation on the zone itself either.
  */
 export function ReadingRoomAtlas<T extends ReadingRoomItem>({
   groups,
@@ -105,17 +114,30 @@ export function ReadingRoomAtlas<T extends ReadingRoomItem>({
   );
 }
 
-/** Dark/night-ops only — Paper's own atmosphere lives in `*IndexView`'s `<main>` (`bg-reading-room`) plus this file's zone-level blobs; see `FoundationsAtlas`'s `AtlasBackdrop` for the fuller reasoning this mirrors exactly. */
+/**
+ * Dark/night-ops only — two soft blurred color blobs plus a top/bottom
+ * fade, genuinely `fixed` behind the whole scrolling page (a constant
+ * ambient light source structural elements drift past, not something that
+ * itself needs to track scroll position) — see `FoundationsAtlas`'s own
+ * `AtlasBackdrop` doc comment for the fuller reasoning this mirrors
+ * exactly. `SystemMeshBackground` (the node/edge graph) used to render
+ * here too, painted onto this same `fixed` layer — flagged back, on
+ * Foundations' identical copy of this, as "still staying in the same
+ * place" while scrolling: a fixed layer behind scrolling zones means every
+ * one of them scrolls past the exact same frozen graph. Moved out to each
+ * `*IndexView`'s own `<main>` as a normal-flow `absolute` layer instead
+ * (scrolls with the page) — see `AgenticIndexView`/`LLDIndexView`/
+ * `CaseStudiesIndexView`'s own `<main>` for where it landed. Paper's own
+ * atmosphere lives in `*IndexView`'s `<main>` (`bg-reading-room`) plus this
+ * file's zone-level blobs instead.
+ */
 function AtlasBackdrop({ isLight }: { isLight: boolean }) {
   if (isLight) return null;
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.35]">
-        <SystemMeshBackground />
-      </div>
-      <div className="absolute -top-32 left-1/4 h-[32rem] w-[32rem] rounded-full bg-signal/[0.06] blur-[110px]" />
-      <div className="absolute bottom-0 right-0 h-[28rem] w-[28rem] rounded-full bg-status-healthy/[0.05] blur-[120px]" />
+      <div className="absolute -top-32 left-1/4 h-[32rem] w-[32rem] rounded-full bg-signal/[0.1] blur-[110px]" />
+      <div className="absolute bottom-0 right-0 h-[28rem] w-[28rem] rounded-full bg-status-healthy/[0.08] blur-[120px]" />
       <div className="absolute inset-0 bg-gradient-to-b from-bg/40 via-transparent to-bg" />
     </div>
   );
@@ -248,10 +270,18 @@ function AtlasZone<T extends ReadingRoomItem>({
   const groupDone = group.items.length > 0 && doneCount === group.items.length;
   const accent = isLight ? TRACK_ACCENTS[getTrackAccent(index)] : null;
   const iconAccent = (isLight ? TRACK_ACCENTS : TRACK_ACCENTS_DARK)[getTrackAccent(index)];
-  const WatermarkIcon = group.icon;
+  const prefersReducedMotion = useReducedMotion();
 
   return (
-    <section
+    <motion.section
+      initial="hidden"
+      whileInView="visible"
+      // `once: false` — replays every time the zone (re-)enters the
+      // viewport, not just the first pass down the page; scrolling back up
+      // to an earlier track sees it fade/slide in again too. Same timing
+      // `FoundationsAtlas`'s own `AtlasZone` uses.
+      viewport={{ once: false, margin: "-10% 0px -10% 0px" }}
+      variants={prefersReducedMotion ? staticRevealVariants : sectionRevealVariants}
       className={`relative isolate overflow-hidden rounded-[var(--landing-radius-lg)] ${
         accent ? `border ${accent.borderFaint} bg-bg-elevated/50 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-8` : ""
       }`}
@@ -270,30 +300,30 @@ function AtlasZone<T extends ReadingRoomItem>({
           />
         </>
       )}
-      {!isLight && (
-        <WatermarkIcon
-          aria-hidden
-          className={`pointer-events-none absolute -bottom-16 -right-10 z-0 size-64 -rotate-12 opacity-[0.07] sm:size-80 ${iconAccent.text}`}
-          strokeWidth={1}
-        />
-      )}
       <div className="relative z-10">
         <div
-          className={`mb-8 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-2 ${accent ? accent.borderFaint : "border-border"}`}
+          className={`mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b pb-4 ${accent ? accent.borderFaint : "border-border"}`}
         >
-          <div className="flex items-baseline gap-3">
-            {accent ? (
-              <span
-                className={`inline-flex -translate-y-0.5 items-center rounded-md border border-white/25 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm ${accent.solid}`}
-              >
-                {`Track ${String(index + 1).padStart(2, "0")}`}
-              </span>
-            ) : (
-              <span className="font-mono text-[10px] text-text-subtle">
-                {`// track ${String(index + 1).padStart(2, "0")}`}
-              </span>
-            )}
-            <h2 className="text-lg font-semibold text-text">{group.title}</h2>
+          <div className="flex items-center gap-4">
+            {/* The zone's own visual metaphor — see `ReadingRoomBadge`'s doc
+                comment for why this replaced the old background watermark.
+                Rendered on both themes (`iconAccent` already covers both),
+                unlike the Paper-only `accent` chip/rule below it. */}
+            <ReadingRoomBadge icon={group.icon} accent={iconAccent} />
+            <div className="flex items-baseline gap-3">
+              {accent ? (
+                <span
+                  className={`inline-flex -translate-y-0.5 items-center rounded-md border border-white/25 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm ${accent.solid}`}
+                >
+                  {`Track ${String(index + 1).padStart(2, "0")}`}
+                </span>
+              ) : (
+                <span className="font-mono text-[10px] text-text-subtle">
+                  {`// track ${String(index + 1).padStart(2, "0")}`}
+                </span>
+              )}
+              <h2 className="text-lg font-semibold text-text">{group.title}</h2>
+            </div>
           </div>
           <p className="max-w-sm text-xs text-text-subtle sm:text-right">{group.description}</p>
         </div>
@@ -325,7 +355,7 @@ function AtlasZone<T extends ReadingRoomItem>({
           </p>
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }
 

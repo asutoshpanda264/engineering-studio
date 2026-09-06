@@ -61,12 +61,20 @@ function setTheme(theme: Theme) {
 
 interface ThemeContextValue {
   theme: Theme;
-  /** Always "dark" — React Flow canvases (Workshop, LLD editor, ...) haven't
-   *  been redesigned for a light ground yet, regardless of the site theme,
-   *  and this is the value react-flow's `colorMode` prop expects. Kept as
-   *  its own field (rather than reusing `theme` directly) so canvas
-   *  consumers don't need to care whether more themes get added later. */
-  colorMode: "dark";
+  /** The value react-flow's `colorMode` prop expects — "light" under Paper,
+   *  "dark" everywhere else (including night-ops, which is its own darker
+   *  theme, not a third canvas mode react-flow needs to know about). Kept
+   *  as its own field rather than passing `theme` straight through so
+   *  canvas consumers don't need their own `theme === "light" ? ... :
+   *  ...` and so a future theme doesn't silently need a matching
+   *  react-flow mode of its own. React Flow's built-in node/handle/
+   *  minimap/selection defaults only matter for whatever we don't
+   *  already override with our own tokens (`ComponentNode`/`ClassNode`,
+   *  `AnimatedEdge`/`RelationshipEdge`, `ArchitectureCanvas`/
+   *  `DiagramCanvas`'s `Background`/`Controls`) — all of those were
+   *  already built fully token-driven with no hardcoded-dark literals,
+   *  so flipping this was the one remaining piece, not a redesign. */
+  colorMode: "light" | "dark";
   toggleTheme: () => void;
 }
 
@@ -92,7 +100,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const value = useMemo(
-    () => ({ theme, colorMode: "dark" as const, toggleTheme }),
+    () => ({ theme, colorMode: theme === "light" ? ("light" as const) : ("dark" as const), toggleTheme }),
     [theme, toggleTheme],
   );
 

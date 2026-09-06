@@ -47,6 +47,14 @@
   --color-signal: hsl(28 85% 58%);
   --color-signal-hover: hsl(28 90% 64%);
   --color-signal-active: hsl(28 90% 70%);
+  /* A translucent accent wash — a badge/callout/icon-chip fill, distinct
+     from `--color-bg-panel` (a neutral surface) — for any surface that
+     needs to read as "tinted by the accent" without a solid fill. Plain
+     `bg-signal/10` already covers most one-off cases; this exists as a
+     named token for the handful of places (the workspace dashboard's
+     "continue learning" card, a future info callout) that want the exact
+     same wash reused verbatim rather than re-deriving an opacity value. */
+  --color-signal-soft: hsl(28 85% 58% / 0.1);
 
   /* ---- Status — reserved for real simulated state only, never decorative ---- */
   --color-status-healthy: hsl(150 55% 48%);
@@ -95,6 +103,7 @@
   --color-signal: hsl(50 100% 50%);
   --color-signal-hover: hsl(50 100% 56%);
   --color-signal-active: hsl(50 100% 62%);
+  --color-signal-soft: hsl(50 100% 50% / 0.12);
 
   --color-status-healthy: hsl(158 60% 46%);
   --color-status-degraded: hsl(39 100% 56%);
@@ -129,11 +138,17 @@
 }
 
 /*
- * Paper (Light, PREVIEW) — the "paper" half of the void/paper pairing named
- * above. Warm off-white rather than clinical pure white, with the same
- * signal/status hue families as Trace re-tuned darker so they still hold
- * contrast on a light ground (a bare lightness-only swap of the dark
- * values would wash out to near-invisible). Reachable by cycling
+ * Paper (Light) — the "paper" half of the void/paper pairing named above.
+ * Originally a warm off-white with the same copper signal as Trace
+ * re-tuned darker for contrast; replaced with a cool blue-gray "workspace"
+ * palette (exact hand-specified values, not derived from Trace's hue math
+ * the way the old ones were) once `/learn`/`/foundations` proved out that
+ * direction as a scoped experiment and it was asked to become the theme's
+ * actual palette. `text-subtle`/`border-hover`/`signal-active` weren't
+ * specified by that brief — filled in as, respectively, a lighter tint
+ * between `text-muted` and `border`, a slightly darker/more saturated
+ * `border`, and a darker step past `signal-hover`, following the
+ * lightness progression the given values establish. Reachable by cycling
  * ThemeToggle, same mechanism as Night Ops.
  *
  * Landing-page-first: the `--landing-*` tokens below are this theme's one
@@ -141,34 +156,37 @@
  * rules (see page.tsx's file-level comment and Reveal.tsx) — soft rounded
  * cards, real shadows, and a fade-up-on-scroll reveal, all scoped to only
  * take effect under `data-theme="light"` so the dark theme's flat hairline
- * instrument aesthetic is untouched. Every other page still just inherits
- * this theme's plain color tokens (bg/text/border/signal/status) and
- * hasn't been individually redesigned for a light ground yet.
+ * instrument aesthetic is untouched. Every other page just inherits this
+ * theme's plain color tokens (bg/text/border/signal/status) — the same
+ * `--landing-*` softness reused wherever a page reaches for it (`Card.tsx`'s
+ * `.reading-room-card`, `ReadingRoomAtlas`'s zone panels, `/learn`'s and
+ * `/foundations`' own dashboard cards) rather than a re-derived one-off.
  */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg: hsl(40 30% 98%);
-  --color-bg-elevated: hsl(0 0% 100%);
-  --color-bg-panel: hsl(36 24% 95%);
-  /* Paper's panel(95%) → elevated(100%) already lightens on hover, unlike
+  --color-bg: #f4f7fc;
+  --color-bg-elevated: #ffffff;
+  --color-bg-panel: #eef4ff;
+  /* Panel(#eef4ff) → elevated(#fff) already lightens on hover, unlike
      Trace/Night Ops — bg-hover just names that existing correct direction
      so card components can reach for one token across all three themes. */
-  --color-bg-hover: hsl(0 0% 100%);
-  --color-border: hsl(230 14% 20% / 10%);
-  --color-border-hover: hsl(230 14% 20% / 20%);
+  --color-bg-hover: #ffffff;
+  --color-border: #e4eaf2;
+  --color-border-hover: #c9d6e8;
 
-  --color-text: hsl(230 22% 13%);
-  --color-text-muted: hsl(230 10% 38%);
-  --color-text-subtle: hsl(230 8% 56%);
+  --color-text: #111827;
+  --color-text-muted: #667085;
+  --color-text-subtle: #98a2b3;
 
-  --color-signal: hsl(28 82% 45%);
-  --color-signal-hover: hsl(28 85% 39%);
-  --color-signal-active: hsl(28 88% 34%);
+  --color-signal: #155eef;
+  --color-signal-hover: #004eeb;
+  --color-signal-active: #0040c4;
+  --color-signal-soft: #e8f0ff;
 
-  --color-status-healthy: hsl(150 58% 34%);
-  --color-status-degraded: hsl(38 88% 40%);
-  --color-status-critical: hsl(355 68% 45%);
+  --color-status-healthy: #16a34a;
+  --color-status-degraded: #d97706;
+  --color-status-critical: #dc2626;
 
   --color-rag-embed: hsl(262 55% 54%);
   --color-rag-retrieve: hsl(168 58% 36%);
@@ -176,16 +194,57 @@
   --color-rag-corpus: hsl(42 40% 40%);
 
   --shadow-panel: none;
-  --shadow-dropdown: 0 8px 24px -8px rgb(30 27 20 / 0.14);
+  --shadow-dropdown: 0 8px 24px -8px rgb(17 24 39 / 0.14);
   --shadow-elevated: none;
 
-  /* ---- Landing-only softness (see banner comment above) ---- */
+  /* ---- Landing-only softness (see banner comment above) — shadow tint
+     moved from the old warm rgb(30 27 20) to a cool neutral matching
+     `--color-text` (rgb(17 24 39)), and `--landing-glow`'s first blob from
+     copper (hue 28) to the new signal's blue (hue 221), so both still
+     read as "this palette's own shadow/glow" rather than a leftover warm
+     remnant under the new cool ground. ---- */
   --landing-radius: 20px;
   --landing-radius-lg: 28px;
-  --landing-shadow-card: 0 1px 2px rgb(30 27 20 / 0.04), 0 24px 48px -20px rgb(30 27 20 / 0.16);
-  --landing-shadow-hover: 0 1px 2px rgb(30 27 20 / 0.06), 0 32px 64px -20px rgb(30 27 20 / 0.22);
-  --landing-glow: radial-gradient(42rem 26rem at 12% -10%, hsl(28 90% 88% / 0.6), transparent 60%),
+  --landing-shadow-card: 0 1px 2px rgb(17 24 39 / 0.04), 0 12px 24px -14px rgb(17 24 39 / 0.12);
+  --landing-shadow-hover: 0 1px 2px rgb(17 24 39 / 0.06), 0 20px 40px -18px rgb(17 24 39 / 0.18);
+  --landing-glow: radial-gradient(42rem 26rem at 12% -10%, hsl(221 90% 88% / 0.6), transparent 60%),
     radial-gradient(38rem 24rem at 90% 5%, hsl(150 55% 88% / 0.45), transparent 60%);
+}
+
+/*
+ * Workspace tokens — originally a scoped `/learn`/`/foundations`-only
+ * palette layered on top of Paper (see git history), promoted to plain
+ * aliases now that Paper's own tokens above carry these exact values
+ * everywhere. Kept only so the handful of call sites that already
+ * reference `bg-workspace-*`/`text-workspace-*` classes (`LearnHubView`,
+ * `FoundationsJourney`, `FoundationsIndexView`, `AppHeader`'s `className`
+ * escape hatch) don't need a mechanical rename — every value here is now
+ * pure `var(...)`, no per-theme override left, so they resolve correctly
+ * on every theme without their own light-theme block. Radius/shadow alias
+ * straight to `--landing-*` (the one soft-card system now, not a second
+ * one) instead of duplicating its literal values.
+ */
+:root {
+  --color-workspace-bg: var(--color-bg);
+  --color-workspace-surface: var(--color-bg-elevated);
+  --color-workspace-surface-soft: var(--color-bg-panel);
+  --color-workspace-border: var(--color-border);
+  --color-workspace-border-hover: var(--color-border-hover);
+  --color-workspace-text: var(--color-text);
+  --color-workspace-text-muted: var(--color-text-muted);
+  --color-workspace-text-subtle: var(--color-text-subtle);
+  --color-workspace-accent: var(--color-signal);
+  --color-workspace-accent-hover: var(--color-signal-hover);
+  --color-workspace-accent-active: var(--color-signal-active);
+  --color-workspace-accent-soft: var(--color-signal-soft);
+  --color-workspace-success: var(--color-status-healthy);
+  --color-workspace-warning: var(--color-status-degraded);
+  --color-workspace-destructive: var(--color-status-critical);
+
+  --radius-workspace: var(--landing-radius);
+  --radius-workspace-lg: var(--landing-radius-lg);
+  --shadow-workspace-card: var(--landing-shadow-card);
+  --shadow-workspace-hover: var(--landing-shadow-hover);
 }
 
 :root {
@@ -291,6 +350,7 @@
   --color-signal: var(--color-signal);
   --color-signal-hover: var(--color-signal-hover);
   --color-signal-active: var(--color-signal-active);
+  --color-signal-soft: var(--color-signal-soft);
   --color-status-healthy: var(--color-status-healthy);
   --color-status-degraded: var(--color-status-degraded);
   --color-status-critical: var(--color-status-critical);
@@ -299,6 +359,23 @@
   --color-rag-retrieve: var(--color-rag-retrieve);
   --color-rag-generate: var(--color-rag-generate);
   --color-rag-corpus: var(--color-rag-corpus);
+
+  /* ---- Workspace (`/learn` + `/foundations`, light theme only — see banner comment above) ---- */
+  --color-workspace-bg: var(--color-workspace-bg);
+  --color-workspace-surface: var(--color-workspace-surface);
+  --color-workspace-surface-soft: var(--color-workspace-surface-soft);
+  --color-workspace-border: var(--color-workspace-border);
+  --color-workspace-border-hover: var(--color-workspace-border-hover);
+  --color-workspace-text: var(--color-workspace-text);
+  --color-workspace-text-muted: var(--color-workspace-text-muted);
+  --color-workspace-text-subtle: var(--color-workspace-text-subtle);
+  --color-workspace-accent: var(--color-workspace-accent);
+  --color-workspace-accent-hover: var(--color-workspace-accent-hover);
+  --color-workspace-accent-active: var(--color-workspace-accent-active);
+  --color-workspace-accent-soft: var(--color-workspace-accent-soft);
+  --color-workspace-success: var(--color-workspace-success);
+  --color-workspace-warning: var(--color-workspace-warning);
+  --color-workspace-destructive: var(--color-workspace-destructive);
 
   /* ---- Layout ---- */
   --size-sidebar: var(--size-sidebar);

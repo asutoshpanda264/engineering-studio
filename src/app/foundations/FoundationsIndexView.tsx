@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -39,22 +38,31 @@ import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
  * the map, same hydration shape every other theme-dependent bit of this
  * app already accepts.
  *
- * The default-theme branch further splits in two via `view`: `Journey`
+ * The non-night-ops branch further splits in two via `view`: `Journey`
  * (the tracked list above) or `Atlas` (`FoundationsAtlas` — an immersive,
  * environment-and-visual-metaphor take on the same lessons/progress data,
- * see that file's own doc comment). Plain `useState`, not persisted —
- * this is a side-by-side compare toggle for evaluating the new layout,
- * not a real user preference worth a `localStorage` key yet. Not offered
- * in `night-ops`: that theme already has its own immersive shape
- * (`FoundationsMap`) and doesn't need a second one.
+ * see that file's own doc comment). Tied directly to theme, not a manual
+ * choice — Paper gets Journey, dark gets Atlas — per explicit feedback
+ * once both had been live side-by-side long enough to pick a winner per
+ * theme: Atlas's environment (the fixed copper/status-healthy `AtlasBackdrop`
+ * glow, `TrackBadge`'s icon-glow chip, `AtlasZone`'s blurred corner blobs)
+ * is tuned for dark's near-black ground and was the one actually kept
+ * there; Journey's flatter, bordered-panel treatment (now with a real
+ * elevation shadow — see that file's own `TrackSection` comment) reads
+ * better against Paper's near-white ground. A manual `ViewToggle` used to
+ * sit here for comparing the two live; removed along with this, since the
+ * decision is no longer a per-visitor choice. Not offered in `night-ops`:
+ * that theme already has its own immersive shape (`FoundationsMap`) and
+ * doesn't need either.
  */
 export function FoundationsIndexView({ lessons }: { lessons: FoundationLesson[] }) {
   const { theme } = useTheme();
-  const [view, setView] = useState<"journey" | "atlas">("atlas");
+  const view = theme === "light" ? "journey" : "atlas";
 
   const header = (
     <AppHeader
       back={{ href: "/learn", label: "Learn" }}
+      className="!bg-workspace-bg/90"
       right={
         <>
           <ThemeToggle />
@@ -102,16 +110,21 @@ export function FoundationsIndexView({ lessons }: { lessons: FoundationLesson[] 
     // half of that: the grid/mesh below are `absolute`, so they need `main`
     // as their positioned containing block to size themselves against
     // (`inset-0` resolves to `main`'s own content-driven height, not just
-    // one viewport's worth). `bg-reading-room` (a plain CSS class, not a JS
-    // check — see globals.css) is a few points darker than plain `bg-bg`
-    // under Paper only, same fix every other reading-room index now shares
-    // — flagged back as "piercing" white here first, once cards started
-    // needing a real edge to read against. `AtlasBackdrop` (Atlas's fixed
-    // glow-blob atmosphere) and the grid/mesh below are all transparent
-    // layers painted *on top* of this same fill, not opaque copies of it —
-    // this is the one real base color underneath every view.
+    // one viewport's worth). Atlas (dark) keeps `bg-reading-room` (a plain
+    // CSS class, not a JS check — see globals.css), a few points darker
+    // than plain `bg-bg`, the same fix every other reading-room index
+    // shares — flagged back as "piercing" white once cards started needing
+    // a real edge to read against. `AtlasBackdrop` and the grid/mesh below
+    // are transparent layers painted *on top* of that fill. Journey (the
+    // one branch that actually renders in light theme) instead gets
+    // `bg-workspace-bg` — the new light-only `#F4F7FC` workspace ground
+    // (see globals.css's `--color-workspace-*`; resolves back to plain
+    // `--color-bg` outside light theme, so this is a no-op there) — and no
+    // `bg-blueprint-grid` texture: the workspace redesign wants a quiet,
+    // uncluttered page ground behind its white cards, not a graph-paper
+    // texture competing with them.
     <main
-      className={`relative isolate flex min-h-screen flex-col bg-reading-room ${view === "journey" ? "bg-blueprint-grid" : ""}`}
+      className={`relative isolate flex min-h-screen flex-col ${view === "journey" ? "bg-workspace-bg" : "bg-reading-room"}`}
     >
       {/* Atlas's structural background — the `bg-blueprint-grid` dot texture
           plus (dark only) `SystemMeshBackground`'s node/edge graph,
@@ -156,53 +169,23 @@ export function FoundationsIndexView({ lessons }: { lessons: FoundationLesson[] 
         </>
       )}
       {header}
+      {/* `workspace-*` text/badge colors — a no-op outside light theme
+          (they resolve back to the plain `--color-text`/`--color-signal`
+          tokens there), the new palette under it. */}
       <section className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-6 pb-10 pt-16 text-center sm:pt-20">
-        <Badge variant="primary">Phase 1 — Foundations</Badge>
-        <h1 className="text-3xl font-semibold tracking-tight text-text sm:text-4xl">
+        <Badge variant="primary" className="!border-workspace-accent/50 !bg-workspace-accent/10 !text-workspace-accent">
+          Phase 1 — Foundations
+        </Badge>
+        <h1 className="text-3xl font-semibold tracking-tight text-workspace-text sm:text-4xl">
           The theory underneath the Workshop
         </h1>
-        <p className="max-w-xl text-balance text-text-muted">
+        <p className="max-w-xl text-balance text-workspace-text-muted">
           The internet, DNS, HTTP, databases, caching, queues — the vocabulary the
           Workshop and entity reference assume you already have. Read in any order;
           nothing here is locked.
         </p>
-        <ViewToggle view={view} onChange={setView} />
       </section>
       {view === "atlas" ? <FoundationsAtlas lessons={lessons} /> : <FoundationsJourney lessons={lessons} />}
     </main>
-  );
-}
-
-/**
- * The Journey/Atlas compare switch — a small segmented control in the
- * same hairline-bordered, mono-uppercase idiom as `Badge`/`TorchToggle`,
- * not a pair of full buttons, since this is a one-off layout preference
- * sitting right below the page's own tagline rather than a primary
- * action.
- */
-function ViewToggle({
-  view,
-  onChange,
-}: {
-  view: "journey" | "atlas";
-  onChange: (view: "journey" | "atlas") => void;
-}) {
-  return (
-    <div role="tablist" aria-label="Foundations layout" className="mt-1 inline-flex border border-border bg-bg-panel p-0.5">
-      {(["journey", "atlas"] as const).map((option) => (
-        <button
-          key={option}
-          type="button"
-          role="tab"
-          aria-selected={view === option}
-          onClick={() => onChange(option)}
-          className={`px-3 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors duration-fast ease-standard ${
-            view === option ? "bg-signal/10 text-signal" : "text-text-subtle hover:text-text-muted"
-          }`}
-        >
-          {option === "journey" ? "Journey" : "Atlas"}
-        </button>
-      ))}
-    </div>
   );
 }

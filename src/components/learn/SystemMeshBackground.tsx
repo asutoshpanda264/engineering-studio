@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useTheme } from "@/components/theme/ThemeProvider";
 
 /**
  * Decorative full-bleed background for `/learn` — a loosely-clustered
@@ -170,8 +171,12 @@ function Packet() {
   );
 }
 
-function Node({ node, accent }: { node: MeshNode; accent: boolean }) {
-  const cls = accent ? "fill-signal stroke-signal" : "fill-bg-elevated stroke-border-hover";
+function Node({ node, accent, isLight }: { node: MeshNode; accent: boolean; isLight: boolean }) {
+  const cls = accent
+    ? "fill-signal stroke-signal"
+    : isLight
+      ? "fill-bg-elevated stroke-text-subtle"
+      : "fill-bg-elevated stroke-border-hover";
   if (node.shape === "square") {
     const s = accent ? 9 : 7;
     return <rect x={node.x - s / 2} y={node.y - s / 2} width={s} height={s} strokeWidth={1} className={cls} />;
@@ -181,6 +186,25 @@ function Node({ node, accent }: { node: MeshNode; accent: boolean }) {
 
 export function SystemMeshBackground() {
   const prefersReducedMotion = useReducedMotion();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+
+  // Dark reads this graph as light-on-black — `stroke-border` (translucent
+  // near-white) already stands out against `--color-bg`'s near-black.
+  // Paper's `--color-border` is the opposite: a very pale tint barely
+  // different from the page's own near-white ground, so the exact same
+  // classes/opacities read as "not really there" — direct feedback,
+  // pointing at a screenshot of the dark version, that this whole graph
+  // should look like a visible structure in light too, not just in dark.
+  // `--color-text-subtle` (a real mid-tone gray-blue in Paper, not another
+  // near-white) stands in for `border`/`border-hover` here — visible on
+  // its own even at the same or a slightly lower opacity than dark's,
+  // since the color itself is doing the work this time, not the opacity.
+  // Tuned down once from an initial pass that read as too heavy next to
+  // the hero content it's meant to sit quietly behind.
+  const edgeCls = isLight ? "stroke-text-subtle" : "stroke-border";
+  const edgeOpacity = isLight ? 0.35 : 0.4;
+  const nodeOpacity = 0.5;
 
   return (
     <svg
@@ -190,7 +214,7 @@ export function SystemMeshBackground() {
       aria-hidden
       focusable="false"
     >
-      <g className="stroke-border" strokeWidth={1} opacity={0.4}>
+      <g className={edgeCls} strokeWidth={1} opacity={edgeOpacity}>
         {EDGES.map(([a, b], i) => {
           const na = NODES[a];
           const nb = NODES[b];
@@ -206,9 +230,9 @@ export function SystemMeshBackground() {
         })}
       </g>
 
-      <g opacity={0.5}>
+      <g opacity={nodeOpacity}>
         {NODES.map((node, i) => (
-          <Node key={i} node={node} accent={ACCENT_NODES.has(i)} />
+          <Node key={i} node={node} accent={ACCENT_NODES.has(i)} isLight={isLight} />
         ))}
       </g>
 

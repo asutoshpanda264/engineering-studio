@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { EntityTableOfContents } from "@/components/entities/EntityTableOfContents";
 import type { TocSection } from "@/components/entities/EntityTableOfContents";
+import { EntityViewTracker } from "@/components/entities/EntityViewTracker";
 import { FigureFrame } from "@/components/content/FigureFrame";
 import { ENTITY_MECHANISM_REGISTRY } from "@/components/content/diagrams/entities/registry";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
@@ -89,6 +90,11 @@ export default async function EntityDeepDivePage({
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
+      {/* Records "viewed" for `EntitiesIndexView`'s progress card — see
+          `EntityViewTracker`'s own doc comment for why this is a separate
+          client sliver rather than making this whole page a client
+          component. */}
+      <EntityViewTracker slug={slugFromEntityType(type)} />
       <AppHeader
         back={{ href: "/entities", label: "All entities" }}
         maxWidthClassName="max-w-7xl"

@@ -127,14 +127,14 @@ export default async function LLDLessonPage({
 
           {/* Summary + key takeaways */}
           <Section index={lesson.sections.length + 1} id="summary" title="Summary">
-            <p className="mb-5 text-sm leading-relaxed text-text-muted">{lesson.summary}</p>
+            <p className="mb-5 text-base leading-relaxed text-text-muted">{lesson.summary}</p>
             <div className="bg-bg-panel p-5">
               <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Key takeaways
               </h3>
               <ul className="flex flex-col gap-2.5">
                 {lesson.keyTakeaways.map((takeaway, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-text-muted">
+                  <li key={i} className="flex gap-2.5 text-base leading-relaxed text-text-muted">
                     <span className="mt-1.5 size-1 shrink-0 rounded-full bg-signal" aria-hidden />
                     {takeaway}
                   </li>
@@ -146,7 +146,7 @@ export default async function LLDLessonPage({
           {/* Exercise — worked answer hidden behind a native disclosure, not shown upfront */}
           <Section index={lesson.sections.length + 2} id="exercise" title="Exercise">
             <div className="flex flex-col gap-4 bg-bg-panel p-5">
-              <p className="text-sm leading-relaxed text-text-muted">{lesson.exercise.prompt}</p>
+              <p className="text-base leading-relaxed text-text-muted">{lesson.exercise.prompt}</p>
               {lesson.exercise.guidance && (
                 <details className="group">
                   <summary className="cursor-pointer font-mono text-xs font-semibold uppercase tracking-wider text-signal transition-colors duration-fast ease-standard hover:text-signal-hover">

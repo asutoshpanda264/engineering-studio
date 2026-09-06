@@ -2,15 +2,18 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getTrackAccent, TRACK_ACCENTS, type TrackAccentClasses } from "@/components/foundations/trackAccent";
+import { sectionRevealVariants, staticRevealVariants } from "@/components/foundations/sectionRevealVariants";
+import { ReadingRoomBadge } from "./ReadingRoomBadge";
 import type { ReadingRoomGroup, ReadingRoomItem } from "./types";
 
 /**
  * The generic form of `FoundationsJourney` — a tracked, sequenced index
- * (readout strip, a Continue/Start Here focal point, N labeled tracks)
+ * (a Continue/Progress dashboard row, a milestone strip, N labeled tracks)
  * parameterized over any content module shaped like `ReadingRoomItem`
  * grouped into `ReadingRoomGroup`s, instead of hardcoded to
  * `FoundationLesson`/`FOUNDATION_TRACKS`. Foundations itself keeps its own
@@ -22,11 +25,23 @@ import type { ReadingRoomGroup, ReadingRoomItem } from "./types";
  * treatment. This is for every reading room *after* Foundations: same
  * tracked-index shape, a plainer icon language.
  *
+ * The dashboard row (`ContinueCard`/`ProgressCard`/`MilestoneStrip`) used to
+ * be a plain-text `ReadoutStrip` plus a left-accent-border `ContinueBand` —
+ * the older, plainer shape `FoundationsJourney` itself moved past a while
+ * back. Brought in sync here too, so LLD/Agentic/Case Studies get the same
+ * "continue learning" focal point Foundations has instead of lagging behind
+ * it.
+ *
  * Paper-only accent color, matching `FoundationsJourney`'s own current
  * behavior exactly (that file's doc comment: "hasn't been asked for
  * [dark] there yet, don't extend it speculatively") — propagating the
  * *existing* Journey mode means propagating what it actually does today,
- * not adding scope Foundations' own Journey doesn't have yet.
+ * not adding scope Foundations' own Journey doesn't have yet. That also
+ * means the scroll-reveal animation on `TrackSection` (`sectionRevealVariants`,
+ * `once: false`), the two-layer elevation shadow on its panel, and the
+ * `ReadingRoomBadge` (the generic form of `TrackBadge`) next to each
+ * track's title are all propagated too — Foundations' own `TrackSection`
+ * has had these for a while; this file had drifted behind on all three.
  */
 export function ReadingRoomJourney<T extends ReadingRoomItem>({
   basePath,
@@ -58,28 +73,36 @@ export function ReadingRoomJourney<T extends ReadingRoomItem>({
     () => items.find((item) => !completed.has(item.slug)) ?? null,
     [items, completed]
   );
+  const currentGroupIndex = useMemo(() => {
+    if (!nextItem) return groups.length - 1;
+    const index = groups.findIndex((group) => group.items.some((item) => item.slug === nextItem.slug));
+    return index === -1 ? 0 : index;
+  }, [groups, nextItem]);
 
   return (
     <>
-      <div className="relative mx-auto w-full max-w-5xl px-6">
-        <ReadoutStrip
-          total={items.length}
-          completedCount={completedCount}
-          totalMinutes={totalMinutes}
-          itemLabel={itemLabel}
-        />
+      {/* The dashboard row: a large primary "what's next" card next to a
+          small supporting progress card, plus a compact milestone strip
+          summarizing every group at a glance — `FoundationsJourney`'s own
+          dashboard row (`ContinueCard`/`ProgressCard`/`MilestoneStrip`),
+          brought over here so every reading room after Foundations gets the
+          same "continue learning" focal point instead of the older plain-
+          text `ReadoutStrip` + left-accent-border `ContinueBand` this used
+          to render. */}
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pt-8 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <ContinueCard
+            basePath={basePath}
+            nextItem={nextItem}
+            total={items.length}
+            completedCount={completedCount}
+          />
+          <ProgressCard totalItems={items.length} completedCount={completedCount} totalMinutes={totalMinutes} itemLabel={itemLabel} />
+        </div>
+        <MilestoneStrip groups={groups} completed={completed} currentGroupIndex={currentGroupIndex} />
       </div>
 
-      <div className="mx-auto w-full max-w-5xl px-6 pt-8 pb-6">
-        <ContinueBand
-          basePath={basePath}
-          nextItem={nextItem}
-          total={items.length}
-          completedCount={completedCount}
-        />
-      </div>
-
-      <section className="relative mx-auto flex w-full max-w-5xl flex-col gap-14 px-6 py-14">
+      <section className="relative mx-auto flex w-full max-w-7xl flex-col gap-14 px-6 py-14">
         <div aria-hidden className="absolute top-3 bottom-3 left-2.5 hidden w-px bg-border sm:block" />
         {groups.map((group, index) => (
           <TrackSection
@@ -104,41 +127,99 @@ export function formatTotalTime(totalMinutes: number): string {
   return `~${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)} hrs`;
 }
 
-function ReadoutStrip({
-  total,
-  completedCount,
-  totalMinutes,
-  itemLabel,
+/**
+ * Compact group-by-group summary sitting under the continue/progress row —
+ * `FoundationsJourney`'s `MilestoneStrip`, generalized over `groups` instead
+ * of `trackGroups`.
+ */
+function MilestoneStrip<T extends ReadingRoomItem>({
+  groups,
+  completed,
+  currentGroupIndex,
 }: {
-  total: number;
-  completedCount: number;
-  totalMinutes: number;
-  itemLabel: (count: number) => string;
+  groups: ReadingRoomGroup<T>[];
+  completed: Set<string>;
+  currentGroupIndex: number;
 }) {
-  const percent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 border-y border-border py-4 font-mono text-xs uppercase tracking-wide text-text-subtle">
-      <span>
-        <strong className="text-text">{total}</strong> {itemLabel(total)}
-      </span>
-      <span aria-hidden className="text-border">
-        /
-      </span>
-      <span>
-        <strong className={completedCount > 0 ? "text-status-healthy" : "text-text"}>{completedCount}</strong> complete{" "}
-        <span className="text-text-subtle">({percent}%)</span>
-      </span>
-      <span aria-hidden className="text-border">
-        /
-      </span>
-      <span>
-        <strong className="text-text">{formatTotalTime(totalMinutes)}</strong> total
-      </span>
+    <div className="flex items-center gap-2 overflow-x-auto rounded-[var(--radius-workspace)] border border-workspace-border bg-workspace-surface px-5 py-3 shadow-[var(--shadow-workspace-card)]">
+      {groups.map((group, index) => {
+        const done = group.items.length > 0 && group.items.every((item) => completed.has(item.slug));
+        const isCurrent = !done && index === currentGroupIndex;
+        const accent = TRACK_ACCENTS[getTrackAccent(index)];
+        return (
+          <div key={group.key} className="flex shrink-0 items-center gap-2">
+            <span
+              className={`flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold ${
+                done
+                  ? "bg-workspace-success text-white"
+                  : isCurrent
+                    ? `${accent.solid} text-white`
+                    : `${accent.soft} ${accent.text}`
+              }`}
+            >
+              {done ? <Check className="size-3" aria-hidden /> : index + 1}
+            </span>
+            <span className="hidden font-mono text-[10px] whitespace-nowrap uppercase tracking-wide text-workspace-text-subtle sm:inline">
+              {group.title}
+            </span>
+            {index < groups.length - 1 && (
+              <span aria-hidden className={`h-px w-6 sm:w-10 ${done ? "bg-workspace-success/50" : accent.lineFaint}`} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ContinueBand<T extends ReadingRoomItem>({
+/**
+ * The compact supporting card next to `ContinueCard` — total items,
+ * completion, and a slim accent progress bar. `FoundationsJourney`'s
+ * `ProgressCard`, generalized to `itemLabel`'s pluralized noun instead of
+ * a hardcoded "lessons".
+ */
+function ProgressCard({
+  totalItems,
+  completedCount,
+  totalMinutes,
+  itemLabel,
+}: {
+  totalItems: number;
+  completedCount: number;
+  totalMinutes: number;
+  itemLabel: (count: number) => string;
+}) {
+  const percent = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
+  return (
+    <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-surface p-5 shadow-[var(--shadow-workspace-card)] lg:w-72 lg:shrink-0">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[11px] uppercase tracking-wide text-workspace-text-subtle">Your progress</span>
+        <span className="font-mono text-xs font-semibold text-workspace-accent">{percent}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-workspace-surface-soft">
+        <div
+          className="h-full rounded-full bg-workspace-accent transition-[width] duration-slow ease-standard"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between font-mono text-xs text-workspace-text-muted">
+        <span>
+          <strong className="text-workspace-text">{completedCount}</strong>/{totalItems} {itemLabel(totalItems)}
+        </span>
+        <span>
+          <strong className="text-workspace-text">{formatTotalTime(totalMinutes)}</strong> total
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The one clear focal point on the page — `FoundationsJourney`'s
+ * `ContinueCard`, generalized over `ReadingRoomItem`.
+ */
+function ContinueCard<T extends ReadingRoomItem>({
   basePath,
   nextItem,
   total,
@@ -151,9 +232,11 @@ function ContinueBand<T extends ReadingRoomItem>({
 }) {
   if (!nextItem) {
     return (
-      <div className="flex items-center gap-3 border-l-2 border-status-healthy bg-bg-panel px-6 py-5">
-        <Check className="size-4 shrink-0 text-status-healthy" aria-hidden />
-        <p className="text-sm text-text-muted">
+      <div className="flex flex-1 items-center gap-3 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-surface p-6 shadow-[var(--shadow-workspace-card)]">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-workspace-success/10 text-workspace-success">
+          <Check className="size-5" aria-hidden />
+        </span>
+        <p className="text-sm text-workspace-text-muted">
           All {total} complete — nice work. Revisit any of them below, any time.
         </p>
       </div>
@@ -163,23 +246,20 @@ function ContinueBand<T extends ReadingRoomItem>({
   return (
     <Link
       href={`${basePath}/${nextItem.slug}`}
-      className="group flex flex-col gap-3 border-l-2 border-signal bg-bg-panel px-6 py-5 transition-colors duration-fast ease-standard hover:bg-bg-hover sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+      className="group flex flex-1 flex-col justify-between gap-4 rounded-[var(--radius-workspace-lg)] border border-workspace-border bg-workspace-accent-soft p-6 shadow-[var(--shadow-workspace-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--shadow-workspace-hover)] sm:flex-row sm:items-center sm:gap-6"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-signal">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-workspace-accent">
           {completedCount === 0 ? "Start here" : "Continue learning"}
         </span>
-        <span className="text-lg font-semibold text-text">
+        <span className="truncate text-lg font-semibold text-workspace-text">
           {String(nextItem.number).padStart(2, "0")} — {nextItem.title}
         </span>
-        <span className="text-sm text-text-muted">{nextItem.tagline}</span>
+        <span className="text-sm text-workspace-text-muted">{nextItem.tagline}</span>
       </div>
-      <span className="flex shrink-0 items-center gap-2 self-start font-mono text-xs uppercase tracking-wide text-signal sm:self-auto">
+      <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-workspace-accent px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-white transition-transform duration-fast ease-standard group-hover:translate-x-0.5 sm:self-auto">
         {nextItem.estimatedMinutes} min
-        <ArrowRight
-          className="size-4 transition-transform duration-fast ease-standard group-hover:translate-x-1"
-          aria-hidden
-        />
+        <ArrowRight className="size-3.5" aria-hidden />
       </span>
     </Link>
   );
@@ -200,9 +280,20 @@ function TrackSection<T extends ReadingRoomItem>({
 }) {
   const trackDone = group.items.length > 0 && group.items.every((item) => completed.has(item.slug));
   const accent = isLight ? TRACK_ACCENTS[getTrackAccent(index)] : null;
+  const prefersReducedMotion = useReducedMotion();
 
   return (
-    <div className="relative sm:pl-10">
+    <motion.div
+      initial="hidden"
+      whileInView="visible"
+      // `once: false` — replays every time this track section (re-)enters
+      // the viewport, not just the first pass; scrolling back up to an
+      // earlier track sees it fade/slide in again too. Same timing
+      // `FoundationsJourney`'s own `TrackSection` uses.
+      viewport={{ once: false, margin: "-10% 0px -10% 0px" }}
+      variants={prefersReducedMotion ? staticRevealVariants : sectionRevealVariants}
+      className="relative sm:pl-10"
+    >
       <span
         aria-hidden
         className={`absolute top-0.5 left-0 hidden size-5 items-center justify-center border font-mono text-[10px] sm:flex ${
@@ -219,7 +310,13 @@ function TrackSection<T extends ReadingRoomItem>({
       <div
         className={`relative isolate overflow-hidden rounded-[var(--landing-radius-lg)] ${
           accent
-            ? `border ${accent.borderFaint} bg-bg-elevated/50 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6`
+            ? // Real resting elevation shadow, not the barely-visible 1px/2px
+              // contact shadow this panel used to share with every other
+              // bordered surface — matches `FoundationsJourney`'s own
+              // `TrackSection` panel fix. Paper only (`accent` is already
+              // the light-mode gate); dark/night-ops keep the flat,
+              // borderless look this `div` has always had there.
+              `border ${accent.borderFaint} bg-bg-elevated/50 p-4 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_16px_32px_-16px_rgba(15,23,42,0.18)] sm:p-6`
             : ""
         }`}
       >
@@ -241,17 +338,24 @@ function TrackSection<T extends ReadingRoomItem>({
           <div
             className={`mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-2 ${accent ? accent.borderFaint : "border-border"}`}
           >
-            <div>
-              <h2
-                className={
-                  accent
-                    ? `inline-flex -translate-y-0.5 items-center rounded-md border border-white/25 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm ${accent.solid}`
-                    : "font-mono text-[10px] uppercase tracking-wide text-text-subtle"
-                }
-              >
-                {`Track ${String(index + 1).padStart(2, "0")}`}
-              </h2>
-              <h3 className="mt-1.5 text-lg font-semibold text-text">{group.title}</h3>
+            <div className="flex items-center gap-4">
+              {/* Paper-only, same as `accent` itself — `ReadingRoomJourney`
+                  only ever renders under the light theme now, but this
+                  mirrors `FoundationsJourney`'s own `accent &&` gate rather
+                  than assuming that. */}
+              {accent && <ReadingRoomBadge icon={group.icon} accent={accent} />}
+              <div>
+                <h2
+                  className={
+                    accent
+                      ? `inline-flex -translate-y-0.5 items-center rounded-md border border-white/25 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm ${accent.solid}`
+                      : "font-mono text-[10px] uppercase tracking-wide text-text-subtle"
+                  }
+                >
+                  {`Track ${String(index + 1).padStart(2, "0")}`}
+                </h2>
+                <h3 className="mt-1.5 text-lg font-semibold text-text">{group.title}</h3>
+              </div>
             </div>
             <p className="max-w-sm text-xs text-text-subtle sm:text-right">{group.description}</p>
           </div>
@@ -271,7 +375,7 @@ function TrackSection<T extends ReadingRoomItem>({
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
