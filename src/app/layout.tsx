@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { NightOpsAtmosphere } from "@/components/theme/NightOpsAtmosphere";
 import { LockInGuard } from "@/components/lockIn/LockInGuard";
 import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
+import { ReportBugButton } from "@/components/support/ReportBugButton";
 import "./globals.css";
 
 // "Trace" design language: two voices split strictly by role. Serif for
@@ -67,6 +68,7 @@ export default function RootLayout({
           <AuthBootstrap />
           <NightOpsAtmosphere>{children}</NightOpsAtmosphere>
           <LockInGuard />
+          <ReportBugButton />
         </ThemeProvider>
       </body>
     </html>

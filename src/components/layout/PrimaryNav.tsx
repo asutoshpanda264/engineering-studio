@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, ListChecks, Wrench } from "lucide-react";
+import { BookOpen, ListChecks, PenLine, ShieldCheck, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useAuth } from "@/lib/auth/authStore";
 
 interface NavSection {
   href: string;
@@ -59,17 +60,30 @@ const SECTIONS: NavSection[] = [
  * isn't built on `AppHeader` — it's a canvas toolbar, not a "back link +
  * nav" header) renders it separately for the same reason.
  *
- * A CONTRIBUTOR/ADMIN-only "Contribute"/"Admin" tab belongs here once
- * those routes exist (Phase B of the same plan) — deliberately not
- * stubbed in yet, since a nav tab pointing at a route that 404s is worse
- * than no tab.
+ * A CONTRIBUTOR account sees an extra "Contribute" tab, an ADMIN account
+ * sees "Admin" instead (Phase B) — never both, and never rendered before
+ * `useAuth()`'s bootstrap settles (`status === "ready"`), same "don't
+ * flash the wrong state" rule `AuthStatus` follows, so a guest or a
+ * plain USER never sees a tab flicker in only to disappear.
  */
 export function PrimaryNav() {
   const pathname = usePathname() ?? "";
+  const { user, status } = useAuth();
+
+  const roleSection: NavSection | null =
+    status !== "ready" || !user
+      ? null
+      : user.role === "CONTRIBUTOR"
+        ? { href: "/contribute", label: "Contribute", icon: PenLine, matches: (p) => startsWithAny(p, ["/contribute"]) }
+        : user.role === "ADMIN"
+          ? { href: "/admin", label: "Admin", icon: ShieldCheck, matches: (p) => startsWithAny(p, ["/admin"]) }
+          : null;
+
+  const sections = roleSection ? [...SECTIONS, roleSection] : SECTIONS;
 
   return (
     <nav className="flex shrink-0 items-center gap-5">
-      {SECTIONS.map((section) => {
+      {sections.map((section) => {
         const active = section.matches(pathname);
         return (
           <Link

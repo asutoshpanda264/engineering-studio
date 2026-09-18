@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
     "sim:example": "tsx src/simulation/examples/client-api-database.ts"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

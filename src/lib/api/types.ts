@@ -197,3 +197,71 @@ export interface ProblemProgressResponse {
   firstSolvedAt: string | null;
   lastAttemptAt: string;
 }
+
+// --- contributions (Sept 18 nav plan, Phase B) ---
+
+/** One generic contribution type with a category, not three separate DTOs — mirrors the backend's `ContributionCategory`. */
+export type ContributionCategory = "QUESTION" | "POST" | "VLOG";
+
+/** PENDING/APPROVED/REJECTED are all terminal except PENDING — mirrors `ContributionStatus`. */
+export type ContributionStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface ContributionRequest {
+  category: ContributionCategory;
+  title: string;
+  body: string;
+  /** Optional — mainly for VLOG, where the content lives at an external URL. */
+  link: string | null;
+}
+
+export interface ContributionResponse {
+  id: string;
+  contributorId: string;
+  category: ContributionCategory;
+  title: string;
+  body: string;
+  link: string | null;
+  status: ContributionStatus;
+  pointsAwarded: number;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One row of the admin queue — a pending contribution plus its submitter's total approved-contribution points, the queue's sort key. */
+export interface PendingContributionResponse {
+  contribution: ContributionResponse;
+  contributorApprovedPoints: number;
+}
+
+// --- bug reports (Sept 18 nav plan, Phase C) ---
+
+/** RESOLVED is the only status that sets `resolvedAt` — mirrors `BugReportStatus`. */
+export type BugReportStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
+
+export interface BugReportRequest {
+  description: string;
+  /** The current route — auto-captured by the reporting UI, not typed in. */
+  route: string;
+  /** `navigator.userAgent` — auto-captured by the reporting UI, not typed in. */
+  userAgent: string;
+}
+
+export interface BugReportReviewRequest {
+  status: BugReportStatus;
+  adminNote: string | null;
+}
+
+export interface BugReportResponse {
+  id: string;
+  reporterId: string;
+  description: string;
+  route: string;
+  userAgent: string;
+  status: BugReportStatus;
+  adminNote: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
