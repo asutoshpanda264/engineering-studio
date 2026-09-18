@@ -37,6 +37,9 @@ import { getScenario } from "@/scenarios";
 import type { Scenario } from "@/scenarios";
 import { recordAttempted } from "@/lib/problemProgress";
 import { DEFAULT_CONNECTION_LATENCY_MS } from "@/lib/simulationDefaults";
+import { getCurrentUser, refreshUser } from "@/lib/auth/authStore";
+import { startAttempt, submitAttempt } from "@/lib/api/attempts";
+import { canvasToClientGraph } from "@/lib/workshopSubmission";
 
 /**
  * Visual node state, derived from the last simulation run's metrics —
@@ -104,6 +107,40 @@ interface WorkshopState {
   // default — see loadScenario's own comment for the Restart-button
   // exception that re-enters it).
   timedModeStartedAt: number | null;
+
+  // Frontend Integration, Increment 2: engineering-studio-backend's own
+  // `Attempt` id for the CURRENT Timed Challenge, once (if) `startTimedChallenge()`'s
+  // best-effort `POST /attempts` call resolves — null when signed out, not
+  // yet resolved, or the current attempt has already been submitted (so a
+  // second passing run in the same challenge doesn't try to re-submit a
+  // terminal attempt). Cleared everywhere `timedModeStartedAt` is.
+  backendAttemptId: string | null;
+  // "idle": no backend attempt for this challenge yet, OR a submit
+  // attempt failed and can be retried on the next passing run (a failure
+  // here is logged, never surfaced as a distinct UI error state — see
+  // submitBackendAttempt). "submitting"/"submitted" only ever apply to
+  // the ONE first-passing-run submit per challenge — see
+  // `backendAttemptId`'s own doc for why only the first counts.
+  backendAttemptStatus: "idle" | "submitting" | "submitted";
+
+  // Frontend Integration, Increment 5: free play's own NO_PRESSURE
+  // counterpart to backendAttemptId/backendAttemptStatus above — deliberately
+  // separate state, not a shared pair, because the two modes have
+  // genuinely different lifecycles. TIMED is bounded (one attempt, one
+  // submit, done); free play has no session boundary at all, so
+  // "resubmitting a better later attempt" (decisions.md #7) means a
+  // successful submit immediately opens a FRESH attempt rather than going
+  // terminal — see startFreePlayAttempt/submitBackendAttempt. Only ever
+  // set when `timedModeStartedAt` is null; entering Timed Challenge
+  // abandons whatever free-play attempt was open (see startTimedChallenge).
+  freePlayAttemptId: string | null;
+  // "idle": ready to submit on the next genuinely new passing run (an
+  // attempt id may or may not be attached yet — the very first
+  // `startAttempt` call for this scenario view may still be in flight).
+  // "submitting": a submit is in flight; never left set on failure (falls
+  // back to "idle" so the SAME open attempt retries on the next pass,
+  // same reasoning as backendAttemptStatus).
+  freePlayAttemptStatus: "idle" | "submitting";
 
   // Scenario-level knobs. Traffic rate lives on the Client node's own
   // config instead (ENTITIES.md documents it as Client config) — these
@@ -188,10 +225,45 @@ interface WorkshopState {
    */
   loadOptimalSolution: () => void;
 
-  /** Starts (or restarts) a Timed Challenge countdown for the currently active scenario. No-op if no scenario is active. */
+  /**
+   * Starts (or restarts) a Timed Challenge countdown for the currently
+   * active scenario. No-op if no scenario is active. Frontend Integration,
+   * Increment 2: also fires a best-effort `POST /attempts` (TIMED mode) if
+   * a user is signed in — never blocks or delays the local countdown
+   * starting, and a failure here just means this challenge stays
+   * local-only (exactly the guest experience), not a broken timer.
+   */
   startTimedChallenge: () => void;
-  /** Exits Timed Challenge mode without touching the canvas/scenario. */
+  /** Exits Timed Challenge mode without touching the canvas/scenario. Also drops any backendAttemptId — see startTimedChallenge. */
   clearTimedChallenge: () => void;
+  /**
+   * Frontend Integration, Increment 5: best-effort `POST /attempts`
+   * (NO_PRESSURE mode) for the given scenario, if a user is signed in —
+   * mirrors `startTimedChallenge`'s fire-and-forget shape, but guarded by
+   * `activeScenarioId` (and that Timed Challenge hasn't since started)
+   * rather than a timestamp, since free play has no "session start"
+   * moment of its own to key a staleness check off. Called from
+   * `loadScenario` (a fresh scenario view starts tracking immediately —
+   * decisions.md #7's "start on load") and again from
+   * `submitBackendAttempt` after each successful free-play submit (a
+   * NO_PRESSURE attempt is just as one-shot on the backend as TIMED, so a
+   * later, better run needs a genuinely new attempt id to submit into).
+   */
+  startFreePlayAttempt: (scenarioId: string) => void;
+  /**
+   * Submits the CURRENT canvas as the backend attempt's real, server-verified
+   * answer — called from `ScenarioCompletionToast.tsx` at the exact moment
+   * a genuinely new passing run is detected, the same trigger
+   * `recordSolved` (local progress) already uses. Branches on
+   * `timedModeStartedAt`: inside a Timed Challenge, submits `backendAttemptId`
+   * (unchanged since Increment 2 — no-op if there's no active one, or it's
+   * already submitted once this challenge); otherwise (free play) submits
+   * `freePlayAttemptId` and, on success, immediately opens a fresh one via
+   * `startFreePlayAttempt` so a later improved run can submit again. Fire-and-forget
+   * from the caller's perspective either way — never throws, never blocks
+   * the local toast/celebration.
+   */
+  submitBackendAttempt: () => void;
 
   setScenarioDurationMs: (durationMs: number) => void;
   setConnectionLatencyMs: (latencyMs: number) => void;
@@ -371,6 +443,10 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   activeScenarioId: null,
   viewingOptimalSolution: false,
   timedModeStartedAt: null,
+  backendAttemptId: null,
+  backendAttemptStatus: "idle",
+  freePlayAttemptId: null,
+  freePlayAttemptStatus: "idle",
   scenarioDurationMs: DEFAULT_SCENARIO_DURATION_MS,
   connectionLatencyMs: DEFAULT_CONNECTION_LATENCY_MS,
   budgetCheckingEnabled: true,
@@ -507,6 +583,10 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       activeScenarioId: null,
       viewingOptimalSolution: false,
       timedModeStartedAt: null,
+      backendAttemptId: null,
+      backendAttemptStatus: "idle",
+      freePlayAttemptId: null,
+      freePlayAttemptStatus: "idle",
       activeVillainAttackId: null,
     });
   },
@@ -543,10 +623,21 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
       // timed, so "Restart" mid-challenge reads as "fresh clock," not
       // "silently exit timed mode."
       timedModeStartedAt: null,
+      backendAttemptId: null,
+      backendAttemptStatus: "idle",
+      freePlayAttemptId: null,
+      freePlayAttemptStatus: "idle",
       scenarioDurationMs: scenario.durationMs,
       activeVillainAttackId: null,
     });
     recordAttempted(scenario.id);
+    // Frontend Integration, Increment 5: start tracking this scenario view
+    // as a free-play attempt right away (decisions.md #7's "start on
+    // load") — a no-op for guests. If this load is immediately followed
+    // by startTimedChallenge() (the Restart-while-timed path below), that
+    // call clears this again; harmless either way since nothing has been
+    // submitted yet.
+    get().startFreePlayAttempt(scenario.id);
   },
 
   loadOptimalSolution: () => {
@@ -579,11 +670,132 @@ export const useWorkshopStore = create<WorkshopState>()((set, get) => ({
   },
 
   startTimedChallenge: () => {
-    if (!get().activeScenarioId) return;
-    set({ timedModeStartedAt: Date.now() });
+    const { activeScenarioId } = get();
+    if (!activeScenarioId) return;
+
+    const startedAt = Date.now();
+    // Entering Timed Challenge abandons whatever free-play (NO_PRESSURE)
+    // attempt was open for this scenario view — the two modes are
+    // mutually exclusive at any given moment, and submitBackendAttempt
+    // branches on timedModeStartedAt alone, so leaving a stale
+    // freePlayAttemptId set here would just be dead state, never acted on
+    // while timed mode is active.
+    set({
+      timedModeStartedAt: startedAt,
+      backendAttemptId: null,
+      backendAttemptStatus: "idle",
+      freePlayAttemptId: null,
+      freePlayAttemptStatus: "idle",
+    });
+
+    const user = getCurrentUser();
+    if (!user) return; // guest — exactly today's local-only experience, no backend call at all
+
+    startAttempt(activeScenarioId, "TIMED")
+      .then((attempt) => {
+        // Guard against a stale response: the student may have exited or
+        // restarted the challenge (a fresh `startedAt`) before this
+        // resolved. Only attach the id if this is still THAT session.
+        if (get().timedModeStartedAt === startedAt) {
+          set({ backendAttemptId: attempt.id });
+        }
+      })
+      .catch((error: unknown) => {
+        // Best-effort, same as every other failure path here — this
+        // challenge just stays local-only, exactly the guest experience,
+        // not a broken timer.
+        console.error("Failed to start a backend attempt for this Timed Challenge", error);
+      });
   },
 
-  clearTimedChallenge: () => set({ timedModeStartedAt: null }),
+  clearTimedChallenge: () => {
+    set({ timedModeStartedAt: null, backendAttemptId: null, backendAttemptStatus: "idle" });
+    // Not currently reachable from any UI (see this action's own history —
+    // nothing calls it today), but if it ever is, exiting back to free
+    // play should resume free-play tracking rather than leaving the
+    // scenario untracked until the next full loadScenario.
+    const { activeScenarioId } = get();
+    if (activeScenarioId) get().startFreePlayAttempt(activeScenarioId);
+  },
+
+  startFreePlayAttempt: (scenarioId) => {
+    const user = getCurrentUser();
+    if (!user) return; // guest — free play stays exactly local-only, as always
+
+    startAttempt(scenarioId, "NO_PRESSURE")
+      .then((attempt) => {
+        // Guard against a stale response: the student may have navigated
+        // to a different scenario, or entered a Timed Challenge (which
+        // clears freePlayAttemptId itself — see startTimedChallenge), by
+        // the time this resolves. Only attach the id if this is still
+        // that same free-play view.
+        if (get().activeScenarioId === scenarioId && get().timedModeStartedAt === null) {
+          set({ freePlayAttemptId: attempt.id, freePlayAttemptStatus: "idle" });
+        }
+      })
+      .catch((error: unknown) => {
+        // Best-effort, same as startTimedChallenge's failure path — this
+        // scenario view just stays local-only, exactly the guest
+        // experience, not a broken canvas.
+        console.error("Failed to start a backend attempt for free play", error);
+      });
+  },
+
+  submitBackendAttempt: () => {
+    const { timedModeStartedAt, activeScenarioId, nodes, edges } = get();
+    const graph = canvasToClientGraph(nodes, edges);
+
+    if (timedModeStartedAt !== null) {
+      const { backendAttemptId, backendAttemptStatus } = get();
+      if (!backendAttemptId || backendAttemptStatus !== "idle") return;
+
+      set({ backendAttemptStatus: "submitting" });
+      submitAttempt(backendAttemptId, graph)
+        .then(() => {
+          // Terminal on the backend (Attempt.status = SUBMITTED) — clearing
+          // the id here is what stops a LATER, even-better passing run in
+          // the same challenge from trying to submit again (that would just
+          // 409 "already submitted"). A genuinely new attempt only starts
+          // by starting a new Timed Challenge.
+          set({ backendAttemptStatus: "submitted", backendAttemptId: null });
+          void refreshUser(); // best-effort — updates AuthStatus's streak/points badge
+        })
+        .catch((error: unknown) => {
+          // Back to "idle", not a distinct error state — the SAME
+          // backendAttemptId is still open (IN_PROGRESS) on the backend, so
+          // the next genuinely new passing run in this challenge retries it.
+          set({ backendAttemptStatus: "idle" });
+          console.error("Failed to submit this Timed Challenge attempt to the backend", error);
+        });
+      return;
+    }
+
+    // Free play (NO_PRESSURE) — Frontend Integration, Increment 5.
+    const { freePlayAttemptId, freePlayAttemptStatus } = get();
+    if (!freePlayAttemptId || freePlayAttemptStatus !== "idle") return;
+
+    set({ freePlayAttemptStatus: "submitting" });
+    submitAttempt(freePlayAttemptId, graph)
+      .then(() => {
+        // Unlike Timed Challenge, free play has no session boundary to
+        // wait for before tracking resumes — a NO_PRESSURE attempt is just
+        // as one-shot as TIMED once submitted, so a later, better run
+        // needs a genuinely new attempt id. Open one immediately rather
+        // than leaving free play untracked until the next scenario load —
+        // this IS decisions.md #7's "allow re-submitting a better later
+        // attempt."
+        set({ freePlayAttemptStatus: "idle", freePlayAttemptId: null });
+        void refreshUser(); // best-effort — updates AuthStatus's streak/points badge
+        if (activeScenarioId) get().startFreePlayAttempt(activeScenarioId);
+      })
+      .catch((error: unknown) => {
+        // Back to "idle", not a distinct error state — the SAME
+        // freePlayAttemptId is still open (IN_PROGRESS or VERIFY_FAILED)
+        // on the backend, so the next genuinely new passing run retries it.
+        set({ freePlayAttemptStatus: "idle" });
+        console.error("Failed to submit this free-play attempt to the backend", error);
+      });
+  },
 
   runSimulation: () => {
     set({ isSimulating: true, simulationError: null });

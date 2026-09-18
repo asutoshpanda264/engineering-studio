@@ -28,6 +28,7 @@ export function ScenarioCompletionToast() {
   const nodes = useWorkshopStore((s) => s.nodes);
   const edges = useWorkshopStore((s) => s.edges);
   const budgetCheckingEnabled = useWorkshopStore((s) => s.budgetCheckingEnabled);
+  const submitBackendAttempt = useWorkshopStore((s) => s.submitBackendAttempt);
   const scenario = activeScenarioId ? getScenario(activeScenarioId) : undefined;
 
   const score = useMemo(() => {
@@ -76,7 +77,14 @@ export function ScenarioCompletionToast() {
     const underTime =
       timedModeStartedAt !== null && Date.now() - timedModeStartedAt <= timeLimitMsFor(scenario);
     recordSolved(scenario.id, stars, underTime);
-  }, [visible, scenario, simulationResult, stars, timedModeStartedAt]);
+    // Frontend Integration, Increment 2 — same trigger, a DIFFERENT gate:
+    // submits to the real backend regardless of `underTime` (the backend's
+    // own elapsedSeconds-based speedFactor already grades "how fast," it
+    // doesn't need a local pass/fail-on-time signal) — a no-op unless a
+    // signed-in user has an open Timed Challenge attempt for this run
+    // (see `submitBackendAttempt`'s own doc).
+    submitBackendAttempt();
+  }, [visible, scenario, simulationResult, stars, timedModeStartedAt, submitBackendAttempt]);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center">

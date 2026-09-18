@@ -4,6 +4,7 @@ import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { NightOpsAtmosphere } from "@/components/theme/NightOpsAtmosphere";
 import { LockInGuard } from "@/components/lockIn/LockInGuard";
+import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
 import "./globals.css";
 
 // "Trace" design language: two voices split strictly by role. Serif for
@@ -63,6 +64,7 @@ export default function RootLayout({
           {THEME_INIT_SCRIPT}
         </Script>
         <ThemeProvider>
+          <AuthBootstrap />
           <NightOpsAtmosphere>{children}</NightOpsAtmosphere>
           <LockInGuard />
         </ThemeProvider>

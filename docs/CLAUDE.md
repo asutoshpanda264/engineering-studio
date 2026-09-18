@@ -67,7 +67,19 @@ We are reconstructing the **full documented system**, not a cut-down version —
 - Additional scenarios: **URL Shortener**, **Analytics Dashboard**
 
 ### Explicitly deferred — see `ROADMAP.md`, do not build now
-AI Mentor, Engineering Score, hard budget constraints, advanced scenarios (Uber/Netflix/WhatsApp-scale), leaderboards, authentication, backend/database. Everything runs in the browser; Local Storage only, if persistence is needed at all.
+AI Mentor, Engineering Score, hard budget constraints, advanced scenarios (Uber/Netflix/WhatsApp-scale).
+
+**No longer deferred — an intentional, confirmed product pivot (see the
+`project_product_pivot_backend`/`feedback_backend_learn_by_building`
+memory notes):** authentication, leaderboards, and a real backend/database
+now exist as a separate service, `engineering-studio-backend`
+(`api/` — Spring Boot; `verify/` — Node, a server-side copy of this
+frontend's own simulation engine, so a submitted architecture's score is
+never trusted from the client). This frontend is being wired to it —
+`src/lib/api/`, `src/lib/auth/`, `/login`, `/register` — starting with
+accounts; local-only guest usage (no login, `localStorage`-based progress
+via `@/lib/problemProgress` and friends) stays fully intact for anyone who
+doesn't sign in.
 
 ---
 
@@ -85,7 +97,7 @@ AI Mentor, Engineering Score, hard budget constraints, advanced scenarios (Uber/
 | Icons | Lucide React | Icon library |
 | Testing | Vitest | Unit/integration tests |
 | Runtime | tsx | Execute TypeScript directly (for CLI examples) |
-| Storage | Local Storage only | No backend, no database, no auth |
+| Storage | Local Storage (guest usage) + `engineering-studio-backend` (signed-in accounts) | See §4's pivot note — Local Storage remains the whole story for anyone not signed in |
 
 Pin exact versions when you scaffold the project rather than trusting any specific version numbers from memory — verify current stable releases at setup time.
 
