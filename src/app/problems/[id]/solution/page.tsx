@@ -5,7 +5,6 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { Badge } from "@/components/ui/Badge";
 import { ArticleSection } from "@/components/ui/ArticleSection";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { GraphDiagram } from "@/components/content/diagrams/generic/GraphDiagram";
 import type { GraphDiagramEdge, GraphDiagramNode } from "@/content/shared/lesson";
 import { getScenario, SCENARIOS, SCENARIO_TOPIC_LABEL } from "@/scenarios";
@@ -79,12 +78,9 @@ export default async function ProblemSolutionPage({
         back={{ href: "/problems", label: "Problems" }}
         maxWidthClassName="max-w-3xl"
         right={
-          <>
-            <ThemeToggle />
-            <LinkButton href={`/workshop?scenario=${scenario.id}`} variant="secondary" size="sm" className="bg-bg-elevated">
-              Try it yourself
-            </LinkButton>
-          </>
+          <LinkButton href={`/workshop?scenario=${scenario.id}`} variant="secondary" size="sm" className="bg-bg-elevated">
+            Try it yourself
+          </LinkButton>
         }
       />
 

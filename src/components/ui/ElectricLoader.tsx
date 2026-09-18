@@ -17,14 +17,19 @@ import { Zap } from "lucide-react";
  * background of its own) — `FoundationsMap` uses this for its own
  * client-side "still resolving progress" gap, the same visual language
  * as a route change rather than a bespoke spinner.
+ *
+ * `animate-electric-loader-appear` (globals.css) holds this at opacity 0
+ * for its first ~200ms — a route that resolves before then never shows
+ * this at all, avoiding the "instant flash" a plain unconditional render
+ * would produce on fast navigations.
  */
 export function ElectricLoader({ fullScreen = true }: { fullScreen?: boolean } = {}) {
   return (
     <div
       className={
         fullScreen
-          ? "flex min-h-screen items-center justify-center bg-bg"
-          : "flex h-full w-full items-center justify-center"
+          ? "flex min-h-screen items-center justify-center bg-bg animate-electric-loader-appear"
+          : "flex h-full w-full items-center justify-center animate-electric-loader-appear"
       }
     >
       <div className="relative flex flex-col items-center gap-4 border border-border bg-bg-panel px-10 py-8">

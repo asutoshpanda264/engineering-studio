@@ -5,7 +5,6 @@ import { Bot, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { CASE_STUDIES, CASE_STUDY_CATEGORY_LABEL, type CaseStudyCategory, type CaseStudy } from "@/content/caseStudies";
 import { useCaseStudyProgress } from "@/lib/caseStudyProgress";
@@ -76,12 +75,9 @@ export function CaseStudiesIndexView() {
     <AppHeader
       back={{ href: "/learn", label: "Learn" }}
       right={
-        <>
-          <ThemeToggle />
-          <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-            Enter Workshop
-          </LinkButton>
-        </>
+        <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+          Enter Workshop
+        </LinkButton>
       }
     />
   );

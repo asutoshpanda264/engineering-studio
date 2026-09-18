@@ -10,6 +10,7 @@ import type { ComponentPackId, EntityCatalogItem } from "@/lib/entityCatalog";
 import { useWorkshopStore } from "@/store/workshopStore";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { WeaponWheel } from "@/components/workshop/WeaponWheel";
+import type { WeaponWheelGroup } from "@/components/workshop/WeaponWheel";
 import { VillainAttackPicker } from "@/components/workshop/night-ops/VillainAttackPicker";
 import { DetectiveVisionHUD } from "@/components/workshop/night-ops/DetectiveVisionHUD";
 
@@ -69,12 +70,12 @@ function nextClickPosition(nodeCount: number) {
  * WeaponWheel's wedges don't carry. `/workshop` never sets it, so Batman
  * Mode still gets the wheel there.
  *
- * In night-ops, the "Choose Weapon" trigger anchors a small vertical stack
- * of the theme's other toolbelt controls — VillainAttackPicker and
- * DetectiveVisionHUD — so all three live in one top-left cluster instead
- * of being scattered across the header and canvas corners. Both render
- * `null` outside night-ops, so stacking them here is safe even though this
- * component itself isn't night-ops-exclusive.
+ * In night-ops, the "SDE Weapon"/"AI Weapon" triggers anchor a small
+ * vertical stack of the theme's other toolbelt controls —
+ * VillainAttackPicker and DetectiveVisionHUD — so everything lives in one
+ * top-left cluster instead of being scattered across the header and canvas
+ * corners. Both render `null` outside night-ops, so stacking them here is
+ * safe even though this component itself isn't night-ops-exclusive.
  */
 export function ComponentSidebar({ forceListMode = false }: { forceListMode?: boolean }) {
   const { theme } = useTheme();
@@ -84,7 +85,7 @@ export function ComponentSidebar({ forceListMode = false }: { forceListMode?: bo
   // list (see tutorialPlanner.ts's `requiresComponentsPanel`).
   const openPack = useWorkshopStore((s) => s.openComponentPack);
   const setOpenPack = useWorkshopStore((s) => s.setOpenComponentPack);
-  const [wheelOpen, setWheelOpen] = useState(false);
+  const [wheelGroup, setWheelGroup] = useState<WeaponWheelGroup | null>(null);
   const nodes = useWorkshopStore((s) => s.nodes);
   const addNode = useWorkshopStore((s) => s.addNode);
 
@@ -101,14 +102,35 @@ export function ComponentSidebar({ forceListMode = false }: { forceListMode?: bo
       <div className="absolute left-3 top-3 z-30 flex flex-col items-start gap-3">
         {isBatman ? (
           <>
-            <button
-              type="button"
-              onClick={() => setWheelOpen(true)}
-              className="inline-flex h-9 items-center gap-2 border border-signal/40 bg-bg-elevated px-3 text-xs font-medium uppercase tracking-wide text-text shadow-elevated transition-colors duration-fast ease-standard hover:border-signal hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-            >
-              <Swords className="size-4 text-signal" aria-hidden />
-              Choose Weapon
-            </button>
+            {/* Bordered pill, matching VillainAttackPicker's `<select>` and
+                DetectiveVisionHUD's own trigger button below — same
+                border-signal/40 + bg-bg-elevated + shadow-elevated shell,
+                same text-text (not text-signal) base color with the hover
+                state turning both border and text signal-colored, so all
+                three toolbelt controls in this stack read as one
+                consistent set. Two separate triggers, not one "Choose
+                Weapon" opening both dials at once — same split as the
+                light/dark sidebar's two pack buttons below, and it means
+                each wheel gets the full modal to itself instead of the two
+                competing side by side. */}
+            <div className="flex flex-col items-start gap-2">
+              <button
+                type="button"
+                onClick={() => setWheelGroup("distributed")}
+                className="inline-flex h-9 items-center gap-2 border border-signal/40 bg-bg-elevated px-3 text-xs font-medium uppercase tracking-wide text-text shadow-elevated transition-colors duration-fast ease-standard hover:border-signal hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              >
+                <Swords className="size-4 text-signal" aria-hidden />
+                SDE Weapon
+              </button>
+              <button
+                type="button"
+                onClick={() => setWheelGroup("ai-flow")}
+                className="inline-flex h-9 items-center gap-2 border border-signal/40 bg-bg-elevated px-3 text-xs font-medium uppercase tracking-wide text-text shadow-elevated transition-colors duration-fast ease-standard hover:border-signal hover:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              >
+                <Brain className="size-4" aria-hidden />
+                AI Weapon
+              </button>
+            </div>
             <VillainAttackPicker />
             <DetectiveVisionHUD />
           </>
@@ -140,12 +162,13 @@ export function ComponentSidebar({ forceListMode = false }: { forceListMode?: bo
         <AIFlowPanel onClose={() => setOpenPack(null)} onSelectComponent={handleSelectComponent} />
       )}
 
-      {isBatman && wheelOpen && (
+      {isBatman && wheelGroup && (
         <WeaponWheel
-          onClose={() => setWheelOpen(false)}
+          group={wheelGroup}
+          onClose={() => setWheelGroup(null)}
           onSelect={(type) => {
             handleSelectComponent(type);
-            setWheelOpen(false);
+            setWheelGroup(null);
           }}
         />
       )}

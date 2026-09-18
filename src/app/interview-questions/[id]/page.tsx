@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { AnswerWorkspace } from "@/components/interviewQuestions/AnswerWorkspace";
 import { OptimalAnswerSection } from "@/components/interviewQuestions/OptimalAnswerSection";
 import {
@@ -48,7 +47,6 @@ export default async function InterviewQuestionPage({
       <AppHeader
         back={{ href: "/interview-questions", label: "Interview Questions" }}
         maxWidthClassName="max-w-3xl"
-        right={<ThemeToggle />}
       />
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">

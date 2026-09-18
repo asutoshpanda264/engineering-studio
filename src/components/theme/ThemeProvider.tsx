@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
 } from "react";
@@ -44,12 +45,16 @@ function subscribe(onStoreChange: () => void) {
   return () => listeners.delete(onStoreChange);
 }
 
-function setTheme(theme: Theme) {
+function applyThemeAttribute(theme: Theme) {
   if (theme === "dark") {
     document.documentElement.removeAttribute("data-theme");
   } else {
     document.documentElement.setAttribute("data-theme", theme);
   }
+}
+
+function setTheme(theme: Theme) {
+  applyThemeAttribute(theme);
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
@@ -83,6 +88,30 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 /** Wraps the whole app (see layout.tsx). */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  // Cross-tab sync: `setTheme` above only notifies this tab's own
+  // `listeners`, so a theme change made in another tab never reached an
+  // already-open tab (its `data-theme` attribute and React state both
+  // just sat stale) — only a fresh page load re-read `localStorage`. The
+  // browser's own `storage` event fires in every *other* tab the instant
+  // one tab's `localStorage.setItem` runs, which is exactly what's needed
+  // here; it deliberately never fires in the tab that made the change, so
+  // this can't double-apply a theme that tab already set directly.
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== STORAGE_KEY || event.newValue === null) return;
+      const next: Theme =
+        event.newValue === "night-ops" || event.newValue === "light" ? event.newValue : "dark";
+      // Same lock-in guard `toggleTheme` applies — a Batman Mode run
+      // active in this tab must survive a theme change made elsewhere,
+      // same as it survives this tab's own toggle click.
+      if (getSnapshot() === "night-ops" && next !== "night-ops" && getLockInState().active) return;
+      applyThemeAttribute(next);
+      listeners.forEach((listener) => listener());
+    }
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const toggleTheme = useCallback(() => {
     // Batman Mode's whole point is committing to night-ops for the run

@@ -6,7 +6,6 @@ import { ArticleSection as Section } from "@/components/ui/ArticleSection";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { EntityTableOfContents } from "@/components/entities/EntityTableOfContents";
 import type { TocSection } from "@/components/entities/EntityTableOfContents";
 import { LessonBlockRenderer } from "@/components/content/LessonBlockRenderer";
@@ -79,12 +78,9 @@ export default async function AgenticLessonPage({
         back={{ href: "/agentic", label: "All lessons" }}
         maxWidthClassName="max-w-7xl"
         right={
-          <>
-            <ThemeToggle />
-            <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-              Open Workshop
-            </LinkButton>
-          </>
+          <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+            Open Workshop
+          </LinkButton>
         }
       />
 

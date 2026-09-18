@@ -2,7 +2,6 @@
 
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { EntitiesMap } from "@/components/maps/EntitiesMap";
 import { EntitiesList } from "@/components/entities/EntitiesList";
@@ -37,12 +36,9 @@ export function EntitiesIndexView() {
     <AppHeader
       back={{ href: "/", label: "Engineering Studio" }}
       right={
-        <>
-          <ThemeToggle />
-          <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-            Enter Workshop
-          </LinkButton>
-        </>
+        <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+          Enter Workshop
+        </LinkButton>
       }
     />
   );

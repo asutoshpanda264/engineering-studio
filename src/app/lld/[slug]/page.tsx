@@ -6,7 +6,9 @@ import { ArticleSection as Section } from "@/components/ui/ArticleSection";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { PrimaryNav } from "@/components/layout/PrimaryNav";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { AuthStatus } from "@/components/auth/AuthStatus";
 import { EntityTableOfContents } from "@/components/entities/EntityTableOfContents";
 import type { TocSection } from "@/components/entities/EntityTableOfContents";
 import { LessonBlockRenderer } from "@/components/content/LessonBlockRenderer";
@@ -76,20 +78,24 @@ export default async function LLDLessonPage({
       <AppHeader maxWidthClassName="max-w-7xl">
         <LockInHeaderNav
           left={
-            <Link
-              href="/lld"
-              className="flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-            >
-              <ArrowLeft className="size-3.5" aria-hidden />
-              All lessons
-            </Link>
+            <div className="flex min-w-0 items-center gap-5">
+              <Link
+                href="/lld"
+                className="flex shrink-0 items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+              >
+                <ArrowLeft className="size-3.5" aria-hidden />
+                All lessons
+              </Link>
+              <PrimaryNav />
+            </div>
           }
           right={
             <div className="flex items-center gap-3">
-              <ThemeToggle />
               <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
                 Open Workshop
               </LinkButton>
+              <ThemeToggle />
+              <AuthStatus />
             </div>
           }
         />

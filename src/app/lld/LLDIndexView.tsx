@@ -5,7 +5,6 @@ import { Layers, Puzzle, Shapes, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { LLD_LESSONS, LLD_CATEGORY_LABEL, type LLDCategory, type LLDLesson } from "@/content/lld";
 import { useLLDProgress } from "@/lib/lldProgress";
@@ -75,7 +74,6 @@ export function LLDIndexView() {
       back={{ href: "/learn", label: "Learn" }}
       right={
         <>
-          <ThemeToggle />
           <LinkButton href="/lld/editor" variant="primary" size="sm" icon={<Shapes className="size-3.5" aria-hidden />}>
             Open Editor
           </LinkButton>

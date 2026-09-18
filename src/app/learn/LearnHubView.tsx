@@ -6,7 +6,6 @@ import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
 import { ReadingRoomBadge } from "@/components/readingRoom/ReadingRoomBadge";
@@ -55,12 +54,9 @@ export function LearnHubView({ rooms }: { rooms: Room[] }) {
         back={{ href: "/", label: "Engineering Studio" }}
         className="!bg-workspace-bg/90"
         right={
-          <>
-            <ThemeToggle />
-            <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-              Enter Workshop
-            </LinkButton>
-          </>
+          <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+            Enter Workshop
+          </LinkButton>
         }
       />
 

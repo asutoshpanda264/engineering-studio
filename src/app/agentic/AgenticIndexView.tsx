@@ -5,7 +5,6 @@ import { Bot, Workflow, Plug, Cpu, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { AGENTIC_LESSONS, AGENTIC_CATEGORY_LABEL, type AgenticCategory, type AgenticLesson } from "@/content/agentic";
 import { useAgenticProgress } from "@/lib/agenticProgress";
@@ -81,12 +80,9 @@ export function AgenticIndexView() {
     <AppHeader
       back={{ href: "/learn", label: "Learn" }}
       right={
-        <>
-          <ThemeToggle />
-          <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
-            Enter Workshop
-          </LinkButton>
-        </>
+        <LinkButton href="/workshop" variant="secondary" size="sm" className="bg-bg-elevated">
+          Enter Workshop
+        </LinkButton>
       }
     />
   );

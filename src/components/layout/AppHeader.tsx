@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
+import { PrimaryNav } from "@/components/layout/PrimaryNav";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { AuthStatus } from "@/components/auth/AuthStatus";
 
 export interface AppHeaderProps {
   /**
@@ -11,7 +14,12 @@ export interface AppHeaderProps {
   back?: { href: string; label: string };
   /** Overrides `back` entirely — for the one page that isn't a "back to X" shape. */
   left?: ReactNode;
-  /** Right-aligned actions (ThemeToggle, buttons, secondary links). */
+  /**
+   * Extra page-specific actions (a CTA button, an icon link) rendered in
+   * the right-hand cluster, before `ThemeToggle`/`AuthStatus`. Most pages
+   * no longer need this — site-wide nav links (Leaderboard, Interviews,
+   * Learn, ...) belong in `PrimaryNav` now, not here.
+   */
   right?: ReactNode;
   /**
    * Escape hatch: replaces `back`/`left`/`right` entirely and owns the full
@@ -67,6 +75,14 @@ export interface AppHeaderProps {
  * canvas toolbars (title, badges, Run/Reset/Export/Clear actions,
  * non-sticky, `bg-bg-elevated`), a different shape entirely, not a
  * "back link + nav" header.
+ *
+ * Renders `PrimaryNav` (the site-wide Learning/Problems/Workshop switch)
+ * next to `left`/`back`, and always ends the row with `ThemeToggle` then
+ * `AuthStatus` at the true right edge, past everything else including any
+ * per-page `right` content — see the Sept 18 nav plan, items 1-4. Every
+ * caller used to build its own copy of both; centralizing them here is
+ * what makes "the toggle is always at the extreme right, everywhere"
+ * actually true instead of independently re-decided per page.
  */
 export function AppHeader({
   back,
@@ -84,18 +100,25 @@ export function AppHeader({
       <div className={`mx-auto flex h-14 ${maxWidthClassName} items-center justify-between gap-4 px-6`}>
         {children ?? (
           <>
-            {left ?? (
-              back && (
-                <Link
-                  href={back.href}
-                  className="flex min-w-0 items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-                >
-                  <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{back.label}</span>
-                </Link>
-              )
-            )}
-            {right && <div className="flex shrink-0 items-center gap-3">{right}</div>}
+            <div className="flex min-w-0 flex-1 items-center gap-5">
+              {left ?? (
+                back && (
+                  <Link
+                    href={back.href}
+                    className="flex min-w-0 items-center gap-2 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
+                  >
+                    <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{back.label}</span>
+                  </Link>
+                )
+              )}
+              <PrimaryNav />
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              {right}
+              <ThemeToggle />
+              <AuthStatus />
+            </div>
           </>
         )}
       </div>

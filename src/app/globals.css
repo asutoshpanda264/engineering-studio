@@ -544,6 +544,26 @@
   animation: electric-sweep 1s var(--ease-mechanical) infinite;
 }
 
+/* A route that resolves in well under ~200ms shouldn't show a loader at
+   all — that reads as a flash, not feedback. Held at opacity 0 for the
+   first chunk of this animation rather than a JS-timed delay: `loading.tsx`
+   is unmounted by Next the instant the real segment is ready, so a
+   `setTimeout`-based "wait before rendering" here could just as easily get
+   torn down before it ever fires. Once past that window it fades in
+   smoothly rather than popping, same reasoning as `Reveal.tsx`'s entrance. */
+@keyframes electric-loader-appear {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.animate-electric-loader-appear {
+  animation: electric-loader-appear 450ms var(--ease-standard) both;
+}
+
 /* `/foundations` forest map: three-stage reveal of a real progress delta
    since the reader's last visit (`FoundationsMap`'s `reveal` diff, "seen"
    snapshot in `foundationsProgress.ts`) — not a generic replay of the

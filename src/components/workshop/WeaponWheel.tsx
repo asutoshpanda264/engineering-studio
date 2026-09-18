@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { ENTITY_CATALOG } from "@/lib/entityCatalog";
 import type { EntityCatalogItem } from "@/lib/entityCatalog";
@@ -14,12 +15,12 @@ import type { EntityType } from "@/simulation/types";
  * commits to a HUD aesthetic, so leaning into it here is a fit, not a
  * gimmick tacked onto every theme.
  *
- * Renders two independent `Dial`s side by side — "Distributed Systems" and
- * "AI Flow" — instead of one merged ring, mirroring the light/dark
- * sidebar's `DistributedSystemsPalette`/`AIFlowPalette` split
- * (ComponentSidebar.tsx): the two catalogs are separate sandboxes, so
- * clicking "Choose Weapon" surfaces both dials at once rather than forcing
- * a domain pick first or blending 20 wedges into one ring.
+ * Renders exactly one `Dial` — "Distributed Systems" or "AI Flow" — for
+ * whichever `group` its caller already picked (`ComponentSidebar`'s
+ * separate "SDE Weapon"/"AI Weapon" triggers), mirroring the light/dark
+ * sidebar's `DistributedSystemsPalette`/`AIFlowPalette` split: the two
+ * catalogs are separate sandboxes, so the domain pick happens once, before
+ * the wheel opens, rather than blending 20 wedges into one ring.
  *
  * SVG carries each dial's wedge geometry (real clickable sectors, computed
  * with polar trig below) while each icon is a plain positioned HTML node
@@ -57,28 +58,38 @@ function wedgePath(startAngle: number, endAngle: number) {
   ].join(" ");
 }
 
-/** One contiguous dial, one per `EntityCatalogItem.domain` value. */
-interface DialGroup {
-  key: string;
-  label: string;
-  items: EntityCatalogItem[];
+export type WeaponWheelGroup = "distributed" | "ai-flow";
+
+const DIAL_GROUP_LABEL: Record<WeaponWheelGroup, string> = {
+  distributed: "Distributed Systems",
+  "ai-flow": "AI Flow",
+};
+
+function itemsForGroup(items: EntityCatalogItem[], group: WeaponWheelGroup): EntityCatalogItem[] {
+  return group === "distributed"
+    ? items.filter((item) => !item.domain)
+    : items.filter((item) => item.domain === "agentic");
 }
 
-function buildDialGroups(items: EntityCatalogItem[]): DialGroup[] {
-  return [
-    { key: "distributed", label: "Distributed Systems", items: items.filter((item) => !item.domain) },
-    { key: "ai-flow", label: "AI Flow", items: items.filter((item) => item.domain === "agentic") },
-  ].filter((group) => group.items.length > 0);
-}
-
+/**
+ * One wheel at a time, picked beforehand by the two separate "SDE Weapon"/
+ * "AI Weapon" triggers in `ComponentSidebar` — replaces an earlier version
+ * that opened both dials side by side behind one "Choose Weapon" trigger.
+ * Direct feedback: two full wheels at once read as visually busy/boxed-in;
+ * picking the domain first, the same way the light/dark sidebar's two
+ * separate pack triggers already do, gives each wheel the full modal to
+ * itself instead of competing for space.
+ */
 export function WeaponWheel({
+  group,
   onClose,
   onSelect,
 }: {
+  group: WeaponWheelGroup;
   onClose: () => void;
   onSelect: (type: EntityType) => void;
 }) {
-  const groups = buildDialGroups(ENTITY_CATALOG);
+  const items = itemsForGroup(ENTITY_CATALOG, group);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,7 +103,7 @@ export function WeaponWheel({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Choose a component — Distributed Systems or AI Flow"
+      aria-label={`Choose a component — ${DIAL_GROUP_LABEL[group]}`}
       className="fixed inset-0 z-50 flex items-center justify-center bg-bg/85 p-6 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -105,13 +116,8 @@ export function WeaponWheel({
         <X className="size-4" aria-hidden />
       </button>
 
-      <div
-        className="flex flex-col items-center gap-10 overflow-y-auto md:flex-row md:items-start md:justify-center"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {groups.map((group) => (
-          <Dial key={group.key} label={group.label} items={group.items} onSelect={onSelect} />
-        ))}
+      <div className="flex flex-col items-center" onClick={(event) => event.stopPropagation()}>
+        <Dial label={DIAL_GROUP_LABEL[group]} items={items} onSelect={onSelect} index={0} />
       </div>
     </div>
   );
@@ -121,10 +127,12 @@ function Dial({
   label,
   items,
   onSelect,
+  index,
 }: {
   label: string;
   items: EntityCatalogItem[];
   onSelect: (type: EntityType) => void;
+  index: number;
 }) {
   const [hovered, setHovered] = useState<EntityCatalogItem | null>(null);
   const step = 360 / items.length;
@@ -132,9 +140,18 @@ function Dial({
   return (
     <div className="flex flex-col items-center gap-3">
       <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">{label}</p>
-      <div
+      {/* Cosmetic spin-in on open — the wedges (and everything laid over
+          them) whirl into place rather than just appearing. Purely an
+          entrance flourish: rotation always settles at 0deg, so selection
+          geometry (`polarToCartesian`/`wedgePath` above) is never actually
+          affected mid-animation, and once settled the wheel behaves
+          exactly as before. */}
+      <motion.div
         className="relative flex flex-col items-center justify-center"
         style={{ width: DIAL_SIZE, height: DIAL_SIZE }}
+        initial={{ rotate: -200, opacity: 0, scale: 0.85 }}
+        animate={{ rotate: 0, opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, delay: index * 0.08, ease: [0.16, 1, 0.3, 1] }}
       >
         <svg
           width={DIAL_SIZE}
@@ -143,7 +160,13 @@ function Dial({
           className="absolute inset-0"
           style={{ filter: "drop-shadow(0 0 40px color-mix(in srgb, var(--color-signal) 35%, transparent))" }}
         >
-          <circle cx={CENTER} cy={CENTER} r={OUTER_R + 2} fill="none" stroke="var(--color-border)" strokeWidth={1} />
+          {/* No outer ring, no per-wedge stroke — the glow's `drop-shadow`
+              (which re-projects every edge's alpha as a soft halo) turned
+              the previous hairline borders into a hard gold grid, reading
+              as a boxed-in pie chart rather than a wheel. `GAP_DEG`'s
+              negative space between wedges, plus each wedge's own fill,
+              are what separate them now — a soft radial cluster instead
+              of a bordered chart. */}
           {items.map((item, i) => {
             const start = i * step + GAP_DEG / 2;
             const end = (i + 1) * step - GAP_DEG / 2;
@@ -153,8 +176,6 @@ function Dial({
               <path
                 key={item.type}
                 d={wedgePath(start, end)}
-                stroke="var(--color-border)"
-                strokeWidth={1}
                 className={
                   disabled
                     ? "cursor-not-allowed fill-bg-panel opacity-40"
@@ -221,7 +242,7 @@ function Dial({
             <p className="text-xs text-text-subtle">Pick a component</p>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

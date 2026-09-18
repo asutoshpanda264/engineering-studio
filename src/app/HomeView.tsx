@@ -6,8 +6,6 @@ import {
   ArrowRight,
   BookOpen,
   Boxes,
-  Building2,
-  Compass,
   Cpu,
   Hammer,
   ListChecks,
@@ -15,7 +13,6 @@ import {
   Search,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -78,31 +75,6 @@ function GitHubIcon(props: { className?: string }) {
  * `useTheme()`, same reason `LearnHubView`/`FoundationsIndexView`/
  * `problems/page.tsx` all are.
  */
-
-/**
- * One of the header's four nav links (Tutorial/Learn/Problems/Interviews).
- * The label collapses to icon-only below `lg` (1024px) — this row plus the
- * brand mark, theme toggle, GitHub link, and "Enter Workshop" CTA needed
- * ~820px with no breakpoints at all to avoid overflowing; collapsing these
- * four labels first (they're the most repetitive part — an icon + tooltip
- * carries the same information) gives the header an actual defined point
- * where it degrades on purpose instead of just running out of room.
- * `aria-label` keeps the accessible name intact even while the visible
- * text is hidden.
- */
-function NavLink({ href, icon: Icon, label }: { href: string; icon: typeof Compass; label: string }) {
-  return (
-    <Link
-      href={href}
-      aria-label={label}
-      title={label}
-      className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide text-text-muted transition-colors duration-fast ease-standard hover:text-signal"
-    >
-      <Icon className="size-4 shrink-0" aria-hidden />
-      <span className="hidden lg:inline">{label}</span>
-    </Link>
-  );
-}
 
 function Tag({ children }: { children: ReactNode }) {
   return (
@@ -201,11 +173,6 @@ export function HomeView() {
         }
         right={
           <>
-            <NavLink href="/tutorial" icon={Compass} label="Tutorial" />
-            <NavLink href="/learn" icon={BookOpen} label="Learn" />
-            <NavLink href="/problems" icon={ListChecks} label="Problems" />
-            <NavLink href="/interview-questions" icon={Building2} label="Interviews" />
-            <ThemeToggle />
             <a
               href={GITHUB_URL}
               target="_blank"
@@ -274,25 +241,49 @@ export function HomeView() {
         </Reveal>
       </section>
 
-      {/* Process — an indexed spec sheet under the dark theme; Paper adds a
-          rounded, shadowed frame around the same divided strip rather than
-          restructuring it into separate cards. Each step's icon now sits in
-          a colored `ReadingRoomBadge` chip (the same component/palette
-          `/learn`'s `RoomCard` uses) instead of a plain gray icon — three
-          identical gray cards read as one undifferentiated block. */}
+      {/* Process — an indexed spec sheet under the dark theme (unchanged: a
+          continuous divided strip, Trace's flat hairline-instrument look).
+          Paper (light) instead splits into individually gapped, shadowed
+          cards with a solid accent-color "Step 0X" badge — the same
+          gapped-card-on-a-pale-ground shape and solid-badge convention
+          `/learn`'s `RoomCard` uses. Direct feedback: as one continuous
+          white strip, light mode read as one undifferentiated glare rather
+          than three distinct steps — the page's own pale-blue ground
+          showing through the gaps, plus a saturated badge per card, is
+          what actually breaks that up (see the Sept 18 nav plan, item 5). */}
       <section className="mx-auto w-full max-w-6xl px-6 pb-16">
         <Reveal>
           <Kicker>How it works</Kicker>
         </Reveal>
-        <div className="mt-14 grid divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border-t border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div
+          className={
+            isLight
+              ? "mt-14 grid gap-4 sm:grid-cols-3"
+              : "mt-14 grid divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border-t border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+          }
+        >
           {PROCESS_STEPS.map((step, i) => {
             const accent = accentTable[getTrackAccent(i)];
             return (
               <Reveal key={step.title} delay={i * 100}>
-                <div className="flex h-full flex-col gap-4 bg-bg-elevated px-6 py-8 sm:px-8 sm:py-10">
+                <div
+                  className={
+                    isLight
+                      ? "flex h-full flex-col gap-4 rounded-[var(--landing-radius)] border border-border bg-bg-elevated p-6 shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--landing-shadow-hover)] sm:p-8"
+                      : "flex h-full flex-col gap-4 bg-bg-elevated px-6 py-8 sm:px-8 sm:py-10"
+                  }
+                >
                   <div className="flex items-center justify-between gap-3">
                     <ReadingRoomBadge icon={step.icon} accent={accent} />
-                    <span className="font-mono text-xs text-text-subtle">{String(i + 1).padStart(2, "0")}</span>
+                    {isLight ? (
+                      <span
+                        className={`inline-flex items-center rounded-md border border-white/25 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm ${accent.solid}`}
+                      >
+                        {`Step ${String(i + 1).padStart(2, "0")}`}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-xs text-text-subtle">{String(i + 1).padStart(2, "0")}</span>
+                    )}
                   </div>
                   <h3 className="text-lg font-semibold text-text">{step.title}</h3>
                   <p className="text-sm leading-relaxed text-text-muted">{step.body}</p>
@@ -305,17 +296,29 @@ export function HomeView() {
 
       {/* Stats strip — see `STATS`'s own doc comment for why this exists:
           filling, with real numbers, the gap that used to sit empty
-          between the process steps and the scenario grid. */}
+          between the process steps and the scenario grid. Same
+          strip-vs-gapped-cards fork as the Process section above, same
+          reasoning. */}
       <section className="mx-auto w-full max-w-6xl px-6 pb-28">
         <Reveal>
-          <div className="grid grid-cols-2 divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+          <div
+            className={
+              isLight
+                ? "grid grid-cols-2 gap-4 sm:grid-cols-4"
+                : "grid grid-cols-2 divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-4 sm:divide-x sm:divide-y-0"
+            }
+          >
             {STATS.map((stat, i) => {
               const accent = accentTable[getTrackAccent(i)];
               const Icon = stat.icon;
               return (
                 <div
                   key={stat.label}
-                  className="flex flex-col items-center gap-2 bg-bg-elevated px-4 py-7 text-center"
+                  className={
+                    isLight
+                      ? "flex flex-col items-center gap-2 rounded-[var(--landing-radius)] border border-border bg-bg-elevated px-4 py-7 text-center shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--landing-shadow-hover)]"
+                      : "flex flex-col items-center gap-2 bg-bg-elevated px-4 py-7 text-center"
+                  }
                 >
                   <span className={`flex size-9 items-center justify-center rounded-full ${accent.soft} ${accent.text}`}>
                     <Icon className="size-4" aria-hidden />
