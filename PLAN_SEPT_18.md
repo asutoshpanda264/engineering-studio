@@ -22,6 +22,14 @@
 
 ## All 4 phases of this plan are now done.
 
+## Post-plan follow-ups (2026-09-19 chat, after the plan above shipped)
+
+- **Consistent abstract background** — `PageMeshBackground` (new shared component), applied to every page that was missing it or had it dimmed. Not part of the original 12 items, but the same "consistency across pages" spirit as item 7.
+- **Contributor bootstrap gap found and fixed**: there was no way to ever become CONTRIBUTOR/ADMIN at all (registration always creates plain USER, no promotion endpoint existed). Built a full self-service `ContributorApplication` flow (backend: `contributorapplication` package, priority-ranked top-5 admin queue; frontend: the apply panel on `/contribute`, the review panel on `/admin`). The very first ADMIN is still a manual bootstrap step (`UPDATE users SET role='ADMIN' ...` directly against Postgres) — documented in `engineering-studio-backend/masterdoc/phase-contributor-pipeline/README.md`.
+- **Anti-cheat score freeze**: `ProblemProgressService.recordOutcome` now skips CONTRIBUTOR/ADMIN attempts entirely (no progress/points/leaderboard/streak) — both roles can author/moderate scenarios, so their own solves could otherwise game their own stats.
+- **Congrats email on approval**: `notification.EmailService`, event-driven (`AFTER_COMMIT`, same pattern as the existing leaderboard update), logs instead of sending until real SMTP credentials are set via `MAIL_HOST`/`MAIL_PORT`/`MAIL_USERNAME`/`MAIL_PASSWORD` — verified live that the log line fires correctly on a real approval.
+- **Documentation pass**: this plan file itself was the only record of any of the above until now. Backend: new `masterdoc/phase-contributor-pipeline/` (README + decisions.md + explain doc), `masterdoc/README.md`'s index updated. Frontend: `docs/CLAUDE.md`'s pivot note extended, `README.md`'s "What's Built So Far"/Milestones updated, new `explainDoc/contributor-pipeline/explain_contributor-pipeline.md` + index entry. The 12 original nav/theme items stay documented here in this plan file rather than duplicated into `explainDoc` — they're UI polish, not a distinct "how does component X work" topic that folder is scoped to.
+
 (Known, unrelated pre-existing bug found along the way, not part of this plan: `src/components/lld/ChallengeBriefing.tsx` fails `tsc` — missing `useState` import and an undefined `ReferenceSolutionModal` reference. Flagging it separately; not fixing as part of this plan unless asked.)
 
 ## Context

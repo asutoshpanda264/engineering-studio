@@ -85,7 +85,13 @@ Key decisions:
 
 **Scenarios** — URL Shortener, Movie Ticket Booking, Flash Sale, each with constraints and a validator (`src/scenarios/`).
 
-**Tests** — 132 passing (`npx vitest run`), concentrated on the simulation engine and entity behavior.
+**Site-wide nav** (`PrimaryNav`) — the whole app organized into exactly three top-level sections, Learning / Problems / Workshop, reachable identically from every page, plus a role-conditional fourth tab (Contribute/Admin) for CONTRIBUTOR/ADMIN accounts. Problems and Interviews share one page behind a segmented tab switch.
+
+**Accounts & backend** (`src/lib/api/`, `src/lib/auth/`) — `/login`, `/register`, `/leaderboard`, `/daily-challenge`, `/progress`, all backed by the real `engineering-studio-backend` service (Spring Boot + a Node verify-service that re-runs this frontend's own simulation engine server-side, so a submitted score is never trusted from the client). Local-only guest usage stays fully intact for anyone who doesn't sign in.
+
+**Contributor pipeline** — `/contribute` lets a CONTRIBUTOR/ADMIN submit a question/post/vlog for review, and lets a plain USER self-service-apply to *become* a contributor (an admin-approved application is the only path in). `/admin` reviews the contribution queue, a site-wide bug-report queue (floating "Report bug" button, any signed-in user), and the top-5 priority-ranked contributor applications. See `explainDoc/contributor-pipeline/` for how this actually works.
+
+**Tests** — 1537 passing (`npx vitest run`), concentrated on the simulation engine and entity behavior, plus a 7-test Playwright e2e smoke suite (`npm run test:e2e`) covering the golden path, auth, bug reporting, and the contributor approval flow.
 
 ## Development
 
@@ -97,6 +103,7 @@ npm run dev          # → http://localhost:3000
 npm test              # run once
 npm run test:watch    # watch mode
 npm run test:ui       # Vitest UI
+npm run test:e2e      # Playwright e2e smoke suite (needs the backend stack up for most specs)
 
 # Lint
 npm run lint
@@ -118,3 +125,7 @@ npm run lint
 | 9. Phase 2 entities (Load Balancer, Cache, CDN, Message Queue) | ✅ Done |
 | 10. Additional scenarios (URL Shortener, Flash Sale, …) | ✅ Done |
 | 11. Final polish | 🚧 In progress |
+| 12. Accounts, leaderboards, daily challenge, progress (backend integration) | ✅ Done |
+| 13. Site-wide nav rewrite + theme consistency pass | ✅ Done |
+| 14. Contributor pipeline (contribute/admin, bug reports, contributor applications) | ✅ Done |
+| 15. Playwright e2e suite + k6 load test | ✅ Done |

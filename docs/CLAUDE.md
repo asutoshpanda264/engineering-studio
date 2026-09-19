@@ -75,11 +75,28 @@ memory notes):** authentication, leaderboards, and a real backend/database
 now exist as a separate service, `engineering-studio-backend`
 (`api/` — Spring Boot; `verify/` — Node, a server-side copy of this
 frontend's own simulation engine, so a submitted architecture's score is
-never trusted from the client). This frontend is being wired to it —
-`src/lib/api/`, `src/lib/auth/`, `/login`, `/register` — starting with
-accounts; local-only guest usage (no login, `localStorage`-based progress
-via `@/lib/problemProgress` and friends) stays fully intact for anyone who
-doesn't sign in.
+never trusted from the client). This frontend is fully wired to it —
+`src/lib/api/`, `src/lib/auth/`, `/login`, `/register`, `/leaderboard`,
+`/daily-challenge`, `/progress`; local-only guest usage (no login,
+`localStorage`-based progress via `@/lib/problemProgress` and friends)
+stays fully intact for anyone who doesn't sign in.
+
+**Also no longer deferred (Sept 18-19 2026 chat) — a site-wide nav
+rewrite plus a full contributor pipeline:** the whole app is now
+organized into exactly three top-level sections (Learning/Problems/
+Workshop, `PrimaryNav`), with a role-conditional fourth tab
+(Contribute/Admin) for CONTRIBUTOR/ADMIN accounts. `/contribute` lets a
+CONTRIBUTOR/ADMIN submit a question/post/vlog for review, and lets a
+plain USER self-service-apply to *become* a contributor (no admin
+"promote anyone" panel exists — an approved application is the only
+path in, see the backend's own
+`engineering-studio-backend/masterdoc/phase-contributor-pipeline/`).
+`/admin` reviews all three queues (contributions, bug reports,
+contributor applications). A site-wide floating "Report bug" button
+(any signed-in user) feeds the bug-report queue. See
+`explainDoc/contributor-pipeline/explain_contributor-pipeline.md` for
+how this frontend half actually works, and `PLAN_SEPT_18.md` (repo
+root) for the full list of what changed and why.
 
 ---
 
