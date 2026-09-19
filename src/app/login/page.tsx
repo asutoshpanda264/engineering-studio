@@ -10,6 +10,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Panel } from "@/components/ui/Panel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { ApiError } from "@/lib/api/client";
 
@@ -24,6 +26,8 @@ import { ApiError } from "@/lib/api/client";
  */
 export default function LoginPage() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +50,8 @@ export default function LoginPage() {
 
   return (
     <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       {/* `--landing-glow` — the same colored radial-blob background the
           home hero uses, a no-op under the dark theme (see globals.css).
           Auth pages used to be flat `bg-bg` with no color at all, the

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bug, Check, ShieldCheck, X } from "lucide-react";
+import { Bug, Check, ShieldCheck, UserPlus, X } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Panel } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
@@ -9,10 +9,22 @@ import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { approveContribution, getPendingContributions, rejectContribution } from "@/lib/api/contributions";
 import { getAllBugReports, reviewBugReport } from "@/lib/api/bugReports";
-import type { BugReportResponse, BugReportStatus, PendingContributionResponse } from "@/lib/api/types";
+import {
+  approveContributorApplication,
+  getTopContributorApplications,
+  rejectContributorApplication,
+} from "@/lib/api/contributorApplications";
+import type {
+  BugReportResponse,
+  BugReportStatus,
+  PendingContributionResponse,
+  TopContributorApplicationResponse,
+} from "@/lib/api/types";
 
 const CATEGORY_LABEL: Record<string, string> = {
   QUESTION: "Question",
@@ -34,6 +46,10 @@ const BUG_STATUS_BADGE_VARIANT: Record<BugReportStatus, "warning" | "primary" | 
 
 type LoadState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; rows: PendingContributionResponse[] };
 type BugLoadState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; rows: BugReportResponse[] };
+type ApplicationLoadState =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "ready"; rows: TopContributorApplicationResponse[] };
 
 /**
  * ADMIN-only moderation queue for the contributor pipeline (Sept 18 nav
@@ -44,6 +60,8 @@ type BugLoadState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; r
  * bug-report panel is a second section of this same page once it lands.
  */
 export default function AdminPage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { user, status: authStatus } = useAuth();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -83,7 +101,9 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-bg">
+    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       <AppHeader back={{ href: "/problems", label: "Problems" }} maxWidthClassName="max-w-5xl" />
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-10">
@@ -176,8 +196,117 @@ export default function AdminPage() {
         )}
 
         {isAdmin && <BugReportsPanel />}
+        {isAdmin && <ContributorApplicationsPanel />}
       </div>
     </main>
+  );
+}
+
+/**
+ * The third section of `/admin` — the top 5 pending contributor
+ * applications (2026-09-19 chat), ranked by
+ * `ContributorApplicationPriority` server-side. Deliberately never shows
+ * more than 5: with no filtering UI yet and applications potentially
+ * running into the hundreds, showing everything would just be noise —
+ * see `ContributorApplicationService.listTopPending`'s own Javadoc.
+ * Approving flips the applicant's role to CONTRIBUTOR server-side in the
+ * same request.
+ */
+function ContributorApplicationsPanel() {
+  const [state, setState] = useState<ApplicationLoadState>({ kind: "loading" });
+  const [actioningId, setActioningId] = useState<string | null>(null);
+
+  function load() {
+    setState({ kind: "loading" });
+    getTopContributorApplications()
+      .then((rows) => setState({ kind: "ready", rows }))
+      .catch(() => setState({ kind: "error" }));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    getTopContributorApplications()
+      .then((rows) => {
+        if (!cancelled) setState({ kind: "ready", rows });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ kind: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleReview(id: string, action: "approve" | "reject") {
+    setActioningId(id);
+    try {
+      await (action === "approve" ? approveContributorApplication(id) : rejectContributorApplication(id));
+      load();
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 text-lg font-medium text-text">
+        <UserPlus className="size-4 text-signal" aria-hidden />
+        Contributor applications
+      </h2>
+      <Panel className="overflow-hidden">
+        {state.kind === "loading" ? (
+          <p className="p-6 text-center text-sm text-text-muted">Loading…</p>
+        ) : state.kind === "error" ? (
+          <p className="p-6 text-center text-sm text-status-critical">Couldn&apos;t load applications right now.</p>
+        ) : state.rows.length === 0 ? (
+          <p className="p-6 text-center text-sm text-text-muted">No pending applications.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-text-subtle">
+                <th className="px-4 py-2 font-medium">Applicant</th>
+                <th className="px-4 py-2 text-right font-medium">Solved</th>
+                <th className="px-4 py-2 text-right font-medium">Points</th>
+                <th className="px-4 py-2 text-right font-medium">Streak</th>
+                <th className="px-4 py-2 text-right font-medium">Review</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.rows.map(({ application, applicantDisplayName, solvedCount, totalPoints, currentStreak }) => (
+                <tr key={application.id} className="border-b border-border last:border-b-0">
+                  <td className="px-4 py-3 font-medium text-text">{applicantDisplayName}</td>
+                  <td className="px-4 py-3 text-right text-text-muted">{solvedCount}</td>
+                  <td className="px-4 py-3 text-right text-text-muted">{totalPoints}</td>
+                  <td className="px-4 py-3 text-right text-text-muted">{currentStreak}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Check className="size-3.5" aria-hidden />}
+                        loading={actioningId === application.id}
+                        onClick={() => handleReview(application.id, "approve")}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<X className="size-3.5" aria-hidden />}
+                        loading={actioningId === application.id}
+                        onClick={() => handleReview(application.id, "reject")}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </div>
   );
 }
 

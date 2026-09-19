@@ -265,3 +265,32 @@ export interface BugReportResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- contributor applications (2026-09-19 chat) ---
+
+/** APPROVED flips the applicant's `role` to CONTRIBUTOR server-side — mirrors `ContributorApplicationStatus`. */
+export type ContributorApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface ContributorApplicationResponse {
+  id: string;
+  applicantId: string;
+  status: ContributorApplicationStatus;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One row of the admin's top-5 view — the application plus the exact
+ * stats that produced its `priorityScore` (solved count, total points,
+ * daily streak), so the ranking isn't a trust-me number.
+ */
+export interface TopContributorApplicationResponse {
+  application: ContributorApplicationResponse;
+  applicantDisplayName: string;
+  solvedCount: number;
+  totalPoints: number;
+  currentStreak: number;
+  priorityScore: number;
+}

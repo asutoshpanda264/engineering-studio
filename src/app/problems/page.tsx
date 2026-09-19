@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CalendarCheck, History, Trophy } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { SystemMeshBackground } from "@/components/learn/SystemMeshBackground";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
 import { useAuth } from "@/lib/auth/authStore";
 import { ProblemsBody } from "@/components/problems/ProblemsBody";
 import { InterviewQuestionsBody } from "@/components/interviewQuestions/InterviewQuestionsBody";
@@ -29,21 +29,7 @@ export default function ProblemsPage() {
 
   return (
     <main className="relative isolate flex min-h-screen flex-col bg-workspace-bg">
-      {/* Same structural background every reading room shares — a scrolling
-          dot-grid texture plus a fixed, dimmed `SystemMeshBackground` graph
-          pinned to the viewport. `main`'s `isolate` is what keeps these
-          negative-z layers trapped behind this page's own content instead
-          of escaping to the document root — see `FoundationsIndexView`'s
-          identical `<main>` comment for the fuller reasoning. */}
-      <div
-        aria-hidden
-        className={`bg-blueprint-grid pointer-events-none absolute inset-0 -z-20 ${isLight ? "opacity-60" : "opacity-70"}`}
-      />
-      {!isLight && (
-        <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 -z-20 h-screen overflow-hidden opacity-[0.35]">
-          <SystemMeshBackground />
-        </div>
-      )}
+      <PageMeshBackground isLight={isLight} />
 
       <AppHeader
         back={{ href: "/", label: "Engineering Studio" }}

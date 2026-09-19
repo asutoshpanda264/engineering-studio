@@ -11,10 +11,18 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { getMyContributions, submitContribution } from "@/lib/api/contributions";
+import { applyToContribute, getMyContributorApplications } from "@/lib/api/contributorApplications";
 import { ApiError } from "@/lib/api/client";
-import type { ContributionCategory, ContributionResponse, ContributionStatus } from "@/lib/api/types";
+import type {
+  ContributionCategory,
+  ContributionResponse,
+  ContributionStatus,
+  ContributorApplicationResponse,
+} from "@/lib/api/types";
 
 const CATEGORY_OPTIONS = [
   { value: "QUESTION", label: "Interview question" },
@@ -45,6 +53,8 @@ type LoadState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; rows
  * awarded on approval (`pointsAwarded` stays 0 until then).
  */
 export default function ContributePage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { user, status: authStatus } = useAuth();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
@@ -104,7 +114,9 @@ export default function ContributePage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-bg">
+    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       <AppHeader back={{ href: "/problems", label: "Problems" }} maxWidthClassName="max-w-3xl" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
@@ -125,12 +137,7 @@ export default function ContributePage() {
             <LinkButton href="/login">Sign In</LinkButton>
           </Panel>
         ) : !canContribute ? (
-          <Panel className="flex flex-col items-center gap-2 p-8 text-center">
-            <p className="text-sm text-text-muted">
-              Contributing is open to accounts with contributor access. Reach out to an admin if you&apos;d like to
-              submit content.
-            </p>
-          </Panel>
+          <ContributorApplicationPanel />
         ) : (
           <>
             <Panel className="p-5">
@@ -212,5 +219,101 @@ export default function ContributePage() {
         )}
       </div>
     </main>
+  );
+}
+
+type ApplicationLoadState =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "ready"; applications: ContributorApplicationResponse[] };
+
+/**
+ * Self-service "Apply to be a Contributor" — a plain USER's only path
+ * into the CONTRIBUTOR role now (2026-09-19 chat), replacing the old
+ * static "reach out to an admin" message. No form fields: an admin's
+ * decision is based on the applicant's own real stats (solved count,
+ * points, daily streak), not a written pitch — see
+ * `ContributorApplicationPriority` on the backend. `findByApplicantId...
+ * OrderByCreatedAtDesc` means `applications[0]` is always the most recent
+ * one, which is all this needs to decide what to show.
+ */
+function ContributorApplicationPanel() {
+  const [state, setState] = useState<ApplicationLoadState>({ kind: "loading" });
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setState({ kind: "loading" });
+    getMyContributorApplications()
+      .then((applications) => setState({ kind: "ready", applications }))
+      .catch(() => setState({ kind: "error" }));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyContributorApplications()
+      .then((applications) => {
+        if (!cancelled) setState({ kind: "ready", applications });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ kind: "error" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleApply() {
+    setApplying(true);
+    setError(null);
+    try {
+      await applyToContribute();
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const latest = state.kind === "ready" ? (state.applications[0] ?? null) : null;
+
+  return (
+    <Panel className="flex flex-col items-center gap-3 p-8 text-center">
+      {state.kind === "loading" ? (
+        <p className="text-sm text-text-muted">Loading…</p>
+      ) : state.kind === "error" ? (
+        <p className="text-sm text-status-critical">Couldn&apos;t load your application status right now.</p>
+      ) : latest?.status === "PENDING" ? (
+        <>
+          <Badge variant="warning">Pending review</Badge>
+          <p className="text-sm text-text-muted">
+            Your application to become a contributor is with an admin now — we&apos;ll let you know once it&apos;s
+            reviewed.
+          </p>
+        </>
+      ) : latest?.status === "APPROVED" ? (
+        <>
+          <Badge variant="success">Approved</Badge>
+          <p className="text-sm text-text-muted">
+            You&apos;re approved as a contributor — sign out and back in to pick up your new access.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-text-muted">
+            Contributing is open to accounts with contributor access. Admins review applications ranked by your
+            problems solved, points, and daily streak.
+          </p>
+          {latest?.status === "REJECTED" && (
+            <p className="text-xs text-text-subtle">Your last application wasn&apos;t approved — you can apply again.</p>
+          )}
+          {error && <p className="text-sm text-status-critical">{error}</p>}
+          <Button variant="primary" loading={applying} onClick={handleApply}>
+            Apply to be a Contributor
+          </Button>
+        </>
+      )}
+    </Panel>
   );
 }

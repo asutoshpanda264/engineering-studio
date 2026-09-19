@@ -6,6 +6,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Panel } from "@/components/ui/Panel";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyMeter } from "@/components/ui/DifficultyMeter";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { getDailyChallengeHistory, getMyDailyChallengeStanding, getTodayChallenge } from "@/lib/api/dailyChallenge";
 import type {
@@ -26,6 +28,8 @@ import type {
  * masterdoc/phase-frontend-integration/decisions.md ("Increment 3").
  */
 export default function DailyChallengePage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { user } = useAuth();
   const [challenge, setChallenge] = useState<DailyChallengeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +59,9 @@ export default function DailyChallengePage() {
   const completedToday = standing?.completedToday ?? false;
 
   return (
-    <main className="flex min-h-screen flex-col bg-bg">
+    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       <AppHeader back={{ href: "/problems", label: "Problems" }} maxWidthClassName="max-w-3xl" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">

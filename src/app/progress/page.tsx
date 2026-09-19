@@ -7,6 +7,8 @@ import { Panel } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyMeter } from "@/components/ui/DifficultyMeter";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { getMyProgress } from "@/lib/api/progress";
 import { getScenario } from "@/scenarios";
@@ -38,6 +40,8 @@ type LoadState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; rows
  * Increment 6.
  */
 export default function ProgressPage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { user, status: authStatus } = useAuth();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
@@ -64,7 +68,9 @@ export default function ProgressPage() {
   const totalPoints = state.kind === "ready" ? state.rows.reduce((sum, row) => sum + row.bestPoints, 0) : 0;
 
   return (
-    <main className="flex min-h-screen flex-col bg-bg">
+    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       <AppHeader back={{ href: "/problems", label: "Problems" }} maxWidthClassName="max-w-3xl" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">

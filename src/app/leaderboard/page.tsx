@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Crown, Gauge, Trophy } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Panel } from "@/components/ui/Panel";
+import { PageMeshBackground } from "@/components/layout/PageMeshBackground";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/lib/auth/authStore";
 import { getLeaderboard, getMyLeaderboardStanding } from "@/lib/api/leaderboards";
 import type { LeaderboardEntryResponse, LeaderboardType, MyLeaderboardStandingResponse } from "@/lib/api/types";
@@ -28,6 +30,8 @@ type BoardResult =
   | { type: LeaderboardType; kind: "error" };
 
 export default function LeaderboardPage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const { user } = useAuth();
   const [activeType, setActiveType] = useState<LeaderboardType>("best-solved");
   const [board, setBoard] = useState<BoardResult | null>(null);
@@ -65,7 +69,9 @@ export default function LeaderboardPage() {
   const currentStanding = user && myStanding?.type === activeType ? myStanding.value : null;
 
   return (
-    <main className="flex min-h-screen flex-col bg-bg">
+    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-bg">
+      <PageMeshBackground isLight={isLight} />
+
       <AppHeader back={{ href: "/problems", label: "Problems" }} maxWidthClassName="max-w-3xl" />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
