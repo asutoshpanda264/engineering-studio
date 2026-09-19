@@ -84,12 +84,20 @@ function Tag({ children }: { children: ReactNode }) {
   );
 }
 
+/** Both call sites (`How it works`, `Pick a problem to solve`) genuinely
+    head their section, but every `h2` further down — the `Build`/`Observe`/
+    `Iterate` steps and each scenario card's title — was an `h3` with no
+    `h2` anywhere on the page (heading order jumped straight from `h1`),
+    which breaks the outline a screen reader's heading navigation relies
+    on. Rendering this as an `h2` fixes that with no visual change: the
+    className is untouched, and Tailwind's preflight already zeroes
+    heading margin/font-size the same way a plain `div` starts at zero. */
 function Kicker({ index, children }: { index?: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-text-subtle">
+    <h2 className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-text-subtle">
       {index && <span className="text-signal">{index}</span>}
       <span>{children}</span>
-    </div>
+    </h2>
   );
 }
 
@@ -172,20 +180,15 @@ export function HomeView() {
           </span>
         }
         right={
-          <>
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="text-text-muted transition-colors duration-fast ease-standard hover:text-text"
-              aria-label="View source on GitHub"
-            >
-              <GitHubIcon className="size-5" />
-            </a>
-            <LinkButton href="/workshop" variant="secondary">
-              Enter Workshop
-            </LinkButton>
-          </>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-text-muted transition-colors duration-fast ease-standard hover:text-text"
+            aria-label="View source on GitHub"
+          >
+            <GitHubIcon className="size-5" />
+          </a>
         }
       />
 
@@ -255,13 +258,7 @@ export function HomeView() {
         <Reveal>
           <Kicker>How it works</Kicker>
         </Reveal>
-        <div
-          className={
-            isLight
-              ? "mt-14 grid gap-4 sm:grid-cols-3"
-              : "mt-14 grid divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border-t border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-3 sm:divide-x sm:divide-y-0"
-          }
-        >
+        <div className="mt-14 grid gap-4 sm:grid-cols-3">
           {PROCESS_STEPS.map((step, i) => {
             const accent = accentTable[getTrackAccent(i)];
             return (
@@ -270,7 +267,7 @@ export function HomeView() {
                   className={
                     isLight
                       ? "flex h-full flex-col gap-4 rounded-[var(--landing-radius)] border border-border bg-bg-elevated p-6 shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--landing-shadow-hover)] sm:p-8"
-                      : "flex h-full flex-col gap-4 bg-bg-elevated px-6 py-8 sm:px-8 sm:py-10"
+                      : "flex h-full flex-col gap-4 border border-border bg-bg-elevated px-6 py-8 transition-colors duration-fast ease-standard hover:border-border-hover hover:bg-bg-hover sm:px-8 sm:py-10"
                   }
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -301,13 +298,7 @@ export function HomeView() {
           reasoning. */}
       <section className="mx-auto w-full max-w-6xl px-6 pb-28">
         <Reveal>
-          <div
-            className={
-              isLight
-                ? "grid grid-cols-2 gap-4 sm:grid-cols-4"
-                : "grid grid-cols-2 divide-y divide-border overflow-hidden rounded-[var(--landing-radius)] border border-border shadow-[var(--landing-shadow-card)] sm:grid-cols-4 sm:divide-x sm:divide-y-0"
-            }
-          >
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {STATS.map((stat, i) => {
               const accent = accentTable[getTrackAccent(i)];
               const Icon = stat.icon;
@@ -317,7 +308,7 @@ export function HomeView() {
                   className={
                     isLight
                       ? "flex flex-col items-center gap-2 rounded-[var(--landing-radius)] border border-border bg-bg-elevated px-4 py-7 text-center shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-[var(--landing-shadow-hover)]"
-                      : "flex flex-col items-center gap-2 bg-bg-elevated px-4 py-7 text-center"
+                      : "flex flex-col items-center gap-2 border border-border bg-bg-elevated px-4 py-7 text-center transition-colors duration-fast ease-standard hover:border-border-hover hover:bg-bg-hover"
                   }
                 >
                   <span className={`flex size-9 items-center justify-center rounded-full ${accent.soft} ${accent.text}`}>
@@ -367,7 +358,11 @@ export function HomeView() {
               <Reveal key={scenario.id} delay={i * 80}>
                 <Link
                   href={`/workshop?scenario=${scenario.id}`}
-                  className="group relative flex h-full flex-col gap-3 rounded-[var(--landing-radius)] bg-bg-panel p-5 shadow-[var(--landing-shadow-card)] transition-all duration-fast ease-standard hover:-translate-y-1 hover:bg-bg-hover hover:shadow-[var(--landing-shadow-hover)]"
+                  className={`group relative flex h-full flex-col gap-3 rounded-[var(--landing-radius)] p-5 transition-all duration-fast ease-standard hover:-translate-y-1 ${
+                    isLight
+                      ? "bg-bg-elevated shadow-[var(--landing-shadow-card)] hover:bg-bg-elevated hover:shadow-[var(--landing-shadow-hover)]"
+                      : "border border-border bg-bg-elevated hover:border-border-hover hover:bg-bg-hover"
+                  }`}
                 >
                   <CardCorners />
                   <div className="flex items-start justify-between gap-2">

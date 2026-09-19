@@ -165,7 +165,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg: #f4f7fc;
+  --color-bg: #e6ecf7;
   --color-bg-elevated: #ffffff;
   --color-bg-panel: #eef4ff;
   /* Panel(#eef4ff) → elevated(#fff) already lightens on hover, unlike
@@ -176,7 +176,13 @@
   --color-border-hover: #c9d6e8;
 
   --color-text: #111827;
-  --color-text-muted: #667085;
+  /* #667085 measured 4.19:1 against --color-bg (#e6ecf7) — below WCAG AA's
+     4.5:1 floor for the 12px nav labels (PrimaryNav) and body copy that use
+     this token, and it only got worse when --color-bg moved from #f4f7fc to
+     the more saturated #e6ecf7 above. Darkened until it clears AA against
+     the lightest surface that carries it too (--color-bg-elevated, #fff, is
+     the worst case at this luminance). */
+  --color-text-muted: #5b6577;
   --color-text-subtle: #98a2b3;
 
   --color-signal: #155eef;
